@@ -172,12 +172,12 @@ ifeq (1,$(USE_SRA))
 endif
 
 
-CENTRIFUGE_BIN_LIST = centrifuge-build \
+CENTRIFUGE_BIN_LIST = centrifuge-build-bin \
 	centrifuge-class \
-	centrifuge-inspect
-CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-debug \
+	centrifuge-inspect-bin
+CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 	centrifuge-class-debug \
-	centrifuge-inspect-debug
+	centrifuge-inspect-bin-debug
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
 	$(wildcard scripts/*.pl) \
@@ -261,7 +261,7 @@ centrifuge-class-debug: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) 
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
 	$(LIBS) $(SEARCH_LIBS)
 
-centrifuge-build: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
+centrifuge-build-bin: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DHISAT_CLASS -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
 	$(INC) \
@@ -269,7 +269,7 @@ centrifuge-build: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(SHARED_CPPS) $(CENTRIFUGE_BUILD_CPPS_MAIN) \
 	$(LIBS) $(BUILD_LIBS)
 
-centrifugebuild-debug: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
+centrifuge-build-bin-debug: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DHISAT_CLASS -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
 	$(INC) \
@@ -282,7 +282,7 @@ centrifugebuild-debug: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 # centrifuge-inspect targets
 #
 
-centrifuge-inspect: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
+centrifuge-inspect-bin: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 	$(RELEASE_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DHISAT_INSPECT_MAIN -Wall \
@@ -291,7 +291,7 @@ centrifuge-inspect: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(SHARED_CPPS) \
 	$(LIBS) $(INSPECT_LIBS)
 
-centrifuge-inspect-debug: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
+centrifuge-inspect-bin-debug: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
 	$(CXX) $(DEBUG_FLAGS) \
 	$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DHISAT_INSPECT_MAIN -Wall \
