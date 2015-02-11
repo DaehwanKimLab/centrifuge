@@ -111,19 +111,12 @@ SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
 	read_qseq.cpp aligner_seed_policy.cpp \
 	aligner_seed.cpp \
 	aligner_seed2.cpp \
-	aligner_sw.cpp \
-	aligner_sw_driver.cpp aligner_cache.cpp \
+	aligner_cache.cpp \
 	aligner_result.cpp ref_coord.cpp mask.cpp \
 	pe.cpp aln_sink.cpp dp_framer.cpp \
 	scoring.cpp presets.cpp unique.cpp \
 	simple_func.cpp \
-	random_util.cpp \
-	aligner_bt.cpp sse_util.cpp \
-	aligner_swsse.cpp outq.cpp \
-	aligner_swsse_loc_i16.cpp \
-	aligner_swsse_ee_i16.cpp \
-	aligner_swsse_loc_u8.cpp \
-	aligner_swsse_ee_u8.cpp \
+	random_util.cpp outq.cpp \
 	aligner_driver.cpp \
 	splice_site.cpp 
 

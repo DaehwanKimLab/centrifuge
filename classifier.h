@@ -72,11 +72,9 @@ public:
            const Ebwt<index_t>&     ebwtFw,
            const Ebwt<index_t>&     ebwtBw,
            const BitPairReference&  ref,
-           SwAligner&               swa,
            SpliceSiteDB&            ssdb,
            WalkMetrics&             wlm,
            PerReadMetrics&          prm,
-           SwMetrics&               swm,
            HIMetrics&               him,
            RandomSource&            rnd,
            AlnSinkWrap<index_t>&    sink)
@@ -343,7 +341,7 @@ public:
             cout << endl;
         }
         
-        return EXTEND_POLICY_FULFILLED;
+        return 0;
     }
     
     bool getGenomeIdx(

@@ -39,7 +39,6 @@
 #include "mem_ids.h"
 #include "simple_func.h"
 #include "aligner_driver.h"
-#include "aligner_sw_driver.h"
 #include "group_walk.h"
 
 // Minimum intron length
@@ -539,8 +538,6 @@ struct GenomeHit {
                      const Read&                rd,
                      const BitPairReference&    ref,
                      SpliceSiteDB&              ssdb,
-                     SwAligner&                 swa,
-                     SwMetrics&                 swm,
                      const Scoring&             sc,
                      TAlScore                   minsc,
                      RandomSource&              rnd,           // pseudo-random source
@@ -557,8 +554,6 @@ struct GenomeHit {
                 const Read&             rd,
                 const BitPairReference& ref,
                 SpliceSiteDB&           ssdb,
-                SwAligner&              swa,
-                SwMetrics&              swm,
                 PerReadMetrics&         prm,
                 const Scoring&          sc,
                 TAlScore                minsc,
@@ -950,8 +945,6 @@ bool GenomeHit<index_t>::combineWith(
                                      const Read&                rd,
                                      const BitPairReference&    ref,
                                      SpliceSiteDB&              ssdb,
-                                     SwAligner&                 swa,
-                                     SwMetrics&                 swm,
                                      const Scoring&             sc,
                                      TAlScore                   minsc,
                                      RandomSource&              rnd,           // pseudo-random source
@@ -1586,8 +1579,6 @@ bool GenomeHit<index_t>::extend(
                                 const Read&             rd,
                                 const BitPairReference& ref,
                                 SpliceSiteDB&           ssdb,
-                                SwAligner&              swa,
-                                SwMetrics&              swm,
                                 PerReadMetrics&         prm,
                                 const Scoring&          sc,
                                 TAlScore                minsc,
@@ -2340,11 +2331,9 @@ public:
            const Ebwt<index_t>&     ebwtFw,
            const Ebwt<index_t>&     ebwtBw,
            const BitPairReference&  ref,
-           SwAligner&               swa,
            SpliceSiteDB&            ssdb,
            WalkMetrics&             wlm,
            PerReadMetrics&          prm,
-           SwMetrics&               swm,
            HIMetrics&               him,
            RandomSource&            rnd,
            AlnSinkWrap<index_t>&    sink)
@@ -2357,7 +2346,7 @@ public:
         // pick up one with best partial alignment
         while(nextBWT(sc, ebwtFw, ebwtBw, ref, rdi, fw, wlm, prm, him, rnd, sink)) {
             // given the partial alignment, try to extend it to full alignments
-        	found[rdi] = align(sc, ebwtFw, ebwtBw, ref, swa, ssdb, rdi, fw, wlm, prm, swm, him, rnd, sink);
+        	found[rdi] = align(sc, ebwtFw, ebwtBw, ref, ssdb, rdi, fw, wlm, prm, him, rnd, sink);
             if(!found[0] && !found[1]) {
                 break;
             }
@@ -2389,13 +2378,11 @@ public:
                                                 ebwtFw,
                                                 ebwtBw,
                                                 ref,
-                                                swa,
                                                 ssdb,
                                                 i,
                                                 fw,
                                                 wlm,
                                                 prm,
-                                                swm,
                                                 him,
                                                 rnd,
                                                 sink,
@@ -2410,7 +2397,7 @@ public:
             }
         }
         
-        return EXTEND_POLICY_FULFILLED;
+        return 0;
     }
     
     /**
@@ -2531,13 +2518,11 @@ public:
                const Ebwt<index_t>&             ebwtFw,
                const Ebwt<index_t>&             ebwtBw,
                const BitPairReference&          ref,
-               SwAligner&                       swa,
                SpliceSiteDB&                    ssdb,
                index_t                          rdi,
                bool                             fw,
                WalkMetrics&                     wlm,
                PerReadMetrics&                  prm,
-               SwMetrics&                       swm,
                HIMetrics&                       him,
                RandomSource&                    rnd,
                AlnSinkWrap<index_t>&            sink);
@@ -2552,13 +2537,11 @@ public:
                    const Ebwt<index_t>&             ebwtFw,
                    const Ebwt<index_t>&             ebwtBw,
                    const BitPairReference&          ref,
-                   SwAligner&                       swa,
                    SpliceSiteDB&                    ssdb,
                    index_t                          rdi,
                    bool                             fw,
                    WalkMetrics&                     wlm,
                    PerReadMetrics&                  prm,
-                   SwMetrics&                       swm,
                    HIMetrics&                       him,
                    RandomSource&                    rnd,
                    AlnSinkWrap<index_t>&            sink,
@@ -2576,13 +2559,11 @@ public:
                       const Ebwt<index_t>&               ebwtFw,
                       const Ebwt<index_t>&               ebwtBw,
                       const BitPairReference&            ref,
-                      SwAligner&                         swa,
                       SpliceSiteDB&                      ssdb,
                       index_t                            rdi,
                       bool                               fw,
                       WalkMetrics&                       wlm,
                       PerReadMetrics&                    prm,
-                      SwMetrics&                         swm,
                       HIMetrics&                         him,
                       RandomSource&                      rnd,
                       AlnSinkWrap<index_t>&              sink)
@@ -2599,7 +2580,6 @@ public:
                                const Ebwt<index_t>&             ebwtFw,
                                const Ebwt<index_t>&             ebwtBw,
                                const BitPairReference&          ref,
-                               SwAligner&                       swa,
                                SpliceSiteDB&                    ssdb,
                                index_t                          rdi,
                                const GenomeHit<index_t>&        hit,
@@ -2607,7 +2587,6 @@ public:
                                index_t                          hitlen,
                                WalkMetrics&                     wlm,
                                PerReadMetrics&                  prm,
-                               SwMetrics&                       swm,
                                HIMetrics&                       him,
                                RandomSource&                    rnd,
                                AlnSinkWrap<index_t>&            sink,
@@ -3028,13 +3007,11 @@ bool HI_Aligner<index_t, local_index_t>::align(
                                                const Ebwt<index_t>&             ebwtFw,
                                                const Ebwt<index_t>&             ebwtBw,
                                                const BitPairReference&          ref,
-                                               SwAligner&                       swa,
                                                SpliceSiteDB&                    ssdb,
                                                index_t                          rdi,
                                                bool                             fw,
                                                WalkMetrics&                     wlm,
                                                PerReadMetrics&                  prm,
-                                               SwMetrics&                       swm,
                                                HIMetrics&                       him,
                                                RandomSource&                    rnd,
                                                AlnSinkWrap<index_t>&            sink)
@@ -3085,13 +3062,11 @@ bool HI_Aligner<index_t, local_index_t>::align(
                  ebwtFw,
                  ebwtBw,
                  ref,
-                 swa,
                  ssdb,
                  rdi,
                  fw,
                  wlm,
                  prm,
-                 swm,
                  him,
                  rnd,
                  sink);
@@ -3110,13 +3085,11 @@ bool HI_Aligner<index_t, local_index_t>::alignMate(
                                                    const Ebwt<index_t>&             ebwtFw,
                                                    const Ebwt<index_t>&             ebwtBw,
                                                    const BitPairReference&          ref,
-                                                   SwAligner&                       swa,
                                                    SpliceSiteDB&                    ssdb,
                                                    index_t                          rdi,
                                                    bool                             fw,
                                                    WalkMetrics&                     wlm,
                                                    PerReadMetrics&                  prm,
-                                                   SwMetrics&                       swm,
                                                    HIMetrics&                       him,
                                                    RandomSource&                    rnd,
                                                    AlnSinkWrap<index_t>&            sink,
@@ -3228,13 +3201,12 @@ bool HI_Aligner<index_t, local_index_t>::alignMate(
         him.anchoratts++;
         GenomeHit<index_t>& genomeHit = _genomeHits[hi];
         index_t leftext = (index_t)OFF_MASK, rightext = (index_t)OFF_MASK;
-        genomeHit.extend(ord, ref, ssdb, swa, swm, prm, sc, _minsc[ordi], rnd, _minK_local, leftext, rightext);
+        genomeHit.extend(ord, ref, ssdb, prm, sc, _minsc[ordi], rnd, _minK_local, leftext, rightext);
         hybridSearch_recur(
                            sc,
                            ebwtFw,
                            ebwtBw,
                            ref,
-                           swa,
                            ssdb,
                            ordi,
                            genomeHit,
@@ -3242,7 +3214,6 @@ bool HI_Aligner<index_t, local_index_t>::alignMate(
                            genomeHit.len(),
                            wlm,
                            prm,
-                           swm,
                            him,
                            rnd,
                            sink);

@@ -48,8 +48,6 @@
 #include "classifier.h"
 #include "aligner_seed_policy.h"
 #include "aligner_driver.h"
-#include "aligner_sw.h"
-#include "aligner_sw_driver.h"
 #include "aligner_cache.h"
 #include "util.h"
 #include "pe.h"
@@ -1746,13 +1744,7 @@ struct PerfMetrics {
 		olm.reset();
 		sdm.reset();
 		wlm.reset();
-		swmSeed.reset();
-		swmMate.reset();
 		rpm.reset();
-		dpSse8Seed.reset();   // 8-bit SSE seed extensions
-		dpSse8Mate.reset();   // 8-bit SSE mate finds
-		dpSse16Seed.reset();  // 16-bit SSE seed extensions
-		dpSse16Mate.reset();  // 16-bit SSE mate finds
 		nbtfiltst = 0;
 		nbtfiltsc = 0;
 		nbtfiltdo = 0;
@@ -1760,13 +1752,7 @@ struct PerfMetrics {
 		olmu.reset();
 		sdmu.reset();
 		wlmu.reset();
-		swmuSeed.reset();
-		swmuMate.reset();
 		rpmu.reset();
-		dpSse8uSeed.reset();  // 8-bit SSE seed extensions
-		dpSse8uMate.reset();  // 8-bit SSE mate finds
-		dpSse16uSeed.reset(); // 16-bit SSE seed extensions
-		dpSse16uMate.reset(); // 16-bit SSE mate finds
 		nbtfiltst_u = 0;
 		nbtfiltsc_u = 0;
 		nbtfiltdo_u = 0;
@@ -1781,13 +1767,7 @@ struct PerfMetrics {
 		const OuterLoopMetrics *ol,
 		const SeedSearchMetrics *sd,
 		const WalkMetrics *wl,
-		const SwMetrics *swSeed,
-		const SwMetrics *swMate,
 		const ReportingMetrics *rm,
-		const SSEMetrics *dpSse8Ex,
-		const SSEMetrics *dpSse8Ma,
-		const SSEMetrics *dpSse16Ex,
-		const SSEMetrics *dpSse16Ma,
 		uint64_t nbtfiltst_,
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_,
@@ -1804,26 +1784,8 @@ struct PerfMetrics {
 		if(wl != NULL) {
 			wlmu.merge(*wl, false);
 		}
-		if(swSeed != NULL) {
-			swmuSeed.merge(*swSeed, false);
-		}
-		if(swMate != NULL) {
-			swmuMate.merge(*swMate, false);
-		}
 		if(rm != NULL) {
 			rpmu.merge(*rm, false);
-		}
-		if(dpSse8Ex != NULL) {
-			dpSse8uSeed.merge(*dpSse8Ex, false);
-		}
-		if(dpSse8Ma != NULL) {
-			dpSse8uMate.merge(*dpSse8Ma, false);
-		}
-		if(dpSse16Ex != NULL) {
-			dpSse16uSeed.merge(*dpSse16Ex, false);
-		}
-		if(dpSse16Ma != NULL) {
-			dpSse16uMate.merge(*dpSse16Ma, false);
 		}
 		nbtfiltst_u += nbtfiltst_;
 		nbtfiltsc_u += nbtfiltsc_;
@@ -2168,11 +2130,6 @@ struct PerfMetrics {
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
-		// 35. Redundant seed hit
-		itoa10<uint64_t>(total ? swmSeed.rshit : swmuSeed.rshit, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-
 		// 36. # times the best (out of fw/rc) minimum # edits was 0
 		itoa10<uint64_t>(total ? sdm.bestmin0 : sdmu.bestmin0, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2183,352 +2140,6 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 38. # times the best (out of fw/rc) minimum # edits was 2
 		itoa10<uint64_t>(total ? sdm.bestmin2 : sdmu.bestmin2, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
-		// 39. Exact aligner attempts
-		itoa10<uint64_t>(total ? swmSeed.exatts : swmuSeed.exatts, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 40. Exact aligner successes
-		itoa10<uint64_t>(total ? swmSeed.exsucc : swmuSeed.exsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 41. Exact aligner ranges
-		itoa10<uint64_t>(total ? swmSeed.exranges : swmuSeed.exranges, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 42. Exact aligner rows
-		itoa10<uint64_t>(total ? swmSeed.exrows : swmuSeed.exrows, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 43. Exact aligner OOMs
-		itoa10<uint64_t>(total ? swmSeed.exooms : swmuSeed.exooms, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-
-		// 44. 1mm aligner attempts
-		itoa10<uint64_t>(total ? swmSeed.mm1atts : swmuSeed.mm1atts, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 45. 1mm aligner successes
-		itoa10<uint64_t>(total ? swmSeed.mm1succ : swmuSeed.mm1succ, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 46. 1mm aligner ranges
-		itoa10<uint64_t>(total ? swmSeed.mm1ranges : swmuSeed.mm1ranges, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 47. 1mm aligner rows
-		itoa10<uint64_t>(total ? swmSeed.mm1rows : swmuSeed.mm1rows, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 48. 1mm aligner OOMs
-		itoa10<uint64_t>(total ? swmSeed.mm1ooms : swmuSeed.mm1ooms, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-
-		// 49 Ungapped aligner success
-		itoa10<uint64_t>(total ? swmSeed.ungapsucc : swmuSeed.ungapsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 50. Ungapped aligner fail
-		itoa10<uint64_t>(total ? swmSeed.ungapfail : swmuSeed.ungapfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 51. Ungapped aligner no decision
-		itoa10<uint64_t>(total ? swmSeed.ungapnodec : swmuSeed.ungapnodec, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-
-		// 52. # seed-extend DPs with < 10 gaps
-		itoa10<uint64_t>(total ? swmSeed.sws10 : swmuSeed.sws10, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 53. # seed-extend DPs with < 5 gaps
-		itoa10<uint64_t>(total ? swmSeed.sws5 : swmuSeed.sws5, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 54. # seed-extend DPs with < 3 gaps
-		itoa10<uint64_t>(total ? swmSeed.sws3 : swmuSeed.sws3, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-
-		// 55. # seed-extend DPs with < 10 gaps
-		itoa10<uint64_t>(total ? swmMate.sws10 : swmuMate.sws10, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 56. # seed-extend DPs with < 5 gaps
-		itoa10<uint64_t>(total ? swmMate.sws5 : swmuMate.sws5, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 57. # seed-extend DPs with < 3 gaps
-		itoa10<uint64_t>(total ? swmMate.sws3 : swmuMate.sws3, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
-		const SSEMetrics& dpSse16s = total ? dpSse16Seed : dpSse16uSeed;
-		
-		// 58. 16-bit SSE seed-extend DPs tried
-		itoa10<uint64_t>(dpSse16s.dp, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 59. 16-bit SSE seed-extend DPs saturated
-		itoa10<uint64_t>(dpSse16s.dpsat, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 60. 16-bit SSE seed-extend DPs failed
-		itoa10<uint64_t>(dpSse16s.dpfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 61. 16-bit SSE seed-extend DPs succeeded
-		itoa10<uint64_t>(dpSse16s.dpsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 62. 16-bit SSE seed-extend DP columns completed
-		itoa10<uint64_t>(dpSse16s.col, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 63. 16-bit SSE seed-extend DP cells completed
-		itoa10<uint64_t>(dpSse16s.cell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 64. 16-bit SSE seed-extend DP inner loop iters completed
-		itoa10<uint64_t>(dpSse16s.inner, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 65. 16-bit SSE seed-extend DP fixup loop iters completed
-		itoa10<uint64_t>(dpSse16s.fixup, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 66. 16-bit SSE seed-extend DP gather, cells with potential solutions
-		itoa10<uint64_t>(dpSse16s.gathsol, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 67. 16-bit SSE seed-extend DP backtrace attempts
-		itoa10<uint64_t>(dpSse16s.bt, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 68. 16-bit SSE seed-extend DP failed backtrace attempts
-		itoa10<uint64_t>(dpSse16s.btfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 69. 16-bit SSE seed-extend DP succesful backtrace attempts
-		itoa10<uint64_t>(dpSse16s.btsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 70. 16-bit SSE seed-extend DP backtrace cells
-		itoa10<uint64_t>(dpSse16s.btcell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 71. 16-bit SSE seed-extend DP core-diag rejections
-		itoa10<uint64_t>(dpSse16s.corerej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 72. 16-bit SSE seed-extend DP N rejections
-		itoa10<uint64_t>(dpSse16s.nrej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
-		const SSEMetrics& dpSse8s = total ? dpSse8Seed : dpSse8uSeed;
-		
-		// 73. 8-bit SSE seed-extend DPs tried
-		itoa10<uint64_t>(dpSse8s.dp, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 74. 8-bit SSE seed-extend DPs saturated
-		itoa10<uint64_t>(dpSse8s.dpsat, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 75. 8-bit SSE seed-extend DPs failed
-		itoa10<uint64_t>(dpSse8s.dpfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 76. 8-bit SSE seed-extend DPs succeeded
-		itoa10<uint64_t>(dpSse8s.dpsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 77. 8-bit SSE seed-extend DP columns completed
-		itoa10<uint64_t>(dpSse8s.col, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 78. 8-bit SSE seed-extend DP cells completed
-		itoa10<uint64_t>(dpSse8s.cell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 79. 8-bit SSE seed-extend DP inner loop iters completed
-		itoa10<uint64_t>(dpSse8s.inner, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 80. 8-bit SSE seed-extend DP fixup loop iters completed
-		itoa10<uint64_t>(dpSse8s.fixup, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 81. 16-bit SSE seed-extend DP gather, cells with potential solutions
-		itoa10<uint64_t>(dpSse8s.gathsol, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 82. 16-bit SSE seed-extend DP backtrace attempts
-		itoa10<uint64_t>(dpSse8s.bt, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 83. 16-bit SSE seed-extend DP failed backtrace attempts
-		itoa10<uint64_t>(dpSse8s.btfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 84. 16-bit SSE seed-extend DP succesful backtrace attempts
-		itoa10<uint64_t>(dpSse8s.btsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 85. 16-bit SSE seed-extend DP backtrace cells
-		itoa10<uint64_t>(dpSse8s.btcell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 86. 16-bit SSE seed-extend DP core-diag rejections
-		itoa10<uint64_t>(dpSse8s.corerej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 87. 16-bit SSE seed-extend DP N rejections
-		itoa10<uint64_t>(dpSse8s.nrej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
-		const SSEMetrics& dpSse16m = total ? dpSse16Mate : dpSse16uMate;
-		
-		// 88. 16-bit SSE mate-finding DPs tried
-		itoa10<uint64_t>(dpSse16m.dp, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 89. 16-bit SSE mate-finding DPs saturated
-		itoa10<uint64_t>(dpSse16m.dpsat, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 90. 16-bit SSE mate-finding DPs failed
-		itoa10<uint64_t>(dpSse16m.dpfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 91. 16-bit SSE mate-finding DPs succeeded
-		itoa10<uint64_t>(dpSse16m.dpsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 92. 16-bit SSE mate-finding DP columns completed
-		itoa10<uint64_t>(dpSse16m.col, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 93. 16-bit SSE mate-finding DP cells completed
-		itoa10<uint64_t>(dpSse16m.cell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 94. 16-bit SSE mate-finding DP inner loop iters completed
-		itoa10<uint64_t>(dpSse16m.inner, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 95. 16-bit SSE mate-finding DP fixup loop iters completed
-		itoa10<uint64_t>(dpSse16m.fixup, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 96. 16-bit SSE mate-finding DP gather, cells with potential solutions
-		itoa10<uint64_t>(dpSse16m.gathsol, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 97. 16-bit SSE mate-finding DP backtrace attempts
-		itoa10<uint64_t>(dpSse16m.bt, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 98. 16-bit SSE mate-finding DP failed backtrace attempts
-		itoa10<uint64_t>(dpSse16m.btfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 99. 16-bit SSE mate-finding DP succesful backtrace attempts
-		itoa10<uint64_t>(dpSse16m.btsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 100. 16-bit SSE mate-finding DP backtrace cells
-		itoa10<uint64_t>(dpSse16m.btcell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 101. 16-bit SSE mate-finding DP core-diag rejections
-		itoa10<uint64_t>(dpSse16m.corerej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 102. 16-bit SSE mate-finding DP N rejections
-		itoa10<uint64_t>(dpSse16m.nrej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
-		const SSEMetrics& dpSse8m = total ? dpSse8Mate : dpSse8uMate;
-		
-		// 103. 8-bit SSE mate-finding DPs tried
-		itoa10<uint64_t>(dpSse8m.dp, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 104. 8-bit SSE mate-finding DPs saturated
-		itoa10<uint64_t>(dpSse8m.dpsat, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 105. 8-bit SSE mate-finding DPs failed
-		itoa10<uint64_t>(dpSse8m.dpfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 106. 8-bit SSE mate-finding DPs succeeded
-		itoa10<uint64_t>(dpSse8m.dpsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 107. 8-bit SSE mate-finding DP columns completed
-		itoa10<uint64_t>(dpSse8m.col, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 108. 8-bit SSE mate-finding DP cells completed
-		itoa10<uint64_t>(dpSse8m.cell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 109. 8-bit SSE mate-finding DP inner loop iters completed
-		itoa10<uint64_t>(dpSse8m.inner, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 110. 8-bit SSE mate-finding DP fixup loop iters completed
-		itoa10<uint64_t>(dpSse8m.fixup, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 111. 16-bit SSE mate-finding DP gather, cells with potential solutions
-		itoa10<uint64_t>(dpSse8m.gathsol, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 112. 16-bit SSE mate-finding DP backtrace attempts
-		itoa10<uint64_t>(dpSse8m.bt, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 113. 16-bit SSE mate-finding DP failed backtrace attempts
-		itoa10<uint64_t>(dpSse8m.btfail, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 114. 16-bit SSE mate-finding DP succesful backtrace attempts
-		itoa10<uint64_t>(dpSse8m.btsucc, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 115. 16-bit SSE mate-finding DP backtrace cells
-		itoa10<uint64_t>(dpSse8m.btcell, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 116. 16-bit SSE mate-finding DP core rejections
-		itoa10<uint64_t>(dpSse8m.corerej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 117. 16-bit SSE mate-finding N rejections
-		itoa10<uint64_t>(dpSse8m.nrej, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
-		// 118. Backtrace candidates filtered due to starting cell
-		itoa10<uint64_t>(total ? nbtfiltst : nbtfiltst_u, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 119. Backtrace candidates filtered due to low score
-		itoa10<uint64_t>(total ? nbtfiltsc : nbtfiltsc_u, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 120. Backtrace candidates filtered due to domination
-		itoa10<uint64_t>(total ? nbtfiltdo : nbtfiltdo_u, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
@@ -2607,12 +2218,6 @@ struct PerfMetrics {
 		olm.merge(olmu, false);
 		sdm.merge(sdmu, false);
 		wlm.merge(wlmu, false);
-		swmSeed.merge(swmuSeed, false);
-		swmMate.merge(swmuMate, false);
-		dpSse8Seed.merge(dpSse8uSeed, false);
-		dpSse8Mate.merge(dpSse8uMate, false);
-		dpSse16Seed.merge(dpSse16uSeed, false);
-		dpSse16Mate.merge(dpSse16uMate, false);
 		nbtfiltst_u += nbtfiltst;
 		nbtfiltsc_u += nbtfiltsc;
 		nbtfiltdo_u += nbtfiltdo;
@@ -2620,13 +2225,7 @@ struct PerfMetrics {
 		olmu.reset();
 		sdmu.reset();
 		wlmu.reset();
-		swmuSeed.reset();
-		swmuMate.reset();
 		rpmu.reset();
-		dpSse8uSeed.reset();
-		dpSse8uMate.reset();
-		dpSse16uSeed.reset();
-		dpSse16uMate.reset();
 		nbtfiltst_u = 0;
 		nbtfiltsc_u = 0;
 		nbtfiltdo_u = 0;
@@ -2636,13 +2235,7 @@ struct PerfMetrics {
 	OuterLoopMetrics  olm;   // overall metrics
 	SeedSearchMetrics sdm;   // metrics related to seed alignment
 	WalkMetrics       wlm;   // metrics related to walking left (i.e. resolving reference offsets)
-	SwMetrics         swmSeed;  // metrics related to DP seed-extend alignment
-	SwMetrics         swmMate;  // metrics related to DP mate-finding alignment
 	ReportingMetrics  rpm;   // metrics related to reporting
-	SSEMetrics        dpSse8Seed;  // 8-bit SSE seed extensions
-	SSEMetrics        dpSse8Mate;    // 8-bit SSE mate finds
-	SSEMetrics        dpSse16Seed; // 16-bit SSE seed extensions
-	SSEMetrics        dpSse16Mate;   // 16-bit SSE mate finds
 	uint64_t          nbtfiltst;
 	uint64_t          nbtfiltsc;
 	uint64_t          nbtfiltdo;
@@ -2651,13 +2244,7 @@ struct PerfMetrics {
 	OuterLoopMetrics  olmu;  // overall metrics
 	SeedSearchMetrics sdmu;  // metrics related to seed alignment
 	WalkMetrics       wlmu;  // metrics related to walking left (i.e. resolving reference offsets)
-	SwMetrics         swmuSeed; // metrics related to DP seed-extend alignment
-	SwMetrics         swmuMate; // metrics related to DP mate-finding alignment
 	ReportingMetrics  rpmu;  // metrics related to reporting
-	SSEMetrics        dpSse8uSeed;  // 8-bit SSE seed extensions
-	SSEMetrics        dpSse8uMate;  // 8-bit SSE mate finds
-	SSEMetrics        dpSse16uSeed; // 16-bit SSE seed extensions
-	SSEMetrics        dpSse16uMate; // 16-bit SSE mate finds
 	uint64_t          nbtfiltst_u;
 	uint64_t          nbtfiltsc_u;
 	uint64_t          nbtfiltdo_u;
@@ -2758,13 +2345,7 @@ static inline void printEEScoreMsg(
 		&olm, \
 		&sdm, \
 		&wlm, \
-		&swmSeed, \
-		&swmMate, \
 		&rpm, \
-		&sseU8ExtendMet, \
-		&sseU8MateMet, \
-		&sseI16ExtendMet, \
-		&sseI16MateMet, \
 		nbtfiltst, \
 		nbtfiltsc, \
 		nbtfiltdo, \
@@ -2773,26 +2354,8 @@ static inline void printEEScoreMsg(
 	olm.reset(); \
 	sdm.reset(); \
 	wlm.reset(); \
-	swmSeed.reset(); \
-	swmMate.reset(); \
 	rpm.reset(); \
-	sseU8ExtendMet.reset(); \
-	sseU8MateMet.reset(); \
-	sseI16ExtendMet.reset(); \
-	sseI16MateMet.reset(); \
     him.reset(); \
-}
-
-#define MERGE_SW(x) { \
-	x.merge( \
-		sseU8ExtendMet, \
-		sseU8MateMet, \
-		sseI16ExtendMet, \
-		sseI16MateMet, \
-		nbtfiltst, \
-		nbtfiltsc, \
-		nbtfiltdo); \
-	x.resetCounters(); \
 }
 
 /**
@@ -2866,17 +2429,11 @@ static void multiseedSearchWorker(void *vp) {
                                    (size_t)tid);  // thread id
     
     Classifier<index_t, local_index_t> classifier(ebwtFw, multiseed_refnames);
-	SwAligner sw;
 	OuterLoopMetrics olm;
 	SeedSearchMetrics sdm;
 	WalkMetrics wlm;
-	SwMetrics swmSeed, swmMate;
 	ReportingMetrics rpm;
 	RandomSource rnd, rndArb;
-	SSEMetrics sseU8ExtendMet;
-	SSEMetrics sseU8MateMet;
-	SSEMetrics sseI16ExtendMet;
-	SSEMetrics sseI16MateMet;
    	DescentMetrics descm;
 	uint64_t nbtfiltst = 0; // TODO: find a new home for these
 	uint64_t nbtfiltsc = 0; // TODO: find a new home for these
@@ -3200,37 +2757,8 @@ static void multiseedSearchWorker(void *vp) {
                     classifier.initRead(rds[0], nofw[0], norc[0], minsc[0], maxpen[0], filt[1]);
                 }
                 if(filt[0] || filt[1]) {
-                    int ret = classifier.go(sc, ebwtFw, ebwtBw, ref, sw, *ssdb, wlm, prm, swmSeed, him, rnd, msinkwrap);
-                    MERGE_SW(sw);
-                    // daehwan
+                    classifier.go(sc, ebwtFw, ebwtBw, ref, *ssdb, wlm, prm, him, rnd, msinkwrap);
                     size_t mate = 0;
-                    
-                    assert_gt(ret, 0);
-                    // Clear out the exact hits so that we don't try to
-                    // extend them again later!
-                    if(ret == EXTEND_EXHAUSTED_CANDIDATES) {
-                        // Not done yet
-                    } else if(ret == EXTEND_POLICY_FULFILLED) {
-                        // Policy is satisfied for this mate at least
-                        if(msinkwrap.state().doneWithMate(mate == 0)) {
-                            done[mate] = true;
-                        }
-                        if(msinkwrap.state().doneWithMate(mate == 1)) {
-                            done[mate^1] = true;
-                        }
-                    } else if(ret == EXTEND_PERFECT_SCORE) {
-                        // We exhausted this mode at least
-                        done[mate] = true;
-                    } else if(ret == EXTEND_EXCEEDED_HARD_LIMIT) {
-                        // We exceeded a per-read limit
-                        done[mate] = true;
-                    } else if(ret == EXTEND_EXCEEDED_SOFT_LIMIT) {
-                        // Not done yet
-                    } else {
-                        //
-                        cerr << "Bad return value: " << ret << endl;
-                        throw 1;
-                    }
                     if(!done[mate]) {
                         TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
                         if(!done[mate] && minsc[mate] == perfectScore) {
