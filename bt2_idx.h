@@ -1181,7 +1181,7 @@ public:
 	inline index_t*   fchr()              { return _fchr.get(); }
 	inline index_t*   ftab()              { return _ftab.get(); }
 	inline index_t*   eftab()             { return _eftab.get(); }
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 	inline uint16_t*   offs()              { return _offs.get(); }
 #else
     inline index_t*   offs()              { return _offs.get(); }
@@ -1192,7 +1192,7 @@ public:
 	inline const index_t* fchr() const    { return _fchr.get(); }
 	inline const index_t* ftab() const    { return _ftab.get(); }
 	inline const index_t* eftab() const   { return _eftab.get(); }
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 	inline const uint16_t* offs() const    { return _offs.get(); }
 #else
     inline const index_t* offs() const    { return _offs.get(); }
@@ -2489,7 +2489,7 @@ public:
 	// _offs may be extremely large.  E.g. for DNA w/ offRate=4 (one
 	// offset every 16 rows), the total size of _offs is the same as
 	// the total size of the input sequence
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 	APtrWrap<uint16_t> _offs;
 #else
     APtrWrap<index_t> _offs;
@@ -2959,7 +2959,7 @@ void Ebwt<index_t>::buildToDisk(
 					assert_lt((si >> eh._offRate), eh._offsLen);
 					// Write offsets directly to the secondary output
 					// stream, thereby avoiding keeping them in memory
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
                     index_t tidx = 0, toff = 0, tlen = 0;
                     bool straddled2 = false;
                     joinedToTextOff(

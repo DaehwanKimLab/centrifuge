@@ -27,7 +27,7 @@
 using namespace std;
 
 extern "C" {
-	int hisat(int argc, const char **argv);
+	int centrifuge(int argc, const char **argv);
 }
 
 /**
@@ -55,7 +55,7 @@ int main(int argc, const char **argv) {
 				myargs[i] = args[i].c_str();
 			}
 			if(args.size() == 1) continue;
-			lastret = hisat((int)args.size(), myargs);
+			lastret = centrifuge((int)args.size(), myargs);
 			free(myargs);
 		}
 		if(lastret == -1) {
@@ -64,6 +64,6 @@ int main(int argc, const char **argv) {
 		}
 		return lastret;
 	} else {
-		return hisat(argc, argv);
+		return centrifuge(argc, argv);
 	}
 }

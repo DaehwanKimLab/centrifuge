@@ -688,8 +688,8 @@ static void printArgDesc(ostream& out) {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "HISAT version " << string(HISAT_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, www.ccb.jhu.edu/people/infphilo)" << endl;
-	string tool_name = "hisat-align";
+	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, www.ccb.jhu.edu/people/infphilo)" << endl;
+	string tool_name = "centrifuge-class";
 	if(wrapper == "basic-0") {
 		tool_name = "hisat";
 	}
@@ -1649,7 +1649,7 @@ static void parseOptions(int argc, const char **argv) {
 #ifndef NDEBUG
 	if(!gQuiet) {
 		cerr << "Warning: Running in debug mode.  Please use debug mode only "
-			 << "for diagnosing errors, and not for typical use of HISAT."
+			 << "for diagnosing errors, and not for typical use of Centrifuge."
 			 << endl;
 	}
 #endif
@@ -2810,7 +2810,7 @@ static inline void printEEScoreMsg(
  *   + If not identical, continue
  * -
  */
-static void multiseedSearchWorker_hisat_class(void *vp) {
+static void multiseedSearchWorker(void *vp) {
 	int tid = *((int*)vp);
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
@@ -3368,7 +3368,7 @@ static void multiseedSearch(
 		for(int i = 0; i < nthreads; i++) {
 			// Thread IDs start at 1
 			tids[i] = i+1;
-            threads[i] = new tthread::thread(multiseedSearchWorker_hisat_class, (void*)&tids[i]);
+            threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
 		}
 
         for (int i = 0; i < nthreads; i++)
@@ -3557,9 +3557,9 @@ static void driver(
 			samTruncQname,          // whether to truncate QNAME to 255 chars
 			samOmitSecSeqQual,      // omit SEQ/QUAL for 2ndary alignments?
 			samNoUnal,              // omit unaligned-read records?
-			string("hisat"),      // program id
-			string("hisat"),      // program name
-			string(HISAT_VERSION), // program version
+			string("centrifuge"),      // program id
+			string("centrifuge"),      // program name
+			string(CENTRIFUGE_VERSION), // program version
 			argstr,                 // command-line
 			rgs_optflag,            // read-group string
             rna_strandness,
@@ -3699,7 +3699,7 @@ extern "C" {
  * options, sets global configuration variables, and calls the driver()
  * function.
  */
-int hisat(int argc, const char **argv) {
+int centrifuge(int argc, const char **argv) {
 	try {
 		// Reset all global state, including getopt state
 		opterr = optind = 1;
@@ -3712,7 +3712,7 @@ int hisat(int argc, const char **argv) {
 		parseOptions(argc, argv);
 		argv0 = argv[0];
 		if(showVersion) {
-			cout << argv0 << " version " << HISAT_VERSION << endl;
+			cout << argv0 << " version " << CENTRIFUGE_VERSION << endl;
 			if(sizeof(void*) == 4) {
 				cout << "32-bit" << endl;
 			} else if(sizeof(void*) == 8) {

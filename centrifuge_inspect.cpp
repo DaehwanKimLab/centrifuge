@@ -64,7 +64,7 @@ static struct option long_options[] = {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "HISAT version " << string(HISAT_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
+	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
 	out
 	<< "Usage: hisat-inspect [options]* <bt2_base>" << endl
 	<< "  <bt2_base>         bt2 filename minus trailing .1." << gEbwt_ext << "/.2." << gEbwt_ext << endl
@@ -445,7 +445,7 @@ int main(int argc, char **argv) {
 		argv0 = argv[0];
 		parseOptions(argc, argv);
 		if(showVersion) {
-			cout << argv0 << " version " << HISAT_VERSION << endl;
+			cout << argv0 << " version " << CENTRIFUGE_VERSION << endl;
 			if(sizeof(void*) == 4) {
 				cout << "32-bit" << endl;
 			} else if(sizeof(void*) == 8) {

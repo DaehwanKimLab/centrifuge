@@ -230,7 +230,7 @@ both: centrifuge-class centrifuge-build
 both-debug: centrifuge-class-debug centrifuge-build-debug
 
 DEFS=-fno-strict-aliasing \
-     -DHISAT_VERSION="\"`cat VERSION`\"" \
+     -DCENTRIFUGE_VERSION="\"`cat VERSION`\"" \
      -DBUILD_HOST="\"`hostname`\"" \
      -DBUILD_TIME="\"`date`\"" \
      -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
@@ -246,16 +246,15 @@ DEFS=-fno-strict-aliasing \
 
 centrifuge-class: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DHISAT_CLASS -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
 	$(INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
 	$(LIBS) $(SEARCH_LIBS)
 
 centrifuge-class-debug: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
-	$(CXX) $(DEBUG_FLAGS) \
-	$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DHISAT_CLASS -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
+	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
 	$(INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
@@ -263,7 +262,7 @@ centrifuge-class-debug: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) 
 
 centrifuge-build-bin: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DHISAT_CLASS -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
 	$(INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_BUILD_CPPS_MAIN) \
@@ -271,7 +270,7 @@ centrifuge-build-bin: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 
 centrifuge-build-bin-debug: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DHISAT_CLASS -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
 	$(INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_BUILD_CPPS_MAIN) \

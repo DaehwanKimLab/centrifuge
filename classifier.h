@@ -61,7 +61,7 @@ public:
     
     ~Classifier() {
     }
-    
+
     /**
      * Aligns a read or a pair
      * This funcion is called per read or pair
@@ -245,7 +245,6 @@ public:
                     uint32_t speciesID = (uint32_t)(id >> 32);
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
                     
-                    assert_gt(genomeHit.len(), 15);
                     uint32_t addWeight = (uint32_t)((partialHit.len() - 15) * (partialHit.len() - 15));
                     
                     uint32_t newScore = 0;
@@ -294,15 +293,6 @@ public:
                         genusCount.speciesMap.back().timeStamp = hi;
                     }
                 
-                    // classification of bacterial sequences
-#ifndef NDEBUG
-                    cout << this->_rds[rdi]->name << "\t"
-                    // << refName << "\t"
-                    << speciesID << "\t"
-                    << genusID << "\t"
-                    << genomeHit.refoff() << "\t"
-                    << genomeHit.len() << "M" << endl;
-#endif
                     if(newScore > bestScore) {
                         secondBestScore = bestScore;
                         bestScore = newScore;

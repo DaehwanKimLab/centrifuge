@@ -119,7 +119,7 @@ enum {
  * Print a detailed usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "HISAT version " << string(HISAT_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
+	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
     
 #ifdef BOWTIE_64BIT_INDEX
 	string tool_name = "hisat-build-l";
@@ -512,7 +512,7 @@ int hisat_build(int argc, const char **argv) {
 		parseOptions(argc, argv);
 		argv0 = argv[0];
 		if(showVersion) {
-			cout << argv0 << " version " << string(HISAT_VERSION).c_str() << endl;
+			cout << argv0 << " version " << string(CENTRIFUGE_VERSION).c_str() << endl;
 			if(sizeof(void*) == 4) {
 				cout << "32-bit" << endl;
 			} else if(sizeof(void*) == 8) {

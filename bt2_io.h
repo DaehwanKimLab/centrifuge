@@ -533,7 +533,7 @@ void Ebwt<index_t>::readIntoMemory(
 			if(!useShmem_) {
 				// Allocate offs_
 				try {
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 					_offs.init(new uint16_t[offsLenSampled], offsLenSampled, true);
 #else
                     _offs.init(new index_t[offsLenSampled], offsLenSampled, true);
@@ -544,7 +544,7 @@ void Ebwt<index_t>::readIntoMemory(
 					throw 1;
 				}
 			} else {
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 				uint16_t *tmp = NULL;
 				shmemLeader = ALLOC_SHARED_U32(
 					(_in2Str + "[offs]"), offsLenSampled*sizeof(uint16_t), &tmp,
@@ -566,7 +566,7 @@ void Ebwt<index_t>::readIntoMemory(
 				if(switchEndian || offRateDiff > 0) {
 					assert(!_useMm);
 					const index_t blockMaxSz = (index_t)(2 * 1024 * 1024); // 2 MB block size
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 					const index_t blockMaxSzU = (blockMaxSz / sizeof(uint16_t)); // # U32s per block
 #else
                     const index_t blockMaxSzU = (blockMaxSz / sizeof(index_t)); // # U32s per block
@@ -580,7 +580,7 @@ void Ebwt<index_t>::readIntoMemory(
 					}
 					for(index_t i = 0; i < offsLen; i += blockMaxSzU) {
 					  index_t block = min<index_t>((index_t)blockMaxSzU, (index_t)(offsLen - i));
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 						size_t r = MM_READ(_in2, (void *)buf, block * sizeof(uint16_t));
                         if(r != (size_t)(block * sizeof(uint16_t))) {
 							cerr << "Error reading block of _offs[] array: " << r << ", " << (block * sizeof(uint16_t)) << endl;
@@ -616,7 +616,7 @@ void Ebwt<index_t>::readIntoMemory(
 				} else {
 					if(_useMm) {
 #ifdef BOWTIE_MM
-#  ifdef HISAT_CLASS
+#  ifdef CENTRIFUGE
 #  else
 						_offs.init((index_t*)(mmFile[1] + bytesRead), offsLen, false);
 						bytesRead += (offsLen * sizeof(index_t));
@@ -627,7 +627,7 @@ void Ebwt<index_t>::readIntoMemory(
                         // Workaround for small-index mode where MM_READ may
                         // not be able to handle read amounts greater than 2^32
                         // bytes.
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
                         uint64_t bytesLeft = (offsLen * sizeof(uint16_t));
 #else
                         uint64_t bytesLeft = (offsLen * sizeof(index_t));
@@ -981,7 +981,7 @@ void Ebwt<index_t>::writeFromMemory(bool justHeader,
  */
 template <typename index_t>
 void Ebwt<index_t>::szsToDisk(const EList<RefRecord>& szs, ostream& os, int reverse) {
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
     if(rstarts() == NULL) {
         _rstarts.init(new index_t[this->_nFrag*3], this->_nFrag*3, true);
     }
@@ -1009,7 +1009,7 @@ void Ebwt<index_t>::szsToDisk(const EList<RefRecord>& szs, ostream& os, int reve
 		writeIndex<index_t>(os, (index_t)seqm1,  this->toBe()); // sequence id
 		writeIndex<index_t>(os, (index_t)fwoff,  this->toBe()); // offset into sequence
         
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
         this->rstarts()[i*3]   = totlen;
         this->rstarts()[i*3+1] = (index_t)seqm1;
         this->rstarts()[i*3+2] = (index_t)fwoff;

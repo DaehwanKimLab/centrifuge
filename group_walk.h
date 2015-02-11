@@ -505,7 +505,7 @@ public:
 					// Yes, toff was resolvable
 					assert_eq(toff, ebwt.getOffset(bwrow));
 					met.resolves++;
-#ifdef HISAT_CLASS
+#ifdef CENTRIFUGE
 #else
 					toff += step;
                     assert_eq(toff, ebwt.getOffset(origBwRow));
