@@ -20,7 +20,6 @@
 #include <iomanip>
 #include <limits>
 #include "aln_sink.h"
-#include "aligner_seed.h"
 #include "util.h"
 
 using namespace std;

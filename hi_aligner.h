@@ -34,11 +34,9 @@
 // is constant and shared, or per-thread.
 #include "threading.h"
 #include "aligner_result.h"
-#include "aligner_cache.h"
 #include "scoring.h"
 #include "mem_ids.h"
 #include "simple_func.h"
-#include "aligner_driver.h"
 #include "group_walk.h"
 
 // Minimum intron length

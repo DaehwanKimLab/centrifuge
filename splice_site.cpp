@@ -17,9 +17,9 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <math.h>
 #include "edit.h"
 #include "splice_site.h"
-#include "aligner_report.h"
 #include "aligner_result.h"
 
 #if defined(NEW_PROB_MODEL)

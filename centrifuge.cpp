@@ -42,20 +42,16 @@
 #include "threading.h"
 #include "ds.h"
 #include "aligner_metrics.h"
+#include "aligner_seed_policy.h"
 #include "sam.h"
-#include "aligner_seed.h"
 #include "splice_site.h"
 #include "classifier.h"
-#include "aligner_seed_policy.h"
-#include "aligner_driver.h"
-#include "aligner_cache.h"
 #include "util.h"
 #include "pe.h"
 #include "simple_func.h"
 #include "presets.h"
 #include "opts.h"
 #include "outq.h"
-#include "aligner_seed2.h"
 
 using namespace std;
 
@@ -1674,7 +1670,6 @@ static Ebwt<index_t>*                    multiseed_ebwtFw;
 static Ebwt<index_t>*                    multiseed_ebwtBw;
 static Scoring*                          multiseed_sc;
 static BitPairReference*                 multiseed_refs;
-static AlignmentCache<index_t>*          multiseed_ca; // seed cache
 static AlnSink<index_t>*                 multiseed_msink;
 static OutFileBuf*                       multiseed_metricsOfb;
 static EList<string>                     multiseed_refnames;
@@ -1742,7 +1737,6 @@ struct PerfMetrics {
 	 */
 	void reset() {
 		olm.reset();
-		sdm.reset();
 		wlm.reset();
 		rpm.reset();
 		nbtfiltst = 0;
@@ -1750,7 +1744,6 @@ struct PerfMetrics {
 		nbtfiltdo = 0;
 		
 		olmu.reset();
-		sdmu.reset();
 		wlmu.reset();
 		rpmu.reset();
 		nbtfiltst_u = 0;
@@ -1765,7 +1758,6 @@ struct PerfMetrics {
 	 */
 	void merge(
 		const OuterLoopMetrics *ol,
-		const SeedSearchMetrics *sd,
 		const WalkMetrics *wl,
 		const ReportingMetrics *rm,
 		uint64_t nbtfiltst_,
@@ -1777,9 +1769,6 @@ struct PerfMetrics {
 		ThreadSafe ts(&mutex_m, getLock);
 		if(ol != NULL) {
 			olmu.merge(*ol, false);
-		}
-		if(sd != NULL) {
-			sdmu.merge(*sd, false);
 		}
 		if(wl != NULL) {
 			wlmu.merge(*wl, false);
@@ -2084,33 +2073,6 @@ struct PerfMetrics {
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
-		const SeedSearchMetrics& sd = total ? sdm : sdmu;
-		
-		// 23. Seed searches
-		itoa10<uint64_t>(sd.seedsearch, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 24. Hits in 'current' cache
-		itoa10<uint64_t>(sd.intrahit, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 25. Hits in 'local' cache
-		itoa10<uint64_t>(sd.interhit, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 26. Out of memory
-		itoa10<uint64_t>(sd.ooms, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 27. Burrows-Wheeler ops in aligner
-		itoa10<uint64_t>(sd.bwops, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 28. Burrows-Wheeler branches (edits) in aligner
-		itoa10<uint64_t>(sd.bweds, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
 		const WalkMetrics& wl = total ? wlm : wlmu;
 		
 		// 29. Burrows-Wheeler ops in resolver
@@ -2127,19 +2089,6 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		// 34. Offset reports
 		itoa10<uint64_t>(wl.reports, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		
-		// 36. # times the best (out of fw/rc) minimum # edits was 0
-		itoa10<uint64_t>(total ? sdm.bestmin0 : sdmu.bestmin0, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 37. # times the best (out of fw/rc) minimum # edits was 1
-		itoa10<uint64_t>(total ? sdm.bestmin1 : sdmu.bestmin1, buf);
-		if(metricsStderr) stderrSs << buf << '\t';
-		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-		// 38. # times the best (out of fw/rc) minimum # edits was 2
-		itoa10<uint64_t>(total ? sdm.bestmin2 : sdmu.bestmin2, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 		
@@ -2216,14 +2165,12 @@ struct PerfMetrics {
 	
 	void mergeIncrementals() {
 		olm.merge(olmu, false);
-		sdm.merge(sdmu, false);
 		wlm.merge(wlmu, false);
 		nbtfiltst_u += nbtfiltst;
 		nbtfiltsc_u += nbtfiltsc;
 		nbtfiltdo_u += nbtfiltdo;
 
 		olmu.reset();
-		sdmu.reset();
 		wlmu.reset();
 		rpmu.reset();
 		nbtfiltst_u = 0;
@@ -2233,7 +2180,6 @@ struct PerfMetrics {
 
 	// Total over the whole job
 	OuterLoopMetrics  olm;   // overall metrics
-	SeedSearchMetrics sdm;   // metrics related to seed alignment
 	WalkMetrics       wlm;   // metrics related to walking left (i.e. resolving reference offsets)
 	ReportingMetrics  rpm;   // metrics related to reporting
 	uint64_t          nbtfiltst;
@@ -2242,7 +2188,6 @@ struct PerfMetrics {
 
 	// Just since the last update
 	OuterLoopMetrics  olmu;  // overall metrics
-	SeedSearchMetrics sdmu;  // metrics related to seed alignment
 	WalkMetrics       wlmu;  // metrics related to walking left (i.e. resolving reference offsets)
 	ReportingMetrics  rpmu;  // metrics related to reporting
 	uint64_t          nbtfiltst_u;
@@ -2343,7 +2288,6 @@ static inline void printEEScoreMsg(
 	msink.mergeMetrics(rpm); \
 	met.merge( \
 		&olm, \
-		&sdm, \
 		&wlm, \
 		&rpm, \
 		nbtfiltst, \
@@ -2352,7 +2296,6 @@ static inline void printEEScoreMsg(
         &him, \
 		sync); \
 	olm.reset(); \
-	sdm.reset(); \
 	wlm.reset(); \
 	rpm.reset(); \
     him.reset(); \
@@ -2382,7 +2325,6 @@ static void multiseedSearchWorker(void *vp) {
 	const Ebwt<index_t>&             ebwtBw   = *multiseed_ebwtBw;
 	const Scoring&                   sc       = *multiseed_sc;
 	const BitPairReference&          ref      = *multiseed_refs;
-	AlignmentCache<index_t>&         scShared = *multiseed_ca;
 	AlnSink<index_t>&                msink    = *multiseed_msink;
 	OutFileBuf*                      metricsOfb = multiseed_metricsOfb;
     
@@ -2394,20 +2336,6 @@ static void multiseedSearchWorker(void *vp) {
 	//const BitPairReference& refs   = *multiseed_refs;
 	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
-	
-	// Thread-local cache for seed alignments
-	PtrWrap<AlignmentCache<index_t> > scLocal;
-	if(!msNoCache) {
-		scLocal.init(new AlignmentCache<index_t>(seedCacheLocalMB * 1024 * 1024, false));
-	}
-	AlignmentCache<index_t> scCurrent(seedCacheCurrentMB * 1024 * 1024, false);
-	// Thread-local cache for current seed alignments
-	
-	// Interfaces for alignment and seed caches
-	AlignmentCacheIface<index_t> ca(
-                                    &scCurrent,
-                                    scLocal.get(),
-                                    msNoCache ? NULL : &scShared);
 	
 	// Instantiate an object for holding reporting-related parameters.
     ReportingParams rp(
@@ -2430,11 +2358,9 @@ static void multiseedSearchWorker(void *vp) {
     
     Classifier<index_t, local_index_t> classifier(ebwtFw, multiseed_refnames);
 	OuterLoopMetrics olm;
-	SeedSearchMetrics sdm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
 	RandomSource rnd, rndArb;
-   	DescentMetrics descm;
 	uint64_t nbtfiltst = 0; // TODO: find a new home for these
 	uint64_t nbtfiltsc = 0; // TODO: find a new home for these
 	uint64_t nbtfiltdo = 0; // TODO: find a new home for these
@@ -2568,9 +2494,7 @@ static void multiseedSearchWorker(void *vp) {
 			while(retry) {
 				retry = false;
 				assert_eq(ps->bufa().color, false);
-				ca.nextRead(); // clear the cache
 				olm.reads++;
-				assert(!ca.aligning());
 				bool pair = paired;
 				const size_t rdlen1 = ps->bufa().length();
 				const size_t rdlen2 = pair ? ps->bufb().length() : 0;
