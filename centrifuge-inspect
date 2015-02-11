@@ -3,20 +3,20 @@
 """
  Copyright 2014, Daehwan Kim <infphilo@gmail.com>
 
- This file is part of HISAT, which is copied and modified from bowtie2-inspect in the Bowtie2 package.
+ This file is part of Centrifuge, which is copied and modified from bowtie2-inspect in the Bowtie2 package.
 
- HISAT is free software: you can redistribute it and/or modify
+ Centrifuge is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
 
- HISAT is distributed in the hope that it will be useful,
+ Centrifuge is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
 
  You should have received a copy of the GNU General Public License
- along with HISAT.  If not, see <http://www.gnu.org/licenses/>.
+ along with Centrifuge.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
@@ -31,15 +31,12 @@ def main():
     logging.basicConfig(level=logging.ERROR,
                         format='%(levelname)s: %(message)s'
                         )
-    inspect_bin_name      = "hisat-inspect"
-    inspect_bin_s         = "hisat-inspect-s"
-    inspect_bin_l         = "hisat-inspect-l"
-    idx_ext_l             = '.1.bt2l'; 
-    idx_ext_s             = '.1.bt2'; 
+    inspect_bin_name      = "centrifuge-inspect"
+    idx_ext               = '.1.hc'; 
     curr_script           = os.path.realpath(inspect.getsourcefile(main))
     ex_path               = os.path.dirname(curr_script)
-    inspect_bin_spec      = os.path.join(ex_path,inspect_bin_s)
-    bld                   = imp.load_source('hisat-build',os.path.join(ex_path,'hisat-build'))
+    inspect_bin_spec      = os.path.join(ex_path,"centrifuge-inspect-bin")
+    bld                   = imp.load_source('centrifuge-build',os.path.join(ex_path,'centrifuge-build'))
     options,arguments     = bld.build_args()
 
     if '--verbose' in options:
@@ -49,14 +46,11 @@ def main():
         inspect_bin_spec += '-debug'
         inspect_bin_l += '-debug'
         
-    if '--large-index' in options:
-        inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
-    elif len(arguments) >= 1:
+    if len(arguments) >= 1:
         idx_basename = arguments[-1]
-        large_idx_exists = os.path.exists(idx_basename + idx_ext_l)
-        small_idx_exists = os.path.exists(idx_basename + idx_ext_s)
-        if large_idx_exists and not small_idx_exists:
-            inspect_bin_spec = os.path.join(ex_path,inspect_bin_l)
+        large_idx_exists = os.path.exists(idx_basename + idx_ext)
+        if large_idx_exists:
+            inspect_bin_spec = os.path.join(ex_path,inspect_bin)
     
     arguments[0] = inspect_bin_name
     arguments.insert(1, 'basic-0')

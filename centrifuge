@@ -3,27 +3,27 @@
 #
 # Copyright 2014, Daehwan Kim <infphilo@gmail.com>
 #
-# This file is part of HISAT, which is copied and modified from bowtie2 in
+# This file is part of Centrifuge, which is copied and modified from bowtie2 in
 # the Bowtie2 package.
 #
-# HISAT is free software: you can redistribute it and/or modify
+# Centrifuge is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# HISAT is distributed in the hope that it will be useful,
+# Centrifuge is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with HISAT.  If not, see <http://www.gnu.org/licenses/>.
+# along with Centrifuge.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# hisat:
+# centrifuge:
 #
-# A wrapper script for hisat.  Provides various advantages over running
-# hisat directly, including:
+# A wrapper script for centrifuge.  Provides various advantages over running
+# centrifuge directly, including:
 #
 # 1. Handling compressed inputs
 # 2. Redirecting output to various files
@@ -47,15 +47,10 @@ while (-f $prog && -l $prog){
 ($vol,$script_path,$prog) 
                 = File::Spec->splitpath($prog);
 my $os_is_nix   = ($^O eq "linux") || ($^O eq "darwin");
-my $align_bin_s = $os_is_nix ? 'hisat-align-s' : 'hisat-align-s.exe'; 
-my $build_bin   = $os_is_nix ? 'hisat-build' : 'hisat-build.exe';               
-my $align_bin_l = $os_is_nix ? 'hisat-align-l' : 'hisat-align-l.exe'; 
-my $align_prog_s= File::Spec->catpath($vol,$script_path,$align_bin_s);
-my $align_prog_l= File::Spec->catpath($vol,$script_path,$align_bin_l);
+my $align_bin_s = $os_is_nix ? 'centrifuge-class' : 'centrifuge-class.exe'; 
+my $build_bin   = $os_is_nix ? 'centrifuge-build' : 'centrifuge-build.exe';               
 my $align_prog  = $align_prog_s;
-my $idx_ext_l     = 'bt2l'; 
-my $idx_ext_s     = 'bt2'; 
-my $idx_ext       = $idx_ext_s; 
+my $idx_ext       = 'hc'; 
 my %signo       = ();
 my @signame     = ();
 
@@ -71,9 +66,9 @@ my @signame     = ();
 }
 
 (-x "$align_prog") ||
-	Fail("Expected hisat to be in same directory with hisat-align:\n$script_path\n");
+	Fail("Expected centrifuge to be in same directory with centrifuge-class:\n$script_path\n");
 
-# Get description of arguments from HISAT so that we can distinguish HISAT
+# Get description of arguments from Centrifuge so that we can distinguish Centrifuge
 # args from wrapper args
 sub getBt2Desc($) {
 	my $d = shift;
@@ -94,13 +89,13 @@ my %wrapped = ("1" => 1, "2" => 1);
 getBt2Desc(\%desc);
 
 # Given an option like -1, determine whether it's wrapped (i.e. should be
-# handled by this script rather than being passed along to HISAT)
+# handled by this script rather than being passed along to Centrifuge)
 sub isWrapped($) { return defined($wrapped{$_[0]}); }
 
 my @orig_argv = @ARGV;
 
 my @bt2w_args = (); # options for wrapper
-my @bt2_args  = (); # options for HISAT
+my @bt2_args  = (); # options for Centrifuge
 my $saw_dd = 0;
 for(0..$#ARGV) {
 	if($ARGV[$_] eq "--") {
@@ -127,7 +122,7 @@ for my $i (0..$#bt2_args) {
 }
 
 # We've handled arguments that the user has explicitly directed either to the
-# wrapper or to hisat, now we capture some of the hisat arguments that
+# wrapper or to centrifuge, now we capture some of the centrifuge arguments that
 # ought to be handled in the wrapper
 for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	next unless defined($bt2_args[$i]);
@@ -200,7 +195,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	}
 }
 # If the user asked us to redirect some reads to files, or to suppress
-# unaligned reads, then we need to capture the output from HISAT and pass it
+# unaligned reads, then we need to capture the output from Centrifuge and pass it
 # through this wrapper.
 my $passthru = 0;
 if(scalar(keys %read_fns) > 0 || $no_unal) {
@@ -406,7 +401,7 @@ if(defined($ref_str)) {
 	close($ofh);
 	push @to_delete, $ofn;
 	system("$build_bin $ofn $ofn") == 0 ||
-		Fail("hisat-build returned non-0 exit level.\n");
+		Fail("centrifuge-build returned non-0 exit level.\n");
 	push @bt2_args, ("--index", "$ofn");
 	push @to_delete, ("$ofn.1.".$idx_ext, "$ofn.2.".$idx_ext, 
 	                  "$ofn.3.".$idx_ext, "$ofn.4.".$idx_ext,
@@ -444,7 +439,7 @@ else {
 
 my $debug_str = ($debug ? "-debug" : "");
 
-# Construct command invoking hisat-align
+# Construct command invoking centrifuge-class
 my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 
 # Possibly add read input on an anonymous pipe
@@ -453,8 +448,8 @@ $cmd = "$readpipe $cmd" if defined($readpipe);
 Info("$cmd\n");
 my $ret;
 if(defined($cap_out)) {
-	# Open HISAT pipe
-	open(BT, "$cmd |") || Fail("Could not open HISAT pipe: '$cmd |'\n");
+	# Open Centrifuge pipe
+	open(BT, "$cmd |") || Fail("Could not open Centrifuge pipe: '$cmd |'\n");
 	# Open output pipe
 	my $ofh = *STDOUT;
 	my @fhs_to_close = ();
@@ -571,16 +566,16 @@ if(defined($cap_out)) {
 if(!$keep) { for(@to_delete) { unlink($_); } }
 
 if ($ret == -1) {
-    Error("Failed to execute hisat-align: $!\n");
+    Error("Failed to execute centrifuge-class: $!\n");
 	exit 1;
 } elsif ($ret & 127) {
 	my $signm = "(unknown)";
 	$signm = $signame[$ret & 127] if defined($signame[$ret & 127]);
 	my $ad = "";
 	$ad = "(core dumped)" if (($ret & 128) != 0);
-    Error("hisat-align died with signal %d (%s) $ad\n", ($ret & 127), $signm);
+    Error("centrifuge-class died with signal %d (%s) $ad\n", ($ret & 127), $signm);
 	exit 1;
 } elsif($ret != 0) {
-	Error("hisat-align exited with value %d\n", ($ret >> 8));
+	Error("centrifuge-class exited with value %d\n", ($ret >> 8));
 }
 exit ($ret >> 8);

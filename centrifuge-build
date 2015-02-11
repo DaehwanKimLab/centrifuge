@@ -3,20 +3,20 @@
 """
  Copyright 2014, Daehwan Kim <infphilo@gmail.com>
 
- This file is part of HISAT, which is copied and modified from bowtie2 in the Bowtie2 package.
+ This file is part of Centrifuge, which is copied and modified from bowtie2 in the Bowtie2 package.
 
- HISAT is free software: you can redistribute it and/or modify
+ Centrifuge is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
 
- HISAT is distributed in the hope that it will be useful,
+ Centrifuge is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
 
  You should have received a copy of the GNU General Public License
- along with HISAT.  If not, see <http://www.gnu.org/licenses/>.
+ along with Centrifuge.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
@@ -57,9 +57,8 @@ def main():
                         )
     delta               = 200
     small_index_max_size= 4 * 1024**3 - delta
-    build_bin_name      = "hisat-build"
-    build_bin_s         = "hisat-build-s"
-    build_bin_l         = "hisat-build-l"
+    build_bin_name      = "centrifuge-build-bin"
+    build_bin_s         = "centrifuge-buind-bin"
     curr_script         = os.path.realpath(inspect.getsourcefile(main))
     ex_path             = os.path.dirname(curr_script)
     build_bin_spec      = os.path.join(ex_path,build_bin_s)
