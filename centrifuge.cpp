@@ -44,7 +44,6 @@
 #include "aligner_metrics.h"
 #include "aligner_seed_policy.h"
 #include "sam.h"
-#include "splice_site.h"
 #include "classifier.h"
 #include "util.h"
 #include "pe.h"
@@ -1673,7 +1672,6 @@ static BitPairReference*                 multiseed_refs;
 static AlnSink<index_t>*                 multiseed_msink;
 static OutFileBuf*                       multiseed_metricsOfb;
 static EList<string>                     multiseed_refnames;
-static SpliceSiteDB*                     ssdb;
 
 /**
  * Metrics for measuring the work done by the outer read alignment
@@ -2681,7 +2679,7 @@ static void multiseedSearchWorker(void *vp) {
                     classifier.initRead(rds[0], nofw[0], norc[0], minsc[0], maxpen[0], filt[1]);
                 }
                 if(filt[0] || filt[1]) {
-                    classifier.go(sc, ebwtFw, ebwtBw, ref, *ssdb, wlm, prm, him, rnd, msinkwrap);
+                    classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, rnd, msinkwrap);
                     size_t mate = 0;
                     if(!done[mate]) {
                         TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
@@ -3066,8 +3064,7 @@ static void driver(
 					oq,           // output queue
 					samc,         // settings & routines for SAM output
 					refnames,     // reference names
-					gQuiet,       // don't print alignment summary at end
-                    ssdb);
+                    gQuiet);      // don't print alignment summary at end
 				if(!samNoHead) {
 					bool printHd = true, printSq = true;
 					BTString buf;
@@ -3120,21 +3117,11 @@ static void driver(
 				hadoopOut);
 #endif
 		}
-        if(ssdb != NULL) {
-            if(novelSpliceSiteOutfile != "") {
-                ofstream ssdb_file(novelSpliceSiteOutfile.c_str(), ios::out);
-                if(ssdb_file.is_open()) {
-                    ssdb->print(ssdb_file);
-                    ssdb_file.close();
-                }
-            }
-        }
 		oq.flush(true);
 		assert_eq(oq.numStarted(), oq.numFinished());
 		assert_eq(oq.numStarted(), oq.numFlushed());
 		delete patsrc;
 		delete mssink;
-        delete ssdb;
 		delete metricsOfb;
 		if(fout != NULL) {
 			delete fout;

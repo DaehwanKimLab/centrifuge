@@ -112,8 +112,7 @@ SEARCH_CPPS = qual.cpp pat.cpp sam.cpp \
 	pe.cpp aln_sink.cpp aligner_seed_policy.cpp aligner_result.cpp \
 	scoring.cpp presets.cpp unique.cpp \
 	simple_func.cpp \
-	random_util.cpp outq.cpp \
-	splice_site.cpp 
+	random_util.cpp outq.cpp
 
 BUILD_CPPS = diff_sample.cpp
 

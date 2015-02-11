@@ -72,7 +72,6 @@ public:
            const Ebwt<index_t>&     ebwtFw,
            const Ebwt<index_t>&     ebwtBw,
            const BitPairReference&  ref,
-           SpliceSiteDB&            ssdb,
            WalkMetrics&             wlm,
            PerReadMetrics&          prm,
            HIMetrics&               him,

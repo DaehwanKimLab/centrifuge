@@ -28,7 +28,6 @@
 #include "simple_func.h"
 #include "outq.h"
 #include <utility>
-#include "splice_site.h"
 
 // Forward decl
 template <typename index_t>
@@ -601,12 +600,10 @@ public:
 	explicit AlnSink(
 		OutputQueue& oq,
 		const StrList& refnames,
-		bool quiet,
-        SpliceSiteDB* ssdb = NULL) :
+		bool quiet) :
 		oq_(oq),
 		refnames_(refnames),
-		quiet_(quiet),
-        spliceSiteDB_(ssdb)
+		quiet_(quiet)
 	{ }
 
 	/**
@@ -874,7 +871,6 @@ protected:
 	const StrList&     refnames_;     // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReportingMetrics   met_;          // global repository of reporting metrics
-    SpliceSiteDB*      spliceSiteDB_; //
 };
 
 /**
@@ -1345,13 +1341,11 @@ public:
 		OutputQueue&     oq,           // output queue
 		const SamConfig& samc,         // settings & routines for SAM output
 		const StrList&   refnames,     // reference names
-		bool             quiet,        // don't print alignment summary at end
-        SpliceSiteDB*    ssdb = NULL) :
+		bool             quiet) :
 		AlnSink<index_t>(
 			oq,
 			refnames,
-			quiet,
-            ssdb),
+			quiet),
 		samc_(samc)
 	{ }
 	
@@ -1387,17 +1381,11 @@ public:
 			assert(flags1 != NULL);
 			appendMate(o, staln, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
 			           *flags1, prm, mapq, sc);
-            if(rs1 != NULL && rs1->spliced() && this->spliceSiteDB_ != NULL) {
-                this->spliceSiteDB_->addSpliceSite(*rd1, *rs1);
-            }
 		}
 		if(rd2 != NULL && report2) {
 			assert(flags2 != NULL);
 			appendMate(o, staln, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
 			           *flags2, prm, mapq, sc);
-            if(rs2 != NULL && rs2->spliced() && this->spliceSiteDB_ != NULL) {
-                this->spliceSiteDB_->addSpliceSite(*rd2, *rs2);
-            }
 		}
 	}
 
