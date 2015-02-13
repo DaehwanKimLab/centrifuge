@@ -39,64 +39,6 @@
 #include "simple_func.h"
 #include "group_walk.h"
 
-// Minimum intron length
-static const uint32_t minIntronLen = 20;
-// Maximum intron length
-static const uint32_t maxIntronLen = 500000;
-// Maximum insertion length
-static const uint32_t maxInsLen = 3;
-// Maximum deletion length
-static const uint32_t maxDelLen = 3;
-
-// Minimum anchor length required for canonical splice sites
-static const uint32_t minAnchorLen = 7;
-// Minimum anchor length required for non-canonical splice sites
-static const uint32_t minAnchorLen_noncan = 14;
-
-// Allow longer introns for long anchored reads involving canonical splice sites
-inline uint32_t MaxIntronLen(uint32_t anchor) {
-    uint32_t intronLen = 0;
-    if(anchor >= minAnchorLen) {
-        assert_geq(anchor, 2);
-        uint32_t shift = (anchor << 1) - 4;
-        shift = min<uint32_t>(max<uint32_t>(shift, 13), 30);
-        intronLen = 1 << shift;
-    }
-    return intronLen;
-}
-
-inline float intronLen_prob(uint32_t anchor, uint32_t intronLen) {
-    uint32_t expected_intron_len = maxIntronLen;
-    if(anchor < 14) expected_intron_len = 1 << ((anchor << 1) + 4);
-    if(expected_intron_len > maxIntronLen) expected_intron_len = maxIntronLen;
-    assert_gt(expected_intron_len, 0);
-    float result = ((float)intronLen) / ((float)expected_intron_len);
-    if(result > 1.0f) result = 1.0f;
-    return result;
-}
-
-// Allow longer introns for long anchored reads involving non-canonical splice sites
-inline uint32_t MaxIntronLen_noncan(uint32_t anchor) {
-    uint32_t intronLen = 0;
-    if(anchor >= minAnchorLen_noncan) {
-        assert_geq(anchor, 5);
-        uint32_t shift = (anchor << 1) - 10;
-        shift = min<uint32_t>(shift, 30);
-        intronLen = 1 << shift;
-    }
-    return intronLen;
-}
-
-inline float intronLen_prob_noncan(uint32_t anchor, uint32_t intronLen) {
-    uint32_t expected_intron_len = maxIntronLen;
-    if(anchor < 16) expected_intron_len = 1 << (anchor << 1);
-    if(expected_intron_len > maxIntronLen) expected_intron_len = maxIntronLen;
-    assert_gt(expected_intron_len, 0);
-    float result = ((float)intronLen) / ((float)expected_intron_len);
-    if(result > 1.0f) result = 1.0f;
-    return result;
-}
-
 /**
  * Hit types for BWTHit class below
  * Three hit types to anchor a read on the genome
@@ -244,7 +186,7 @@ struct ReadBWTHit {
     }
     
     void done(bool done) {
-        assert(!_done);
+        // assert(!_done);
         assert(done);
         _done = done;
     }
@@ -874,28 +816,6 @@ public:
                          bool&                   pseudogeneStop,  // stop if mapped to multiple locations due to processed pseudogenes
                          bool&                   anchorStop);
     
-    
-    /**
-     * Convert FM offsets to the corresponding genomic offset (chromosome id, offset)
-     **/
-    bool getGenomeCoords(
-                         const Ebwt<index_t>&       ebwt,
-                         const BitPairReference&    ref,
-                         RandomSource&              rnd,
-                         index_t                    top,
-                         index_t                    bot,
-                         bool                       fw,
-                         index_t                    maxelt,
-                         index_t                    rdoff,
-                         index_t                    rdlen,
-                         EList<Coord>&              coords,
-                         WalkMetrics&               met,
-                         PerReadMetrics&            prm,
-                         HIMetrics&                 him,
-                         bool                       rejectStraddle,
-                         bool&                      straddled);
-    
-    
 protected:
   
     Read *   _rds[2];
@@ -973,91 +893,6 @@ protected:
 	ASSERT_ONLY(cur_index_t totp = (bp[0]-tp[0])+(bp[1]-tp[1])+(bp[2]-tp[2])+(bp[3]-tp[3])); \
 	assert_eq(tot, totp); \
 }
-
-#define LOCAL_INIT_LOCS(top, bot, tloc, bloc, e) { \
-    if(bot - top == 1) { \
-        tloc.initFromRow(top, (e).eh(), (e).ebwt()); \
-        bloc.invalidate(); \
-    } else { \
-        SideLocus<local_index_t>::initFromTopBot(top, bot, (e).eh(), (e).ebwt(), tloc, bloc); \
-        assert(bloc.valid()); \
-    } \
-}
-
-
-/**
- * convert FM offsets to the corresponding genomic offset (chromosome id, offset)
- **/
-template <typename index_t, typename local_index_t>
-bool HI_Aligner<index_t, local_index_t>::getGenomeCoords(
-                                                         const Ebwt<index_t>&       ebwt,
-                                                         const BitPairReference&    ref,
-                                                         RandomSource&              rnd,
-                                                         index_t                    top,
-                                                         index_t                    bot,
-                                                         bool                       fw,
-                                                         index_t                    maxelt,
-                                                         index_t                    rdoff,
-                                                         index_t                    rdlen,
-                                                         EList<Coord>&              coords,
-                                                         WalkMetrics&               met,
-                                                         PerReadMetrics&            prm,
-                                                         HIMetrics&                 him,
-                                                         bool                       rejectStraddle,
-                                                         bool&                      straddled)
-{
-    straddled = false;
-    assert_gt(bot, top);
-    index_t nelt = bot - top;
-    nelt = min<index_t>(nelt, maxelt);
-    coords.clear();
-    him.globalgenomecoords += (bot - top);
-    _offs.resize(nelt);
-    _offs.fill(std::numeric_limits<index_t>::max());
-    _sas.init(top, rdlen, EListSlice<index_t, 16>(_offs, 0, nelt));
-    _gws.init(ebwt, ref, _sas, rnd, met);
-    
-    for(index_t off = 0; off < nelt; off++) {
-        WalkResult<index_t> wr;
-        index_t tidx = 0, toff = 0, tlen = 0;
-        _gws.advanceElement(
-                            off,
-                            ebwt,         // forward Bowtie index for walking left
-                            ref,          // bitpair-encoded reference
-                            _sas,         // SA range with offsets
-                            _gwstate,     // GroupWalk state; scratch space
-                            wr,           // put the result here
-                            met,          // metrics
-                            prm);         // per-read metrics
-        assert_neq(wr.toff, (index_t)OFF_MASK);
-        bool straddled2 = false;
-        ebwt.joinedToTextOff(
-                             wr.elt.len,
-                             wr.toff,
-                             tidx,
-                             toff,
-                             tlen,
-                             rejectStraddle,        // reject straddlers?
-                             straddled2);  // straddled?
-        
-        straddled |= straddled2;
-        
-        if(tidx == (index_t)OFF_MASK) {
-            // The seed hit straddled a reference boundary so the seed
-            // hit isn't valid
-            return false;
-        }
-        index_t global_toff = toff, global_tidx = tidx;
-        if(global_toff < rdoff) continue;
-        
-        // Coordinate of the seed hit w/r/t the pasted reference string
-        coords.expand();
-        coords.back().init(global_tidx, (int64_t)global_toff, fw);
-    }
-    
-    return true;
-}
-
 
 /**
  * Sweep right-to-left and left-to-right using exact matching.  Remember all

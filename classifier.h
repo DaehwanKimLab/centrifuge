@@ -252,7 +252,6 @@ public:
                                 _genusMap[genusIdx].count += 1;
                                 _genusMap[genusIdx].weightedCount += addWeight;
                                 _genusMap[genusIdx].timeStamp = hi;
-                                newScore = _genusMap[genusIdx].weightedCount;
                             }
                             break;
                         }
@@ -286,7 +285,7 @@ public:
                         genusCount.speciesMap.expand();
                         genusCount.speciesMap.back().id = speciesID;
                         genusCount.speciesMap.back().count = 1;
-                        genusCount.speciesMap.back().weightedCount = addWeight;
+                        newScore = genusCount.speciesMap.back().weightedCount = addWeight;
                         genusCount.speciesMap.back().timeStamp = hi;
                     }
                 
@@ -322,7 +321,6 @@ public:
         }
    
         if(_tempTies.size() > 0) {
-            cout << this->_rds[0]->name;
             for(uint16_t gi = 0; gi < _tempTies.size(); gi++) {
                 assert_lt(_tempTies[gi], _genusMap.size());
                 GenusCount& genusCount = _genusMap[_tempTies[gi]];
@@ -334,10 +332,17 @@ public:
                         speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
                     }
                 }
+                
                 assert_neq(speciesID, 0xffffffff);
-                cout << "\t" << speciesID << "\t" << genusCount.id;
+            
+                // report
+                AlnScore asc(genusCount.weightedCount);
+                AlnRes rs;
+                rs.init(asc,
+                        speciesID,
+                        genusCount.id);
+                sink.report(0, &rs);
             }
-            cout << endl;
         }
         
         return 0;

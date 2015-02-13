@@ -213,11 +213,15 @@ public:
     AlnRes(const AlnRes& other)
     {
         score_ = other.score_;
+        speciesID_ = other.speciesID_;
+        genusID_ = other.genusID_;
     }
     
     AlnRes& operator=(const AlnRes& other) {
         if(this == &other) return *this;
         score_ = other.score_;
+        speciesID_ = other.speciesID_;
+        genusID_ = other.genusID_;
         return *this;
     }
     
@@ -228,6 +232,7 @@ public:
 	 */
 	void reset() {
         score_.invalidate();
+        speciesID_ = genusID_ = 0;
     }
     
 	/**
@@ -237,7 +242,9 @@ public:
 		score_ = score;
 	}
 
-	AlnScore           score()          const { return score_;    }
+	AlnScore           score()          const { return score_;     }
+    uint32_t           speciesID()      const { return speciesID_; }
+    uint32_t           genusID()        const { return genusID_;   }
 
 	/**
 	 * Print the sequence for the read that aligned using A, C, G and
@@ -286,13 +293,19 @@ public:
 	 * Initialize new AlnRes.
 	 */
 	void init(
-              AlnScore           score)           // alignment score
+              AlnScore score,           // alignment score
+              uint32_t speciesID,
+              uint32_t genusID)
     {
         score_  = score;
+        speciesID_ = speciesID;
+        genusID_ = genusID;
     }
 
 protected:
 	AlnScore     score_;        // best SW score found
+    uint32_t     speciesID_;
+    uint32_t     genusID_;
 };
 
 typedef uint64_t TNumAlns;

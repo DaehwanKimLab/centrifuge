@@ -2416,31 +2416,6 @@ static void multiseedSearchWorker(void *vp) {
 			continue;
 		}
 		TReadId rdid = ps->rdid();
-        
-        if(nthreads > 1 && useTempSpliceSite) {
-            while(true) {
-                uint64_t min_rdid = 0;
-                {
-                    // ThreadSafe t(&thread_rids_mutex, nthreads > 1);
-                    assert_gt(thread_rids.size(), 0);
-                    min_rdid = thread_rids[0];
-                    for(size_t i = 1; i < thread_rids.size(); i++) {
-                        if(thread_rids[i] < min_rdid) {
-                            min_rdid = thread_rids[i];
-                        }
-                    }
-                }
-                
-                if(min_rdid + thread_rids_mindist < rdid) {
-#if defined(_TTHREAD_WIN32_)
-                    Sleep(0);
-#elif defined(_TTHREAD_POSIX_)
-                    sched_yield();
-#endif
-                } else break;
-            }
-        }
-        
 		bool sample = true;
 		if(arbitraryRandom) {
 			ps->bufa().seed = rndArb.nextU32();
@@ -2489,14 +2464,12 @@ static void multiseedSearchWorker(void *vp) {
 				const size_t rdlen1 = ps->bufa().length();
 				const size_t rdlen2 = pair ? ps->bufb().length() : 0;
 				olm.bases += (rdlen1 + rdlen2);
-#if 0
 				msinkwrap.nextRead(
                                    &ps->bufa(),
                                    pair ? &ps->bufb() : NULL,
                                    rdid,
                                    sc.qualitiesMatter());
 				assert(msinkwrap.inited());
-#endif
 				size_t rdlens[2] = { rdlen1, rdlen2 };
 				// Calculate the minimum valid score threshold for the read
 				TAlScore minsc[2], maxpen[2];
@@ -2692,8 +2665,7 @@ static void multiseedSearchWorker(void *vp) {
                     assert_leq(prm.nEeFail,  streak[i]);
                 }
                 
-#if 0
-				// Commit and report paired-end/unpaired alignments
+                // Commit and report paired-end/unpaired alignments
 				msinkwrap.finishRead(
                                      NULL,
                                      NULL,
@@ -2711,20 +2683,10 @@ static void multiseedSearchWorker(void *vp) {
                                      rnd,                  // pseudo-random generator
                                      rpm,                  // reporting metrics
                                      prm,                  // per-read metrics
-                                     sc,                   // scoring scheme
                                      !seedSumm,            // suppress seed summaries?
                                      seedSumm);            // suppress alignments?
 				assert(!retry || msinkwrap.empty());
-#endif
-                
-                if(nthreads > 1 && useTempSpliceSite) {
-                    // ThreadSafe t(&thread_rids_mutex, nthreads > 1);
-                    assert_gt(tid, 0);
-                    assert_leq(tid, thread_rids.size());
-                    assert(thread_rids[tid - 1] == 0 || rdid > thread_rids[tid - 1]);
-                    thread_rids[tid - 1] = rdid;
-                }
-			} // while(retry)
+            } // while(retry)
 		} // if(rdid >= skipReads && rdid < qUpto)
 		else if(rdid >= qUpto) {
 			break;
@@ -3048,13 +3010,11 @@ static void driver(
 			if(repThresh == 0) {
 				repThresh = std::numeric_limits<size_t>::max();
 			}
-#if 0
 			mssink->finish(
 				repThresh,
 				gReportDiscordant,
 				gReportMixed,
 				hadoopOut);
-#endif
 		}
 		oq.flush(true);
 		assert_eq(oq.numStarted(), oq.numFinished());
