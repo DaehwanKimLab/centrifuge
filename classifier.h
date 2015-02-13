@@ -50,12 +50,14 @@ public:
 	 * Initialize with index.
 	 */
 	Classifier(const Ebwt<index_t>& ebwt,
-               const EList<string>& refnames) :
+               const EList<string>& refnames,
+               index_t minHitLen = 22) :
     HI_Aligner<index_t, local_index_t>(
                                        ebwt,
                                        0,    // don't make use of splice sites found by earlier reads
                                        true), // no spliced alignment
-    _refnames(refnames)
+    _refnames(refnames),
+    _minHitLen(minHitLen)
     {
     }
     
@@ -80,7 +82,6 @@ public:
     {
         _genusMap.clear();        
         const index_t increment = 10;
-        const index_t minPartialLen = 22;
         size_t bestScore = 0, secondBestScore = 0;
         for(index_t rdi = 0; rdi < (this->_paired ? 2 : 1); rdi++) {
             assert(this->_rds[rdi] != NULL);
@@ -89,7 +90,7 @@ public:
             index_t fwi;
             bool done[2] = {false, false};
             size_t cur[2] = {0, 0} ;
-            const size_t maxDiff = (rdlen / 2 > 2 * minPartialLen) ? rdlen / 2 : (2 * minPartialLen);
+            const size_t maxDiff = (rdlen / 2 > 2 * _minHitLen) ? rdlen / 2 : (2 * _minHitLen);
             while(!done[0] || !done[1]) {
                 for(fwi = 0; fwi < 2; fwi++) {
                     if(done[fwi]) continue;
@@ -118,13 +119,13 @@ public:
                     
                     BWTHit<index_t>& lastHit = hit.getPartialHit(hit.offsetSize() - 1);
                     if(lastHit.len() > increment) {
-                        if(lastHit.len() < minPartialLen)
+                        if(lastHit.len() < _minHitLen)
                             hit.setOffset(hit.cur() - increment);
                         else
                             hit.setOffset(hit.cur() + 1);
                     }
                     
-                    if(hit.cur() + minPartialLen >= rdlen) {
+                    if(hit.cur() + _minHitLen >= rdlen) {
                         hit.done(true);
                         done[fwi] = true;
                         continue;
@@ -147,7 +148,7 @@ public:
                 ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
                 index_t numHits = 0;
                 for(size_t i = 0; i < hit.offsetSize(); i++) {
-                    if(hit.getPartialHit(i).len() < minPartialLen) continue;
+                    if(hit.getPartialHit(i).len() < _minHitLen) continue;
                     totalHitLength[fwi] += hit.getPartialHit(i).len();
                     numHits++;
                 }
@@ -200,7 +201,7 @@ public:
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
                 BWTHit<index_t>& partialHit = hit.getPartialHit(hiMap[ hi ]);
-                if(partialHit.len() < minPartialLen)
+                if(partialHit.len() < _minHitLen)
                     continue;
                 assert(!partialHit.hasGenomeCoords());
                 usedPortion += partialHit.len();
@@ -397,6 +398,7 @@ public:
 private:
     EList<string>      _refnames;
     EList<GenusCount>  _genusMap;
+    index_t            _minHitLen;
     
     EList<uint16_t>    _tempTies;
 };

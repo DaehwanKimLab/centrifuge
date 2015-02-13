@@ -249,6 +249,8 @@ static EList<uint64_t> thread_rids;
 static MUTEX_T         thread_rids_mutex;
 static uint64_t        thread_rids_mindist;
 
+static uint32_t minHitLen;
+
 #define DMAX std::numeric_limits<double>::max()
 
 static void resetOptions() {
@@ -443,6 +445,7 @@ static void resetOptions() {
     novelSpliceSiteOutfile = "";
     no_spliced_alignment = false;
     rna_strandness = RNA_STRANDNESS_UNKNOWN;
+    minHitLen = 22;
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -636,6 +639,7 @@ static struct option long_options[] = {
     {(char*)"novel-splicesite-outfile",      required_argument, 0,        ARG_NOVEL_SPLICESITE_OUTFILE},
     {(char*)"no-spliced-alignment",   no_argument, 0,        ARG_NO_SPLICED_ALIGNMENT},
     {(char*)"rna-strandness",   required_argument, 0,        ARG_RNA_STRANDNESS},
+    {(char*)"min-hitlen",   required_argument, 0,        ARG_MIN_HITLEN},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -722,63 +726,12 @@ static void printUsage(ostream& out) {
 	    << "  --phred33          qualities are Phred+33 (default)" << endl
 	    << "  --phred64          qualities are Phred+64" << endl
 	    << "  --int-quals        qualities encoded as space-delimited integers" << endl
-		<< endl
-	    << " Presets:                 Same as:" << endl
-		<< "  For --end-to-end:" << endl
-		<< "   --very-fast            -D 5 -R 1 -N 0 -L 22 -i S,0,2.50" << endl
-		<< "   --fast                 -D 10 -R 2 -N 0 -L 22 -i S,0,2.50" << endl
-		<< "   --sensitive            -D 15 -R 2 -N 0 -L 22 -i S,1,1.15 (default)" << endl
-		<< "   --very-sensitive       -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
-		<< endl
-		<< "  For --local:" << endl
-		<< "   --very-fast-local      -D 5 -R 1 -N 0 -L 25 -i S,1,2.00" << endl
-		<< "   --fast-local           -D 10 -R 2 -N 0 -L 22 -i S,1,1.75" << endl
-		<< "   --sensitive-local      -D 15 -R 2 -N 0 -L 20 -i S,1,0.75 (default)" << endl
-		<< "   --very-sensitive-local -D 20 -R 3 -N 0 -L 20 -i S,1,0.50" << endl
-		<< endl
-	    << " Alignment:" << endl
-		<< "  -N <int>           max # mismatches in seed alignment; can be 0 or 1 (0)" << endl
-		<< "  -L <int>           length of seed substrings; must be >3, <32 (22)" << endl
-		<< "  -i <func>          interval between seed substrings w/r/t read len (S,1,1.15)" << endl
-		<< "  --n-ceil <func>    func for max # non-A/C/G/Ts permitted in aln (L,0,0.15)" << endl
-		<< "  --dpad <int>       include <int> extra ref chars on sides of DP table (15)" << endl
-		<< "  --gbar <int>       disallow gaps within <int> nucs of read extremes (4)" << endl
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
+        << "  --min-hitlen       " << endl
 		<< endl
-        << " Spliced Alignment:" << endl
-        << "  --pen-cansplice <int>              penalty for a canonical splice site (0)" << endl
-        << "  --pen-noncansplice <int>           penalty for a non-canonical splice site (3)" << endl
-        << "  --pen-intronlen <func>             penalty for long introns (G,-8,1)" << endl
-        << "  --known-splicesite-infile <path>   provide a list of known splice sites" << endl
-        << "  --novel-splicesite-outfile <path>  report a list of splice sites" << endl
-        << "  --novel-splicesite-infile <path>   provide a list of novel splice sites" << endl
-        << "  --no-temp-splicesite               disable the use of splice sites found" << endl
-        << "  --no-spliced-alignment             disable spliced alignment" << endl
-        << "  --rna-strandness <string>          Specify strand-specific information (unstranded)" << endl
-        << endl
-		<< " Scoring:" << endl
-		<< "  --ma <int>         match bonus (0 for --end-to-end, 2 for --local) " << endl
-		<< "  --mp <int>         max penalty for mismatch; lower qual = lower penalty (6)" << endl
-		<< "  --np <int>         penalty for non-A/C/G/Ts in read/ref (1)" << endl
-		<< "  --rdg <int>,<int>  read gap open, extend penalties (5,3)" << endl
-		<< "  --rfg <int>,<int>  reference gap open, extend penalties (5,3)" << endl
-		<< "  --score-min <func> min acceptable alignment score w/r/t read length" << endl
-		<< "                     (G,20,8 for local, L,-0.6,-0.6 for end-to-end)" << endl
-		<< endl
-	    << " Reporting:" << endl
-	    << "  (default)          look for multiple alignments, report best, with MAPQ" << endl
-		<< "   OR" << endl
-	    << "  -k <int>           report up to <int> alns per read; MAPQ not meaningful" << endl
-		<< "   OR" << endl
-	    << "  -a/--all           report all alignments; very slow, MAPQ not meaningful" << endl
-		<< endl
-	    << " Effort:" << endl
-	    << "  -D <int>           give up extending after <int> failed extends in a row (15)" << endl
-	    << "  -R <int>           for reads w/ repetitive seeds, try <int> sets of seeds (2)" << endl
-		<< endl
-		<< " Paired-end:" << endl
+        << " Paired-end:" << endl
 	    << "  -I/--minins <int>  minimum fragment length (0)" << endl
 	    << "  -X/--maxins <int>  maximum fragment length (500)" << endl
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
@@ -1470,6 +1423,10 @@ static void parseOption(int next_option, const char *arg) {
                 cerr << "Error: should be one of F, R, FR, or RF " << endl;
 				throw 1;
             }
+            break;
+        }
+        case ARG_MIN_HITLEN: {
+            minHitLen = parseInt(15, "--min-hitlen arg must be at least 15", arg);
             break;
         }
 		default:
@@ -2346,7 +2303,7 @@ static void multiseedSearchWorker(void *vp) {
                                    rp,            // reporting parameters
                                    (size_t)tid);  // thread id
     
-    Classifier<index_t, local_index_t> classifier(ebwtFw, multiseed_refnames);
+    Classifier<index_t, local_index_t> classifier(ebwtFw, multiseed_refnames, minHitLen);
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
