@@ -43,7 +43,6 @@
 #include "ds.h"
 #include "aligner_metrics.h"
 #include "aligner_seed_policy.h"
-#include "sam.h"
 #include "classifier.h"
 #include "util.h"
 #include "pe.h"
@@ -2022,6 +2021,7 @@ struct PerfMetrics {
 		itoa10<uint64_t>(rp.nconcord_uni, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
+#if 0
 		// 11. Pairs with repetitive concordant alignments
 		itoa10<uint64_t>(rp.nconcord_rep, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
@@ -2070,7 +2070,8 @@ struct PerfMetrics {
 		itoa10<uint64_t>(rp.nunp_0, buf);
 		if(metricsStderr) stderrSs << buf << '\t';
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
-
+#endif
+        
 		const WalkMetrics& wl = total ? wlm : wlmu;
 		
 		// 29. Burrows-Wheeler ops in resolver
@@ -2337,21 +2338,12 @@ static void multiseedSearchWorker(void *vp) {
 	
 	// Instantiate an object for holding reporting-related parameters.
     ReportingParams rp(
-                       (allHits ? std::numeric_limits<THitInt>::max() : khits), // -k
-                       mhits,             // -m/-M
-                       0,                 // penalty gap (not used now)
-                       msample,           // true -> -M was specified, otherwise assume -m
-                       gReportDiscordant, // report discordang paired-end alignments?
-                       gReportMixed);     // report unpaired alignments for paired reads?
-    
-	// Instantiate a mapping quality calculator
-	auto_ptr<Mapq> bmapq(new_mapq(mapqv, scoreMin, sc));
-	
+                       (allHits ? std::numeric_limits<THitInt>::max() : khits)); // -k
+
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap<index_t> msinkwrap(
                                    msink,         // global sink
                                    rp,            // reporting parameters
-                                   *bmapq.get(),  // MAPQ calculator
                                    (size_t)tid);  // thread id
     
     Classifier<index_t, local_index_t> classifier(ebwtFw, multiseed_refnames);
@@ -3001,56 +2993,6 @@ static void driver(
 		}
 		EList<string> refnames;
 		readEbwtRefnames<index_t>(adjIdxBase, refnames);
-		SamConfig samc(
-			refnames,               // reference sequence names
-			reflens,                // reference sequence lengths
-			samTruncQname,          // whether to truncate QNAME to 255 chars
-			samOmitSecSeqQual,      // omit SEQ/QUAL for 2ndary alignments?
-			samNoUnal,              // omit unaligned-read records?
-			string("centrifuge"),      // program id
-			string("centrifuge"),      // program name
-			string(CENTRIFUGE_VERSION), // program version
-			argstr,                 // command-line
-			rgs_optflag,            // read-group string
-            rna_strandness,
-			sam_print_as,
-			sam_print_xs,
-			sam_print_xss,
-			sam_print_yn,
-			sam_print_xn,
-			sam_print_cs,
-			sam_print_cq,
-			sam_print_x0,
-			sam_print_x1,
-			sam_print_xm,
-			sam_print_xo,
-			sam_print_xg,
-			sam_print_nm,
-			sam_print_md,
-			sam_print_yf,
-			sam_print_yi,
-			sam_print_ym,
-			sam_print_yp,
-			sam_print_yt,
-			sam_print_ys,
-			sam_print_zs,
-			sam_print_xr,
-			sam_print_xt,
-			sam_print_xd,
-			sam_print_xu,
-			sam_print_yl,
-			sam_print_ye,
-			sam_print_yu,
-			sam_print_xp,
-			sam_print_yr,
-			sam_print_zb,
-			sam_print_zr,
-			sam_print_zf,
-			sam_print_zm,
-			sam_print_zi,
-			sam_print_zp,
-			sam_print_zu,
-            sam_print_xs_a);
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
@@ -3062,13 +3004,10 @@ static void driver(
 			case OUTPUT_SAM: {
 				mssink = new AlnSinkSam<index_t>(
 					oq,           // output queue
-					samc,         // settings & routines for SAM output
 					refnames,     // reference names
                     gQuiet);      // don't print alignment summary at end
 				if(!samNoHead) {
-					bool printHd = true, printSq = true;
 					BTString buf;
-					samc.printHeader(buf, rgid, rgs, printHd, !samNoSQ, printSq);
 					fout->writeString(buf);
 				}
 				break;

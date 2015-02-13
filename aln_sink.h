@@ -22,11 +22,10 @@
 
 #include <limits>
 #include "read.h"
-#include "unique.h"
-#include "sam.h"
 #include "ds.h"
 #include "simple_func.h"
 #include "outq.h"
+#include "aligner_result.h"
 #include <utility>
 
 // Forward decl
@@ -49,37 +48,14 @@ struct ReportingMetrics {
 	}
 
 	void reset() {
-		init(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		init(0, 0, 0, 0);
 	}
 
 	void init(
 		uint64_t nread_,
 		uint64_t npaired_,
 		uint64_t nunpaired_,
-		uint64_t nconcord_uni_,
-		uint64_t nconcord_uni1_,
-		uint64_t nconcord_uni2_,
-		uint64_t nconcord_rep_,
-		uint64_t nconcord_0_,
-		uint64_t ndiscord_,
-		uint64_t nunp_0_uni_,
-		uint64_t nunp_0_uni1_,
-		uint64_t nunp_0_uni2_,
-		uint64_t nunp_0_rep_,
-		uint64_t nunp_0_0_,
-		uint64_t nunp_rep_uni_,
-		uint64_t nunp_rep_uni1_,
-		uint64_t nunp_rep_uni2_,
-		uint64_t nunp_rep_rep_,
-		uint64_t nunp_rep_0_,
-		uint64_t nunp_uni_,
-		uint64_t nunp_uni1_,
-		uint64_t nunp_uni2_,
-		uint64_t nunp_rep_,
-		uint64_t nunp_0_,
-		uint64_t sum_best1_,
-		uint64_t sum_best2_,
-		uint64_t sum_best_)
+		uint64_t nconcord_uni_)
 	{
 		nread         = nread_;
 		
@@ -87,35 +63,7 @@ struct ReportingMetrics {
 		nunpaired     = nunpaired_;
 		
 		nconcord_uni  = nconcord_uni_;
-		nconcord_uni1 = nconcord_uni1_;
-		nconcord_uni2 = nconcord_uni2_;
-		nconcord_rep  = nconcord_rep_;
-		nconcord_0    = nconcord_0_;
-		
-		ndiscord      = ndiscord_;
-		
-		nunp_0_uni    = nunp_0_uni_;
-		nunp_0_uni1   = nunp_0_uni1_;
-		nunp_0_uni2   = nunp_0_uni2_;
-		nunp_0_rep    = nunp_0_rep_;
-		nunp_0_0      = nunp_0_0_;
-
-		nunp_rep_uni  = nunp_rep_uni_;
-		nunp_rep_uni1 = nunp_rep_uni1_;
-		nunp_rep_uni2 = nunp_rep_uni2_;
-		nunp_rep_rep  = nunp_rep_rep_;
-		nunp_rep_0    = nunp_rep_0_;
-
-		nunp_uni      = nunp_uni_;
-		nunp_uni1     = nunp_uni1_;
-		nunp_uni2     = nunp_uni2_;
-		nunp_rep      = nunp_rep_;
-		nunp_0        = nunp_0_;
-
-		sum_best1     = sum_best1_;
-		sum_best2     = sum_best2_;
-		sum_best      = sum_best_;
-	}
+    }
 	
 	/**
 	 * Merge (add) the counters in the given ReportingMetrics object
@@ -130,35 +78,7 @@ struct ReportingMetrics {
 		nunpaired     += met.nunpaired;
 
 		nconcord_uni  += met.nconcord_uni;
-		nconcord_uni1 += met.nconcord_uni1;
-		nconcord_uni2 += met.nconcord_uni2;
-		nconcord_rep  += met.nconcord_rep;
-		nconcord_0    += met.nconcord_0;
-
-		ndiscord      += met.ndiscord;
-
-		nunp_0_uni    += met.nunp_0_uni;
-		nunp_0_uni1   += met.nunp_0_uni1;
-		nunp_0_uni2   += met.nunp_0_uni2;
-		nunp_0_rep    += met.nunp_0_rep;
-		nunp_0_0      += met.nunp_0_0;
-
-		nunp_rep_uni  += met.nunp_rep_uni;
-		nunp_rep_uni1 += met.nunp_rep_uni1;
-		nunp_rep_uni2 += met.nunp_rep_uni2;
-		nunp_rep_rep  += met.nunp_rep_rep;
-		nunp_rep_0    += met.nunp_rep_0;
-
-		nunp_uni      += met.nunp_uni;
-		nunp_uni1     += met.nunp_uni1;
-		nunp_uni2     += met.nunp_uni2;
-		nunp_rep      += met.nunp_rep;
-		nunp_0        += met.nunp_0;
-
-		sum_best1     += met.sum_best1;
-		sum_best2     += met.sum_best2;
-		sum_best      += met.sum_best;
-	}
+    }
 
 	uint64_t  nread;         // # reads
 	uint64_t  npaired;       // # pairs
@@ -166,42 +86,9 @@ struct ReportingMetrics {
 	
 	// Paired
 	
-	//  Concordant
+	// Concordant
 	uint64_t  nconcord_uni;  // # pairs with unique concordant alns
-	uint64_t  nconcord_uni1; // # pairs with exactly 1 concordant alns
-	uint64_t  nconcord_uni2; // # pairs with >1 concordant aln, still unique
-	uint64_t  nconcord_rep;  // # pairs with repetitive concordant alns
-	uint64_t  nconcord_0;    // # pairs with 0 concordant alns
-	//  Discordant
-	uint64_t  ndiscord;      // # pairs with 1 discordant aln
-	
-	//  Unpaired from failed pairs
-	uint64_t  nunp_0_uni;    // # unique from nconcord_0_ - ndiscord_
-	uint64_t  nunp_0_uni1;   // # pairs with exactly 1 concordant alns
-	uint64_t  nunp_0_uni2;   // # pairs with >1 concordant aln, still unique
-	uint64_t  nunp_0_rep;    // # repetitive from 
-	uint64_t  nunp_0_0;      // # with 0 alignments
-
-	//  Unpaired from repetitive pairs
-	uint64_t  nunp_rep_uni;  // # pairs with unique concordant alns
-	uint64_t  nunp_rep_uni1; // # pairs with exactly 1 concordant alns
-	uint64_t  nunp_rep_uni2; // # pairs with >1 concordant aln, still unique
-	uint64_t  nunp_rep_rep;  // # pairs with repetitive concordant alns
-	uint64_t  nunp_rep_0;    // # pairs with 0 concordant alns
-	
-	// Unpaired
-	
-	uint64_t  nunp_uni;      // # unique from nconcord_0_ - ndiscord_
-	uint64_t  nunp_uni1;     // # pairs with exactly 1 concordant alns
-	uint64_t  nunp_uni2;     // # pairs with >1 concordant aln, still unique
-	uint64_t  nunp_rep;      // # repetitive from 
-	uint64_t  nunp_0;        // # with 0 alignments
-
-	
-	uint64_t  sum_best1;     // Sum of all the best alignment scores
-	uint64_t  sum_best2;     // Sum of all the second-best alignment scores
-	uint64_t  sum_best;      // Sum of all the best and second-best
-
+		
 	MUTEX_T mutex_m;
 };
 
@@ -215,30 +102,15 @@ typedef int64_t THitInt;
 struct ReportingParams {
 
 	explicit ReportingParams(
-		THitInt khits_,
-		THitInt mhits_,
-		THitInt pengap_,
-		bool msample_,
-		bool discord_,
-		bool mixed_)
+		THitInt khits_)
 	{
-		init(khits_, mhits_, pengap_, msample_, discord_, mixed_);
+		init(khits_);
 	}
 
 	void init(
-		THitInt khits_,
-		THitInt mhits_,
-		THitInt pengap_,
-		bool msample_,
-		bool discord_,
-		bool mixed_)
+		THitInt khits_)
 	{
 		khits   = khits_;     // -k (or high if -a)
-		mhits   = ((mhits_ == 0) ? std::numeric_limits<THitInt>::max() : mhits_);
-		pengap  = pengap_;
-		msample = msample_;
-		discord = discord_;
-		mixed   = mixed_;
 	}
 	
 #ifndef NDEBUG
@@ -247,70 +119,16 @@ struct ReportingParams {
 	 */
 	bool repOk() const {
 		assert_geq(khits, 1);
-		assert_geq(mhits, 1);
 		return true;
 	}
 #endif
 	
-	/**
-	 * Return true iff a -m or -M limit was set by the user.
-	 */
-	inline bool mhitsSet() const {
-		return mhits < std::numeric_limits<THitInt>::max();
-	}
-	
-	/**
-	 * Return a multiplier that indicates how many alignments we might look for
-	 * (max).  We can use this to boost parameters like ROWM and POSF
-	 * appropriately.
-	 */
 	inline THitInt mult() const {
-		if(mhitsSet()) {
-			return mhits+1;
-		}
 		return khits;
-	}
-
-	/**
-	 * Given ROWM, POSF thresholds, boost them according to mult().
-	 */
-	void boostThreshold(SimpleFunc& func) {
-		THitInt mul = mult();
-		assert_gt(mul, 0);
-		if(mul == std::numeric_limits<THitInt>::max()) {
-			func.setMin(std::numeric_limits<double>::max());
-		} else if(mul > 1) {
-			func.mult(mul);
-		}
-	}
-	
-	/**
-	 * Return true iff we are reporting all hits.
-	 */
-	bool allHits() const {
-		return khits == std::numeric_limits<THitInt>::max();
 	}
 
 	// Number of alignments to report
 	THitInt khits;
-	
-	// Read is non-unique if mhits-1 next-best alignments are within
-	// pengap of the best alignment
-	THitInt mhits, pengap;
-	
-	// true if -M is specified, meaning that if the -M ceiling is
-	// exceeded, we should report 'khits' alignments chosen at random
-	// from those found
-	bool msample;
-	
-	// true iff we should seek and report discordant paired-end alignments for
-	// paired-end reads.
-	bool discord;
-
-	// true iff we should seek and report unpaired mate alignments when there
-	// are paired-end alignments for a paired-end read, or if the number of
-	// paired-end alignments exceeds the -m ceiling.
-	bool mixed;
 };
 
 /**
@@ -333,8 +151,6 @@ public:
 	enum {
 		NO_READ = 1,        // haven't got a read yet
 		CONCORDANT_PAIRS,   // looking for concordant pairs
-		DISCORDANT_PAIRS,   // looking for discordant pairs
-		UNPAIRED,           // looking for unpaired
 		DONE                // finished looking
 	};
 
@@ -345,9 +161,6 @@ public:
 		EXIT_DID_NOT_EXIT = 1,        // haven't finished
 		EXIT_DID_NOT_ENTER,           // never tried search	
 		EXIT_SHORT_CIRCUIT_k,         // -k exceeded
-		EXIT_SHORT_CIRCUIT_M,         // -M exceeded
-		EXIT_SHORT_CIRCUIT_TRUMPED,   // made irrelevant
-		EXIT_CONVERTED_TO_DISCORDANT, // unpair became discord
 		EXIT_NO_ALIGNMENTS,           // none found
 		EXIT_WITH_ALIGNMENTS          // some found
 	};
@@ -361,18 +174,8 @@ public:
 		state_ = ReportingState::NO_READ;
 		paired_ = false;
 		nconcord_ = 0;
-		ndiscord_ = 0;
-		nunpair1_ = 0;
-		nunpair2_ = 0;
 		doneConcord_ = false;
-		doneDiscord_ = false;
-		doneUnpair_  = false;
-		doneUnpair1_ = false;
-		doneUnpair2_ = false;
 		exitConcord_ = ReportingState::EXIT_DID_NOT_ENTER;
-		exitDiscord_ = ReportingState::EXIT_DID_NOT_ENTER;
-		exitUnpair1_ = ReportingState::EXIT_DID_NOT_ENTER;
-		exitUnpair2_ = ReportingState::EXIT_DID_NOT_ENTER;
 		done_ = false;
 	}
 	
@@ -427,14 +230,7 @@ public:
 	 * unpaired alignment.
 	 */
 	void getReport(
-		uint64_t& nconcordAln, // # concordant alignments to report
-		uint64_t& ndiscordAln, // # discordant alignments to report
-		uint64_t& nunpair1Aln, // # unpaired alignments for mate #1 to report
-		uint64_t& nunpair2Aln, // # unpaired alignments for mate #2 to report
-		bool& pairMax,         // repetitive concordant alignments
-		bool& unpair1Max,      // repetitive alignments for mate #1
-		bool& unpair2Max)      // repetitive alignments for mate #2
-		const;
+                   uint64_t& nconcordAln); // # concordant alignments to report
 
 	/**
 	 * Return an integer representing the alignment state we're in.
@@ -448,75 +244,13 @@ public:
 	inline bool doneConcordant() const { return doneConcord_; }
 	
 	/**
-	 * If false, there's no need to seek any more discordant alignment.
-	 */
-	inline bool doneDiscordant() const { return doneDiscord_; }
-	
-	/**
-	 * If false, there's no need to seek any more unpaired alignments for the
-	 * specified mate.  Note: this doesn't necessarily mean we can stop looking
-	 * for alignments for the mate, since this might be necessary for finding
-	 * concordant and discordant alignments.
-	 */
-	inline bool doneUnpaired(bool mate1) const {
-		return mate1 ? doneUnpair1_ : doneUnpair2_;
-	}
-	
-	/**
-	 * If false, no further consideration of the given mate is necessary.  It's
-	 * not needed for *any* class of alignment: concordant, discordant or
-	 * unpaired.
-	 */
-	inline bool doneWithMate(bool mate1) const {
-		bool doneUnpair = mate1 ? doneUnpair1_ : doneUnpair2_;
-		uint64_t nun = mate1 ? nunpair1_ : nunpair2_;
-		if(!doneUnpair || !doneConcord_) {
-			return false; // still needed for future concordant/unpaired alns
-		}
-		if(!doneDiscord_ && nun == 0) {
-			return false; // still needed for future discordant alignments
-		}
-		return true; // done
-	}
-
-	/**
-	 * Return true iff there's no need to seek any more unpaired alignments.
-	 */
-	inline bool doneUnpaired() const { return doneUnpair_; }
-	
-	/**
 	 * Return true iff all alignment stages have been exited.
 	 */
 	inline bool done() const { return done_; }
 
 	inline uint64_t numConcordant() const { return nconcord_; }
-	inline uint64_t numDiscordant() const { return ndiscord_; }
-	inline uint64_t numUnpaired1()  const { return nunpair1_; }
-	inline uint64_t numUnpaired2()  const { return nunpair2_; }
 
 	inline int exitConcordant() const { return exitConcord_; }
-	inline int exitDiscordant() const { return exitDiscord_; }
-	inline int exitUnpaired1()  const { return exitUnpair1_; }
-	inline int exitUnpaired2()  const { return exitUnpair2_; }
-
-#ifndef NDEBUG
-	/**
-	 * Check that ReportingState is internally consistent.
-	 */
-	bool repOk() const {
-		assert(p_.discord || doneDiscord_);
-		assert(p_.mixed   || !paired_ || doneUnpair_);
-		assert(doneUnpair_ || !doneUnpair1_ || !doneUnpair2_);
-		if(p_.mhitsSet()) {
-			assert_leq(numConcordant(), (uint64_t)p_.mhits+1);
-			assert_leq(numDiscordant(), (uint64_t)p_.mhits+1);
-			assert(paired_ || numUnpaired1() <= (uint64_t)p_.mhits+1);
-			assert(paired_ || numUnpaired2() <= (uint64_t)p_.mhits+1);
-		}
-		assert(done() || !doneWithMate(true) || !doneWithMate(false));
-		return true;
-	}
-#endif
 
 	/**
 	 * Return ReportingParams object governing this ReportingState.
@@ -526,56 +260,12 @@ public:
 	}
 
 protected:
-
-	/**
-	 * Update state to reflect situation after converting two unique unpaired
-	 * alignments, one for mate 1 and one for mate 2, into a single discordant
-	 * alignment.
-	 */
-	void convertUnpairedToDiscordant() {
-		assert_eq(1, numUnpaired1());
-		assert_eq(1, numUnpaired2());
-		assert_eq(0, numDiscordant());
-		exitUnpair1_ = exitUnpair2_ = ReportingState::EXIT_CONVERTED_TO_DISCORDANT;
-		nunpair1_ = nunpair2_ = 0;
-		ndiscord_ = 1;
-		assert_eq(1, numDiscordant());
-	}
-
-	/**
-	 * Given the number of alignments in a category, check whether we
-	 * short-circuited out of the category.  Set the done and exit arguments to
-	 * indicate whether and how we short-circuited.
-	 */
-	inline void areDone(
-		uint64_t cnt,     // # alignments in category
-		bool& done,       // out: whether we short-circuited out of category
-		int& exit) const; // out: if done, how we short-circuited (-k? -m? etc)
-	
-	/**
-	 * Update done_ field to reflect whether we're totally done now.
-	 */
-	inline void updateDone() {
-		doneUnpair_ = doneUnpair1_ && doneUnpair2_;
-		done_ = doneUnpair_ && doneDiscord_ && doneConcord_;
-	}
-
 	const ReportingParams& p_;  // reporting parameters
 	int state_;          // state we're currently in
 	bool paired_;        // true iff read we're currently handling is paired
 	uint64_t nconcord_;  // # concordants found so far
-	uint64_t ndiscord_;  // # discordants found so far
-	uint64_t nunpair1_;  // # unpaired alignments found so far for mate 1
-	uint64_t nunpair2_;  // # unpaired alignments found so far for mate 2
 	bool doneConcord_;   // true iff we're no longner interested in concordants
-	bool doneDiscord_;   // true iff we're no longner interested in discordants
-	bool doneUnpair_;    // no longner interested in unpaired alns
-	bool doneUnpair1_;   // no longner interested in unpaired alns for mate 1
-	bool doneUnpair2_;   // no longner interested in unpaired alns for mate 2
 	int exitConcord_;    // flag indicating how we exited concordant state
-	int exitDiscord_;    // flag indicating how we exited discordant state
-	int exitUnpair1_;    // flag indicating how we exited unpaired 1 state
-	int exitUnpair2_;    // flag indicating how we exited unpaired 2 state
 	bool done_;          // done with all alignments
 };
 
@@ -625,7 +315,6 @@ public:
 	 */
 	virtual void append(
 		BTString&             o,
-		StackedAln&           staln,
 		size_t                threadId,
 		const Read           *rd1,
 		const Read           *rd2,
@@ -633,13 +322,7 @@ public:
 		AlnRes               *rs1,
 		AlnRes               *rs2,
 		const AlnSetSumm&     summ,
-		const SeedAlSumm&     ssm1,
-		const SeedAlSumm&     ssm2,
-		const AlnFlags*       flags1,
-		const AlnFlags*       flags2,
 		const PerReadMetrics& prm,
-		const Mapq&           mapq,
-		const Scoring&        sc,
 		bool                  report2) = 0;
 
 	/**
@@ -654,7 +337,6 @@ public:
 	 */
 	virtual void reportHits(
 		BTString&             o,              // write to this buffer
-		StackedAln&           staln,       // StackedAln to write stacked alignment
 		size_t                threadId,       // which thread am I?
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
@@ -665,73 +347,17 @@ public:
 		EList<AlnRes>        *rs2,            // alignments for mate #2
 		bool                  maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&     summ,           // summary
-		const SeedAlSumm&     ssm1,           // seed alignment summ
-		const SeedAlSumm&     ssm2,           // seed alignment summ
-		const AlnFlags*       flags1,         // flags for mate #1
-		const AlnFlags*       flags2,         // flags for mate #2
 		const PerReadMetrics& prm,            // per-read metrics
-		const Mapq&           mapq,           // MAPQ generator
-		const Scoring&        sc,             // scoring scheme
 		bool                  getLock = true) // true iff lock held by caller
 	{
-		// There are a few scenarios:
-		// 1. Read is unpaired, in which case rd2 is NULL
-		// 2. Read is paired-end and we're reporting concordant alignments
-		// 3. Read is paired-end and we're reporting discordant alignments
-		// 4. Read is paired-end and we're reporting unpaired alignments for
-		//    both mates
-		// 5. Read is paired-end and we're reporting an unpaired alignments for
-		//    just one mate or the other
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
-		AlnFlags flagscp1, flagscp2;
-		if(flags1 != NULL) {
-			flagscp1 = *flags1;
-			flags1 = &flagscp1;
-			flagscp1.setPrimary(true);
-		}
-		if(flags2 != NULL) {
-			flagscp2 = *flags2;
-			flags2 = &flagscp2;
-			flagscp2.setPrimary(true);
-		}
-		if(select2 != NULL) {
-			// Handle case 5
-			assert(rd1 != NULL); assert(flags1 != NULL);
-			assert(rd2 != NULL); assert(flags2 != NULL);
-			assert_gt(select1.size(), 0);
-			assert_gt(select2->size(), 0);
-			AlnRes* r1pri = ((rs1 != NULL) ? &rs1->get(select1[0]) : NULL);
-			AlnRes* r2pri = ((rs2 != NULL) ? &rs2->get((*select2)[0]) : NULL);
-			append(o, staln, threadId, rd1, rd2, rdid, r1pri, r2pri, summ,
-			       ssm1, ssm2, flags1, flags2, prm, mapq, sc, true);
-			flagscp1.setPrimary(false);
-			flagscp2.setPrimary(false);
-			for(size_t i = 1; i < select1.size(); i++) {
-				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
-				append(o, staln, threadId, rd1, rd2, rdid, r1, r2pri, summ,
-				       ssm1, ssm2, flags1, flags2, prm, mapq, sc, false);
-			}
-			for(size_t i = 1; i < select2->size(); i++) {
-				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get((*select2)[i]) : NULL);
-				append(o, staln, threadId, rd2, rd1, rdid, r2, r1pri, summ,
-				       ssm2, ssm1, flags2, flags1, prm, mapq, sc, false);
-			}
-		} else {
-			// Handle cases 1-4
-			for(size_t i = 0; i < select1.size(); i++) {
-				AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
-				AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
-				append(o, staln, threadId, rd1, rd2, rdid, r1, r2, summ,
-				       ssm1, ssm2, flags1, flags2, prm, mapq, sc, true);
-				if(flags1 != NULL) {
-					flagscp1.setPrimary(false);
-				}
-				if(flags2 != NULL) {
-					flagscp2.setPrimary(false);
-				}
-			}
-		}
+
+        for(size_t i = 0; i < select1.size(); i++) {
+            AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
+            AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
+            append(o, threadId, rd1, rd2, rdid, r1, r2, summ, prm, true);
+        }
 	}
 
 	/**
@@ -740,24 +366,16 @@ public:
 	 */
 	virtual void reportUnaligned(
 		BTString&             o,              // write to this string
-		StackedAln&           staln,          // StackedAln to write stacked alignment
 		size_t                threadId,       // which thread am I?
 		const Read           *rd1,            // mate #1
 		const Read           *rd2,            // mate #2
 		const TReadId         rdid,           // read ID
 		const AlnSetSumm&     summ,           // summary
-		const SeedAlSumm&     ssm1,           // seed alignment summary
-		const SeedAlSumm&     ssm2,           // seed alignment summary
-		const AlnFlags*       flags1,         // flags for mate #1
-		const AlnFlags*       flags2,         // flags for mate #2
 		const PerReadMetrics& prm,            // per-read metrics
-		const Mapq&           mapq,           // MAPQ calculator
-		const Scoring&        sc,             // scoring scheme
 		bool                  report2,        // report alns for both mates?
 		bool                  getLock = true) // true iff lock held by caller
 	{
-		append(o, staln, threadId, rd1, rd2, rdid, NULL, NULL, summ,
-		       ssm1, ssm2, flags1, flags2, prm, mapq, sc, report2);
+		append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ, prm, report2);
 	}
 
 	/**
@@ -968,13 +586,11 @@ public:
 	AlnSinkWrap(
 		AlnSink<index_t>& g,       // AlnSink being wrapped
 		const ReportingParams& rp, // Parameters governing reporting
-		Mapq& mapq,                // Mapq calculator
 		size_t threadId,           // Thread ID
         bool secondary = false) :  // Secondary alignments
 		g_(g),
 		rp_(rp),
         threadid_(threadId),
-        mapq_(mapq),
     	secondary_(secondary),
 		init_(false),   
 		maxed1_(false),       // read is pair and we maxed out mate 1 unp alns
@@ -1044,7 +660,6 @@ public:
 		RandomSource&      rnd,          // pseudo-random generator
 		ReportingMetrics&  met,          // reporting metrics
 		const PerReadMetrics& prm,       // per-read metrics
-		const Scoring& sc,               // scoring scheme
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false);
 	
@@ -1068,21 +683,10 @@ public:
 	 */
 	bool repOk() const {
 		assert_eq(rs2_.size(), rs1_.size());
-		if(rp_.mhitsSet()) {
-			assert_gt(rp_.mhits, 0);
-			assert_leq((int)rs1_.size(), rp_.mhits+1);
-			assert_leq((int)rs2_.size(), rp_.mhits+1);
-			assert(readIsPair() || (int)rs1u_.size() <= rp_.mhits+1);
-			assert(readIsPair() || (int)rs2u_.size() <= rp_.mhits+1);
-		}
 		if(init_) {
 			assert(rd1_ != NULL);
 			assert_neq(std::numeric_limits<TReadId>::max(), rdid_);
 		}
-		assert_eq(st_.numConcordant() + st_.numDiscordant(), rs1_.size());
-		//assert_eq(st_.numUnpaired1(), rs1u_.size());
-		//assert_eq(st_.numUnpaired2(), rs2u_.size());
-		assert(st_.repOk());
 		return true;
 	}
 #endif
@@ -1125,19 +729,6 @@ public:
     
     const ReportingParams& reportingParams() { return rp_;}
 	
-	/**
-	 * Return true iff we're in -M mode.
-	 */
-	bool Mmode() const {
-		return rp_.mhitsSet();
-	}
-	
-	/**
-	 * Return true iff the policy is to report all hits.
-	 */
-	bool allHits() const {
-		return rp_.allHits();
-	}
 	
 	/**
 	 * Return true iff at least two alignments have been reported so far for an
@@ -1205,33 +796,6 @@ public:
 		return best2Pair_;
 	}
     
-    index_t bestSplicedPair() const {
-        return bestSplicedPair_;
-    }
-    
-    index_t best2SplicedPair() const {
-        return best2SplicedPair_;
-    }
-    
-    index_t bestSplicedUnp1() const {
-        return bestSplicedUnp1_;
-    }
-    
-    index_t best2SplicedUnp1() const {
-        return best2SplicedUnp1_;
-    }
-    
-    index_t bestSplicedUnp2() const {
-        return bestSplicedUnp2_;
-    }
-    
-    index_t best2SplicedUnp2() const {
-        return best2SplicedUnp2_;
-    }
-    
-    bool secondary() const {
-        return secondary_;
-    }
     
     /**
      *
@@ -1290,7 +854,6 @@ protected:
 	AlnSink<index_t>& g_;     // global alignment sink
 	ReportingParams   rp_;    // reporting parameters: khits, mhits etc
 	size_t            threadid_; // thread ID
-	Mapq&             mapq_;  // mapq calculator
     bool              secondary_; // allow for secondary alignments
 	bool              init_;  // whether we're initialized w/ read pair
 	bool              maxed1_; // true iff # unpaired mate-1 alns reported so far exceeded -m/-M
@@ -1321,7 +884,6 @@ protected:
 	
 	EList<std::pair<TAlScore, size_t> > selectBuf_;
 	BTString obuf_;
-	StackedAln staln_;
 };
 
 /**
@@ -1339,14 +901,12 @@ public:
 
 	AlnSinkSam(
 		OutputQueue&     oq,           // output queue
-		const SamConfig& samc,         // settings & routines for SAM output
 		const StrList&   refnames,     // reference names
 		bool             quiet) :
 		AlnSink<index_t>(
 			oq,
 			refnames,
-			quiet),
-		samc_(samc)
+			quiet)
 	{ }
 	
 	virtual ~AlnSinkSam() { }
@@ -1359,7 +919,6 @@ public:
 	 */
 	virtual void append(
 		BTString&     o,           // write output to this string
-		StackedAln&   staln,       // StackedAln to write stacked alignment
 		size_t        threadId,    // which thread am I?
 		const Read*   rd1,         // mate #1
 		const Read*   rd2,         // mate #2
@@ -1367,26 +926,11 @@ public:
 		AlnRes* rs1,               // alignments for mate #1
 		AlnRes* rs2,               // alignments for mate #2
 		const AlnSetSumm& summ,    // summary
-		const SeedAlSumm& ssm1,    // seed alignment summary
-		const SeedAlSumm& ssm2,    // seed alignment summary
-		const AlnFlags* flags1,    // flags for mate #1
-		const AlnFlags* flags2,    // flags for mate #2
 		const PerReadMetrics& prm, // per-read metrics
-		const Mapq& mapq,          // MAPQ calculator
-		const Scoring& sc,         // scoring scheme
 		bool report2)              // report alns for both mates
 	{
 		assert(rd1 != NULL || rd2 != NULL);
-		if(rd1 != NULL) {
-			assert(flags1 != NULL);
-			appendMate(o, staln, *rd1, rd2, rdid, rs1, rs2, summ, ssm1, ssm2,
-			           *flags1, prm, mapq, sc);
-		}
-		if(rd2 != NULL && report2) {
-			assert(flags2 != NULL);
-			appendMate(o, staln, *rd2, rd1, rdid, rs2, rs1, summ, ssm2, ssm1,
-			           *flags2, prm, mapq, sc);
-		}
+        appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, prm);
 	}
 
 protected:
@@ -1398,21 +942,15 @@ protected:
 	 */
 	void appendMate(
 		BTString&     o,
-		StackedAln&   staln,
 		const Read&   rd,
 		const Read*   rdo,
 		const TReadId rdid,
 		AlnRes* rs,
 		AlnRes* rso,
 		const AlnSetSumm& summ,
-		const SeedAlSumm& ssm,
-		const SeedAlSumm& ssmo,
-		const AlnFlags& flags,
-		const PerReadMetrics& prm, // per-read metrics
-		const Mapq& mapq,          // MAPQ calculator
-		const Scoring& sc);        // scoring scheme
+        const PerReadMetrics& prm); // per-read metrics
 
-	const SamConfig& samc_;    // settings & routines for SAM output
+
 	BTDnaString      dseq_;    // buffer for decoded read sequence
 	BTString         dqual_;   // buffer for decoded quality sequence
 };
@@ -1450,6 +988,7 @@ void AlnSink<index_t>::printAlSumm(
 {
 	// NOTE: there's a filtering step at the very beginning, so everything
 	// being reported here is post filtering
+#if 0
 	
 	bool canRep = repThresh != MAX_SIZE_T;
 	if(hadoopOut) {
@@ -1620,6 +1159,8 @@ void AlnSink<index_t>::printAlSumm(
 	assert_leq(tot_al, tot_al_cand);
 	printPct(cerr, tot_al, tot_al_cand);
 	cerr << " overall alignment rate" << endl;
+    
+#endif
 }
 
 /**
@@ -1758,7 +1299,6 @@ void AlnSinkWrap<index_t>::finishRead(
 									  RandomSource&      rnd,          // pseudo-random generator
 									  ReportingMetrics&  met,          // reporting metrics
 									  const PerReadMetrics& prm,       // per-read metrics
-									  const Scoring& sc,               // scoring scheme
 									  bool suppressSeedSummary,        // = true
 									  bool suppressAlignments)         // = false
 {
@@ -1801,10 +1341,6 @@ void AlnSinkWrap<index_t>::finishRead(
 		assert_leq(nunpair2, rs2u_.size());
 		assert_leq(ndiscord, 1);
 		assert_gt(rp_.khits, 0);
-		assert_gt(rp_.mhits, 0);
-		assert(!pairMax    || rs1_.size()  >= (uint64_t)rp_.mhits);
-		assert(!unpair1Max || rs1u_.size() >= (uint64_t)rp_.mhits);
-		assert(!unpair2Max || rs2u_.size() >= (uint64_t)rp_.mhits);
 		met.nread++;
 		if(readIsPair()) {
 			met.npaired++;
@@ -1828,49 +1364,10 @@ void AlnSinkWrap<index_t>::finishRead(
 			assert_lt(off, rs1_.size());
 			const AlnRes *rs1 = &rs1_[off];
 			const AlnRes *rs2 = &rs2_[off];
-			AlnFlags flags1(
-							ALN_FLAG_PAIR_CONCORD_MATE1,
-							st_.params().mhitsSet(),
-							unpair1Max,
-							pairMax,
-							nfilt1,
-							scfilt1,
-							lenfilt1,
-							qcfilt1,
-							st_.params().mixed,
-							true,       // primary
-							true,       // opp aligned
-							rs2->fw()); // opp fw
-			AlnFlags flags2(
-							ALN_FLAG_PAIR_CONCORD_MATE2,
-							st_.params().mhitsSet(),
-							unpair2Max,
-							pairMax,
-							nfilt2,
-							scfilt2,
-							lenfilt2,
-							qcfilt2,
-							st_.params().mixed,
-							false,      // primary
-							true,       // opp aligned
-							rs1->fw()); // opp fw
-			// Issue: we only set the flags once, but some of the flags might
-			// vary from pair to pair among the pairs we're reporting.  For
-			// instance, whether the a given mate aligns to the forward strand.
-			SeedAlSumm ssm1, ssm2;
-            if(sr1 != NULL && sr2 != NULL) {
-                sr1->toSeedAlSumm(ssm1);
-                sr2->toSeedAlSumm(ssm2);
-            }
-			for(size_t i = 0; i < rs1_.size(); i++) {
-				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
-				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
-				assert_eq(abs(rs1_[i].fragmentLength()), abs(rs2_[i].fragmentLength()));
-			}
+
 			assert(!select1_.empty());
 			g_.reportHits(
 						  obuf_,
-						  staln_,
 						  threadid_,
 						  rd1_,
 						  rd2_,
@@ -1881,22 +1378,16 @@ void AlnSinkWrap<index_t>::finishRead(
 						  &rs2_,
 						  pairMax,
 						  concordSumm,
-						  ssm1,
-						  ssm2,
-						  &flags1,
-						  &flags2,
-						  prm,
-						  mapq_,
-						  sc);
+                          prm);
 			if(pairMax) {
-				met.nconcord_rep++;
+				// met.nconcord_rep++;
 			} else {
 				met.nconcord_uni++;
 				assert(!rs1_.empty());
 				if(rs1_.size() == 1) {
-					met.nconcord_uni1++;
+					// met.nconcord_uni1++;
 				} else {
-					met.nconcord_uni2++;
+					// met.nconcord_uni2++;
 				}
 			}
 			init_ = false;
@@ -1914,41 +1405,6 @@ void AlnSinkWrap<index_t>::finishRead(
 								   exhaust1, exhaust2, -1, -1);
 			const AlnRes *rs1 = &rs1_[0];
 			const AlnRes *rs2 = &rs2_[0];
-			AlnFlags flags1(
-							ALN_FLAG_PAIR_DISCORD_MATE1,
-							st_.params().mhitsSet(),
-							false,
-							pairMax,
-							nfilt1,
-							scfilt1,
-							lenfilt1,
-							qcfilt1,
-							st_.params().mixed,
-							true,       // primary
-							true,       // opp aligned
-							rs2->fw()); // opp fw
-			AlnFlags flags2(
-							ALN_FLAG_PAIR_DISCORD_MATE2,
-							st_.params().mhitsSet(),
-							false,
-							pairMax,
-							nfilt2,
-							scfilt2,
-							lenfilt2,
-							qcfilt2,
-							st_.params().mixed,
-							false,      // primary
-							true,       // opp aligned
-							rs1->fw()); // opp fw
-			SeedAlSumm ssm1, ssm2;
-            if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
-			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
-			for(size_t i = 0; i < rs1_.size(); i++) {
-				rs1_[i].setMateParams(ALN_RES_TYPE_MATE1, &rs2_[i], flags1);
-				rs2_[i].setMateParams(ALN_RES_TYPE_MATE2, &rs1_[i], flags2);
-				assert(rs1_[i].isFraglenSet() == rs2_[i].isFraglenSet());
-				assert(!rs1_[i].isFraglenSet() || abs(rs1_[i].fragmentLength()) == abs(rs2_[i].fragmentLength()));
-			}
 			ASSERT_ONLY(size_t off);
 			if(sortByScore) {
 				// Sort by score then pick from low to high
@@ -1961,7 +1417,6 @@ void AlnSinkWrap<index_t>::finishRead(
 			assert(!select1_.empty());
 			g_.reportHits(
 						  obuf_,
-						  staln_,
 						  threadid_,
 						  rd1_,
 						  rd2_,
@@ -1972,15 +1427,9 @@ void AlnSinkWrap<index_t>::finishRead(
 						  &rs2_,
 						  pairMax,
 						  discordSumm,
-						  ssm1,
-						  ssm2,
-						  &flags1,
-						  &flags2,
-						  prm,
-						  mapq_,
-						  sc);
-			met.nconcord_0++;
-			met.ndiscord++;
+                          prm);
+			//met.nconcord_0++;
+			//met.ndiscord++;
 			init_ = false;
 			//g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
@@ -1992,6 +1441,7 @@ void AlnSinkWrap<index_t>::finishRead(
 		//assert(nunpair1 == 0 || nunpair2 == 0);
 		assert(!pairMax);
 		
+#if 0
 		// Update counters given that one mate didn't align
 		if(readIsPair()) {
 			met.nconcord_0++;
@@ -2068,10 +1518,11 @@ void AlnSinkWrap<index_t>::finishRead(
 				else               met.nunp_0++;
 			}
 		}
+        
+#endif
 		
 		const AlnRes *repRs1 = NULL, *repRs2 = NULL;
 		AlnSetSumm summ1, summ2;
-		AlnFlags flags1, flags2;
 		TRefId refid = -1; TRefOff refoff = -1;
 		bool rep1 = rd1_ != NULL && nunpair1 > 0;
 		bool rep2 = rd2_ != NULL && nunpair2 > 0;
@@ -2120,61 +1571,11 @@ void AlnSinkWrap<index_t>::finishRead(
 			assert(!unpair2Max);
 		}
 		
-		// Now set up flags
-		if(rep1) {
-			// Initialize flags.  Note: We want to have information about how
-			// the other mate aligned (if it did) at this point
-			flags1.init(
-						readIsPair() ?
-						ALN_FLAG_PAIR_UNPAIRED_MATE1 :
-						ALN_FLAG_PAIR_UNPAIRED,
-						st_.params().mhitsSet(),
-						unpair1Max,
-						pairMax,
-						nfilt1,
-						scfilt1,
-						lenfilt1,
-						qcfilt1,
-						st_.params().mixed,
-						true,   // primary
-						repRs2 != NULL,                    // opp aligned
-						repRs2 == NULL || repRs2->fw());   // opp fw
-			for(size_t i = 0; i < rs1u_.size(); i++) {
-				rs1u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE1, NULL, flags1);
-			}
-		}
-		if(rep2) {
-			// Initialize flags.  Note: We want to have information about how
-			// the other mate aligned (if it did) at this point
-			flags2.init(
-						readIsPair() ?
-						ALN_FLAG_PAIR_UNPAIRED_MATE2 :
-						ALN_FLAG_PAIR_UNPAIRED,
-						st_.params().mhitsSet(),
-						unpair2Max,
-						pairMax,
-						nfilt2,
-						scfilt2,
-						lenfilt2,
-						qcfilt2,
-						st_.params().mixed,
-						true,   // primary
-						repRs1 != NULL,                  // opp aligned
-						repRs1 == NULL || repRs1->fw()); // opp fw
-			for(size_t i = 0; i < rs2u_.size(); i++) {
-				rs2u_[i].setMateParams(ALN_RES_TYPE_UNPAIRED_MATE2, NULL, flags2);
-			}
-		}
-		
 		// Now report mate 1
 		if(rep1) {
-			SeedAlSumm ssm1, ssm2;
-			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
-			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
 			assert(!select1_.empty());
 			g_.reportHits(
 						  obuf_,
-						  staln_,
 						  threadid_,
 						  rd1_,
 						  repRs2 != NULL ? rd2_ : NULL,
@@ -2185,140 +1586,10 @@ void AlnSinkWrap<index_t>::finishRead(
 						  repRs2 != NULL ? &rs2u_ : NULL,
 						  unpair1Max,
 						  summ1,
-						  ssm1,
-						  ssm2,
-						  &flags1,
-						  repRs2 != NULL ? &flags2 : NULL,
-						  prm,
-						  mapq_,
-						  sc);
+                          prm);
 			assert_lt(select1_[0], rs1u_.size());
 			refid = rs1u_[select1_[0]].refid();
 			refoff = rs1u_[select1_[0]].refoff();
-		}
-		
-		// Now report mate 2
-		if(rep2 && !rep1) {
-			SeedAlSumm ssm1, ssm2;
-			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
-			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
-			assert(!select2_.empty());
-			g_.reportHits(
-						  obuf_,
-						  staln_,
-						  threadid_,
-						  rd2_,
-						  repRs1 != NULL ? rd1_ : NULL,
-						  rdid_,
-						  select2_,
-						  repRs1 != NULL ? &select1_ : NULL,
-						  &rs2u_,
-						  repRs1 != NULL ? &rs1u_ : NULL,
-						  unpair2Max,
-						  summ2,
-						  ssm1,
-						  ssm2,
-						  &flags2,
-						  repRs1 != NULL ? &flags1 : NULL,
-						  prm,
-						  mapq_,
-						  sc);
-			assert_lt(select2_[0], rs2u_.size());
-			refid = rs2u_[select2_[0]].refid();
-			refoff = rs2u_[select2_[0]].refoff();
-		}
-		
-		if(rd1_ != NULL && nunpair1 == 0) {
-			if(nunpair2 > 0) {
-				assert_neq(-1, refid);
-				summ1.init(
-						   rd1_, NULL, NULL, NULL, NULL, NULL,
-						   exhaust1, exhaust2, refid, refoff);
-			} else {
-				summ1.init(
-						   rd1_, NULL, NULL, NULL, NULL, NULL,
-						   exhaust1, exhaust2, -1, -1);
-			}
-			SeedAlSumm ssm1, ssm2;
-			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
-			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
-			flags1.init(
-						readIsPair() ?
-						ALN_FLAG_PAIR_UNPAIRED_MATE1 :
-						ALN_FLAG_PAIR_UNPAIRED,
-						st_.params().mhitsSet(),
-						false,
-						false,
-						nfilt1,
-						scfilt1,
-						lenfilt1,
-						qcfilt1,
-						st_.params().mixed,
-						true,           // primary
-						repRs2 != NULL, // opp aligned
-						(repRs2 != NULL) ? repRs2->fw() : false); // opp fw
-			g_.reportUnaligned(
-							   obuf_,      // string to write output to
-							   staln_,
-							   threadid_,
-							   rd1_,    // read 1
-							   NULL,    // read 2
-							   rdid_,   // read id
-							   summ1,   // summ
-							   ssm1,    // 
-							   ssm2,
-							   &flags1, // flags 1
-							   NULL,    // flags 2
-							   prm,     // per-read metrics
-							   mapq_,   // MAPQ calculator
-							   sc,      // scoring scheme
-							   true);   // get lock?
-		}
-		if(rd2_ != NULL && nunpair2 == 0) {
-			if(nunpair1 > 0) {
-				assert_neq(-1, refid);
-				summ2.init(
-						   NULL, rd2_, NULL, NULL, NULL, NULL,
-						   exhaust1, exhaust2, refid, refoff);
-			} else {
-				summ2.init(
-						   NULL, rd2_, NULL, NULL, NULL, NULL,
-						   exhaust1, exhaust2, -1, -1);
-			}
-			SeedAlSumm ssm1, ssm2;
-			if(sr1 != NULL) sr1->toSeedAlSumm(ssm1);
-			if(sr2 != NULL) sr2->toSeedAlSumm(ssm2);
-			flags2.init(
-						readIsPair() ?
-						ALN_FLAG_PAIR_UNPAIRED_MATE2 :
-						ALN_FLAG_PAIR_UNPAIRED,
-						st_.params().mhitsSet(),
-						false,
-						false,
-						nfilt2,
-						scfilt2,
-						lenfilt2,
-						qcfilt2,
-						st_.params().mixed,
-						true,           // primary
-						repRs1 != NULL, // opp aligned
-						(repRs1 != NULL) ? repRs1->fw() : false); // opp fw
-			g_.reportUnaligned(
-							   obuf_,      // string to write output to
-							   staln_,
-							   threadid_,
-							   rd2_,    // read 1
-							   NULL,    // read 2
-							   rdid_,   // read id
-							   summ2,   // summ
-							   ssm1,
-							   ssm2,
-							   &flags2, // flags 1
-							   NULL,    // flags 2
-							   prm,     // per-read metrics
-							   mapq_,   // MAPQ calculator
-							   sc,      // scoring scheme
-							   true);   // get lock?
 		}
 	} // if(suppress alignments)
 	init_ = false;
@@ -2342,10 +1613,6 @@ bool AlnSinkWrap<index_t>::report(
 {
 	assert(init_);
 	assert(rs1 != NULL || rs2 != NULL);
-	assert(rs1 == NULL || !rs1->empty());
-	assert(rs2 == NULL || !rs2->empty());
-	assert(rs1 == NULL || rs1->repOk());
-	assert(rs2 == NULL || rs2->repOk());
 	bool paired = (rs1 != NULL && rs2 != NULL);
 	bool one = (rs1 != NULL);
 	const AlnRes* rsa = one ? rs1 : rs2;
@@ -2366,39 +1633,28 @@ bool AlnSinkWrap<index_t>::report(
 	// Tally overall alignment score
 	TAlScore score = rsa->score().score();
 	if(rsb != NULL) score += rsb->score().score();
-    index_t num_spliced = rsa->num_spliced();
-    if(rsb != NULL) num_spliced += rsb->num_spliced();
 	// Update best score so far
 	if(paired) {
 		if(score > bestPair_) {
 			best2Pair_ = bestPair_;
 			bestPair_ = score;
-            best2SplicedPair_ = bestSplicedPair_;
-            bestSplicedPair_ = num_spliced;
 		} else if(score > best2Pair_) {
 			best2Pair_ = score;
-            best2SplicedPair_ = num_spliced;
 		}
 	} else {
 		if(one) {
 			if(score > bestUnp1_) {
 				best2Unp1_ = bestUnp1_;
 				bestUnp1_ = score;
-                best2SplicedUnp1_ = bestSplicedUnp1_;
-                bestSplicedUnp1_ = num_spliced;
 			} else if(score > best2Unp1_) {
 				best2Unp1_ = score;
-                best2SplicedUnp1_ = num_spliced;
 			}
 		} else {
 			if(score > bestUnp2_) {
 				best2Unp2_ = bestUnp2_;
 				bestUnp2_ = score;
-                best2SplicedUnp2_ = bestSplicedUnp2_;
-                bestSplicedUnp2_ = num_spliced;
 			} else if(score > best2Unp2_) {
 				best2Unp2_ = score;
-                best2SplicedUnp1_ = num_spliced;
 			}
 		}
 	}
@@ -2458,10 +1714,6 @@ const
 	buf.resize(sz);
 	// Sort by score.  If reads are pairs, sort by sum of mate scores.
 	for(size_t i = 0; i < sz; i++) {
-		buf[i].first = (*rs1)[i].score().beast_score();
-		if(rs2 != NULL) {
-			buf[i].first += (*rs2)[i].score().beast_score();
-		}
 		buf[i].second = i; // original offset
 	}
 	buf.sort(); buf.reverse(); // sort in descending order by score
@@ -2768,67 +2020,23 @@ void AlnSink<index_t>::appendSeedSummary(
 template <typename index_t>
 void AlnSinkSam<index_t>::appendMate(
 									 BTString&     o,           // append to this string
-									 StackedAln&   staln,       // store stacked alignment struct here
 									 const Read&   rd,
 									 const Read*   rdo,
 									 const TReadId rdid,
 									 AlnRes* rs,
 									 AlnRes* rso,
 									 const AlnSetSumm& summ,
-									 const SeedAlSumm& ssm,
-									 const SeedAlSumm& ssmo,
-									 const AlnFlags& flags,
-									 const PerReadMetrics& prm,
-									 const Mapq& mapqCalc,
-									 const Scoring& sc)
+									 const PerReadMetrics& prm)
 {
-	if(rs == NULL && samc_.omitUnalignedReads()) {
+#if 0
+	if(rs == NULL) {
 		return;
 	}
 	char buf[1024];
 	char mapqInps[1024];
-	if(rs != NULL) {
-		staln.reset();
-		rs->initStacked(rd, staln);
-		staln.leftAlign(false /* not past MMs */);
-	}
 	int offAdj = 0;
 	// QNAME
-	samc_.printReadName(o, rd.name, flags.partOfPair());
-	o.append('\t');
-	// FLAG
-	int fl = 0;
-	if(flags.partOfPair()) {
-		fl |= SAM_FLAG_PAIRED;
-		if(flags.alignedConcordant()) {
-			fl |= SAM_FLAG_MAPPED_PAIRED;
- 		}
-		if(!flags.mateAligned()) {
-			// Other fragment is unmapped
-			fl |= SAM_FLAG_MATE_UNMAPPED;
-		}
-		fl |= (flags.readMate1() ?
-			   SAM_FLAG_FIRST_IN_PAIR : SAM_FLAG_SECOND_IN_PAIR);
-		if(flags.mateAligned() && rso != NULL) {
-			if(!rso->fw()) {
-				fl |= SAM_FLAG_MATE_STRAND;
-			}
-		}
-	}
-	if(!flags.isPrimary()) {
-		fl |= SAM_FLAG_NOT_PRIMARY;
-	}
-	if(rs != NULL && !rs->fw()) {
-		fl |= SAM_FLAG_QUERY_STRAND;
-	}
-	if(rs == NULL) {
-		// Failed to align
-		fl |= SAM_FLAG_UNMAPPED;
-	}
-	itoa10<int>(fl, buf);
-	o.append(buf);
-	o.append('\t');
-	// RNAME
+    // RNAME
 	if(rs != NULL) {
 		samc_.printRefNameFromIndex(o, (size_t)rs->refid());
 		o.append('\t');
@@ -2864,133 +2072,162 @@ void AlnSinkSam<index_t>::appendMate(
 		}
 		o.append('\t');
 	}
-	// MAPQ
-	mapqInps[0] = '\0';
-	if(rs != NULL) {
-		itoa10<TMapq>(mapqCalc.mapq(
-									summ, flags, rd.mate < 2, rd.length(),
-									rdo == NULL ? 0 : rdo->length(), mapqInps), buf);
-		o.append(buf);
-		o.append('\t');
-	} else {
-		// No alignment
-		o.append("0\t");
-	}
-	// CIGAR
-	if(rs != NULL) {
-		staln.buildCigar(false);
-		staln.writeCigar(&o, NULL);
-		o.append('\t');
-	} else {
-		// No alignment
-		o.append("*\t");
-	}
-	// RNEXT
-	if(rs != NULL && flags.partOfPair()) {
-		if(rso != NULL && rs->refid() != rso->refid()) {
-			samc_.printRefNameFromIndex(o, (size_t)rso->refid());
-			o.append('\t');
-		} else {
-			o.append("=\t");
-		}
-	} else if(summ.orefid() != -1) {
-		// The convention if this mate fails to align but the other doesn't is
-		// to copy the mate's details into here
-		o.append("=\t");
-	} else {
-		o.append("*\t");
-	}
-	// PNEXT
-	if(rs != NULL && flags.partOfPair()) {
-		if(rso != NULL) {
-			itoa10<int64_t>(rso->refoff()+1, buf);
-			o.append(buf);
-			o.append('\t');
-		} else {
-			// The convenstion is that if this mate aligns but the opposite
-			// doesn't, we print this mate's offset here
-			itoa10<int64_t>(rs->refoff()+1, buf);
-			o.append(buf);
-			o.append('\t');
-		}
-	} else if(summ.orefid() != -1) {
-		// The convention if this mate fails to align but the other doesn't is
-		// to copy the mate's details into here
-		itoa10<int64_t>(summ.orefoff()+1, buf);
-		o.append(buf);
-		o.append('\t');
-	} else {
-		o.append("0\t");
-	}
-	// ISIZE
-	if(rs != NULL && rs->isFraglenSet()) {
-		itoa10<int64_t>(rs->fragmentLength(), buf);
-		o.append(buf);
-		o.append('\t');
-	} else {
-		// No fragment
-		o.append("0\t");
-	}
-	// SEQ
-	if(!flags.isPrimary() && samc_.omitSecondarySeqQual()) {
-		o.append('*');
-	} else {
-		// Print the read
-		if(rd.patFw.length() == 0) {
-			o.append('*');
-		} else {
-			if(rs == NULL || rs->fw()) {
-				o.append(rd.patFw.toZBuf());
-			} else {
-				o.append(rd.patRc.toZBuf());
-			}
-		}
-	}
-	o.append('\t');
-	// QUAL
-	if(!flags.isPrimary() && samc_.omitSecondarySeqQual()) {
-		o.append('*');
-	} else {
-		// Print the quals
-		if(rd.qual.length() == 0) {
-			o.append('*');
-		} else {
-			if(rs == NULL || rs->fw()) {
-				o.append(rd.qual.toZBuf());
-			} else {
-				o.append(rd.qualRev.toZBuf());
-			}
-		}
-	}
-	o.append('\t');
-	//
-	// Optional fields
-	//
-	if(rs != NULL) {
-		samc_.printAlignedOptFlags(
-								   o,           // output buffer
-								   true,        // first opt flag printed is first overall?
-								   rd,          // read
-								   *rs,         // individual alignment result
-								   staln,       // stacked alignment
-								   flags,       // alignment flags
-								   summ,        // summary of alignments for this read
-								   ssm,         // seed alignment summary
-								   prm,         // per-read metrics
-								   sc,          // scoring scheme
-								   mapqInps);   // inputs to MAPQ calculation
-	} else {
-		samc_.printEmptyOptFlags(
-								 o,           // output buffer
-								 true,        // first opt flag printed is first overall?
-								 rd,          // read
-								 flags,       // alignment flags
-								 summ,        // summary of alignments for this read
-								 ssm,         // seed alignment summary
-								 prm,         // per-read metrics
-								 sc);         // scoring scheme
-	}
+    
+#endif
+
 	o.append('\n');
 }
+
+// #include <iomanip>
+
+/**
+ * Initialize state machine with a new read.  The state we start in depends
+ * on whether it's paired-end or unpaired.
+ */
+void ReportingState::nextRead(bool paired) {
+    paired_ = paired;
+    if(paired) {
+        state_ = CONCORDANT_PAIRS;
+        doneConcord_ = false;
+        exitConcord_ = ReportingState::EXIT_DID_NOT_EXIT;
+    } else {
+        // Unpaired
+        state_ = CONCORDANT_PAIRS;
+        doneConcord_ = true;
+        exitConcord_ = ReportingState::EXIT_DID_NOT_ENTER; // not relevant
+    }
+    done_ = false;
+    nconcord_ = 0;
+}
+
+/**
+ * Caller uses this member function to indicate that one additional
+ * concordant alignment has been found.
+ */
+bool ReportingState::foundConcordant() {
+    assert(paired_);
+    assert_geq(state_, ReportingState::CONCORDANT_PAIRS);
+    assert(!doneConcord_);
+    nconcord_++;
+    if(doneConcord_) {
+        // If we're finished looking for concordant alignments, do we have to
+        // continue on to search for unpaired alignments?  Only if our exit
+        // from the concordant stage is EXIT_SHORT_CIRCUIT_M.  If it's
+        // EXIT_SHORT_CIRCUIT_k or EXIT_WITH_ALIGNMENTS, we can skip unpaired.
+        assert_neq(ReportingState::EXIT_NO_ALIGNMENTS, exitConcord_);
+    }
+    return done();
+}
+
+/**
+ * Caller uses this member function to indicate that one additional unpaired
+ * mate alignment has been found for the specified mate.
+ */
+bool ReportingState::foundUnpaired(bool mate1) {
+    return done();
+}
+
+/**
+ * Called to indicate that the aligner has finished searching for
+ * alignments.  This gives us a chance to finalize our state.
+ *
+ * TODO: Keep track of short-circuiting information.
+ */
+void ReportingState::finish() {
+    if(!doneConcord_) {
+        doneConcord_ = true;
+        exitConcord_ =
+        ((nconcord_ > 0) ?
+         ReportingState::EXIT_WITH_ALIGNMENTS :
+         ReportingState::EXIT_NO_ALIGNMENTS);
+    }
+    assert_gt(exitConcord_, EXIT_DID_NOT_EXIT);
+    done_ = true;
+    assert(done());
+}
+
+#if 0
+
+/**
+ * Populate given counters with the number of various kinds of alignments
+ * to report for this read.  Concordant alignments are preferable to (and
+ * mutually exclusive with) discordant alignments, and paired-end
+ * alignments are preferable to unpaired alignments.
+ *
+ * The caller also needs some additional information for the case where a
+ * pair or unpaired read aligns repetitively.  If the read is paired-end
+ * and the paired-end has repetitive concordant alignments, that should be
+ * reported, and 'pairMax' is set to true to indicate this.  If the read is
+ * paired-end, does not have any conordant alignments, but does have
+ * repetitive alignments for one or both mates, then that should be
+ * reported, and 'unpair1Max' and 'unpair2Max' are set accordingly.
+ *
+ * Note that it's possible in the case of a paired-end read for the read to
+ * have repetitive concordant alignments, but for one mate to have a unique
+ * unpaired alignment.
+ */
+void ReportingState::getReport(
+                               uint64_t& nconcordAln, // # concordant alignments to report
+                               uint64_t& ndiscordAln, // # discordant alignments to report
+                               uint64_t& nunpair1Aln, // # unpaired alignments for mate #1 to report
+                               uint64_t& nunpair2Aln, // # unpaired alignments for mate #2 to report
+                               bool& pairMax,         // repetitive concordant alignments
+                               bool& unpair1Max,      // repetitive alignments for mate #1
+                               bool& unpair2Max)      // repetitive alignments for mate #2
+const
+{
+    nconcordAln = ndiscordAln = nunpair1Aln = nunpair2Aln = 0;
+    pairMax = unpair1Max = unpair2Max = false;
+    assert_gt(p_.khits, 0);
+    assert_gt(p_.mhits, 0);
+    if(paired_) {
+        // Do we have 1 or more concordant alignments to report?
+        if(exitConcord_ == ReportingState::EXIT_SHORT_CIRCUIT_k) {
+            // k at random
+            assert_geq(nconcord_, (uint64_t)p_.khits);
+            nconcordAln = p_.khits;
+            return;
+        } else if(exitConcord_ == ReportingState::EXIT_WITH_ALIGNMENTS) {
+            assert_gt(nconcord_, 0);
+            // <= k at random
+            nconcordAln = min<uint64_t>(nconcord_, p_.khits);
+            return;
+        }
+        assert(!p_.mhitsSet() || nconcord_ <= (uint64_t)p_.mhits+1);    }
+    
+    assert_neq(ReportingState::EXIT_SHORT_CIRCUIT_TRUMPED, exitUnpair1_);
+    assert_neq(ReportingState::EXIT_SHORT_CIRCUIT_TRUMPED, exitUnpair2_);
+   
+
+    assert(!p_.mhitsSet() || paired_ || nunpair2_ <= (uint64_t)p_.mhits+1);
+}
+
+/**
+ * Given the number of alignments in a category, check whether we
+ * short-circuited out of the category.  Set the done and exit arguments to
+ * indicate whether and how we short-circuited.
+ */
+inline void ReportingState::areDone(
+                                    uint64_t cnt,    // # alignments in category
+                                    bool& done,      // out: whether we short-circuited out of category
+                                    int& exit) const // out: if done, how we short-circuited (-k? -m? etc)
+{
+    assert(!done);
+    // Have we exceeded the -k limit?
+    assert_gt(p_.khits, 0);
+    assert_gt(p_.mhits, 0);
+    if(cnt >= (uint64_t)p_.khits && !p_.mhitsSet()) {
+        done = true;
+        exit = ReportingState::EXIT_SHORT_CIRCUIT_k;
+    }
+    // Have we exceeded the -m or -M limit?
+    else if(p_.mhitsSet() && cnt > (uint64_t)p_.mhits) {
+        done = true;
+        assert(p_.msample);
+        exit = ReportingState::EXIT_SHORT_CIRCUIT_M;
+    }
+}
+
+#endif
 
 #endif /*ndef ALN_SINK_H_*/

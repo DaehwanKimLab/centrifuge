@@ -26,23 +26,7 @@
 
 using namespace std;
 
-#ifdef HISAT_CLASS
-
 const std::string gEbwt_ext("hc");
-
-#else
-
-#  ifdef BOWTIE_64BIT_INDEX
-
-const std::string gEbwt_ext("bt2l");
-
-#  else
-
-const std::string gEbwt_ext("bt2");
-
-#  endif  // BOWTIE_64BIT_INDEX
-
-#endif
 
 /**
  * Try to find the Bowtie index specified by the user.  First try the
@@ -75,7 +59,7 @@ string adjustEbwtBase(const string& cmdline,
 		}
 	}
 	if(!in.is_open()) {
-		cerr << "Could not locate a Bowtie index corresponding to basename \"" << ebwtFileBase.c_str() << "\"" << endl;
+		cerr << "Could not locate a Centrifuge index corresponding to basename \"" << ebwtFileBase.c_str() << "\"" << endl;
 		throw 1;
 	}
 	return str;
