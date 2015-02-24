@@ -242,7 +242,8 @@ public:
                 
                     uint32_t speciesID = (uint32_t)(id >> 32);
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
-                    
+
+		    // florian - scoring function
                     uint32_t addWeight = (uint32_t)((partialHit.len() - 15) * (partialHit.len() - 15));
                     
                     uint32_t newScore = 0;
