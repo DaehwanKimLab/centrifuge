@@ -27,6 +27,10 @@ struct SpeciesCount {
 	uint32_t count;
 	uint32_t weightedCount;
     uint32_t timeStamp;
+    
+    void reset() {
+        id = count = weightedCount = timeStamp = 0;
+    }
 };
 
 struct GenusCount {
@@ -35,6 +39,11 @@ struct GenusCount {
 	uint32_t weightedCount;
     uint32_t timeStamp;
     EList<SpeciesCount> speciesMap;
+    
+    void reset() {
+        id = count = weightedCount = timeStamp = 0;
+        speciesMap.clear();
+    }
 };
 
 /**
@@ -261,6 +270,7 @@ public:
                     
                     if(genusIdx >= _genusMap.size()) {
                         _genusMap.expand();
+                        _genusMap.back().reset();
                         _genusMap.back().id = genusID;
                         _genusMap.back().count = 1;
                         _genusMap.back().weightedCount = addWeight;
@@ -285,6 +295,7 @@ public:
                     
                     if(!found) {
                         genusCount.speciesMap.expand();
+                        genusCount.speciesMap.back().reset();
                         genusCount.speciesMap.back().id = speciesID;
                         genusCount.speciesMap.back().count = 1;
                         newScore = genusCount.speciesMap.back().weightedCount = addWeight;
