@@ -319,7 +319,27 @@ public:
                 }
             } // offsetSize
         } // rdi
-            
+        
+#if 1
+        for(size_t gi = 0; gi < _genusMap.size(); gi++) {
+            assert_gt(_genusMap[gi].weightedCount, 0);
+            GenusCount& genusCount = _genusMap[gi];
+            uint32_t speciesWeightedCount = 0;
+            uint32_t speciesID = 0xffffffff;
+            for(size_t mi = 0; mi < genusCount.speciesMap.size(); mi++) {
+                speciesID = genusCount.speciesMap[mi].id; assert_neq(speciesID, 0xffffffff);
+                speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
+                
+                // report
+                AlnScore asc(genusCount.weightedCount + speciesWeightedCount);
+                AlnRes rs;
+                rs.init(asc,
+                        speciesID,
+                        genusCount.id);
+                sink.report(0, &rs);
+            }
+        }
+#else
         _tempTies.clear();
         uint32_t genusWeightedCount = 0;
         for(size_t mi = 0; mi < _genusMap.size(); mi++) {
@@ -332,7 +352,7 @@ public:
                 _tempTies.push_back((uint16_t)mi);
             }
         }
-   
+        
         if(_tempTies.size() > 0) {
             for(uint16_t gi = 0; gi < _tempTies.size(); gi++) {
                 assert_lt(_tempTies[gi], _genusMap.size());
@@ -347,9 +367,9 @@ public:
                 }
                 
                 assert_neq(speciesID, 0xffffffff);
-            
+                
                 // report
-                AlnScore asc(genusCount.weightedCount);
+                AlnScore asc(genusCount.weightedCount + speciesWeightedCount);
                 AlnRes rs;
                 rs.init(asc,
                         speciesID,
@@ -357,6 +377,7 @@ public:
                 sink.report(0, &rs);
             }
         }
+#endif
         
         return 0;
     }
