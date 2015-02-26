@@ -1832,14 +1832,34 @@ void AlnSinkSam<index_t>::appendMate(
     }
     o.append('\t');
 
-    // species ID and genus ID
+    // species ID
     itoa10<int64_t>(rs->speciesID(), buf);
     o.append(buf);
     o.append('\t');
-        
+    
+    // genus ID
     itoa10<int64_t>(rs->genusID(), buf);
     o.append(buf);
-	o.append('\n');
+    o.append('\t');
+    
+    // score
+    itoa10<int64_t>(rs->score().score(), buf);
+    o.append(buf);
+    o.append('\t');
+    
+    // second best score
+    if(summ.secbest().valid()) {
+        itoa10<int64_t>(summ.secbest().score(), buf);
+    } else {
+        itoa10<int64_t>(0, buf);
+    }
+    o.append(buf);
+    o.append('\t');
+    
+    // confidence
+    itoa10<int64_t>(0, buf);
+    o.append(buf);
+    o.append('\n');
 }
 
 // #include <iomanip>
