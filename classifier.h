@@ -23,9 +23,9 @@
 #include "hi_aligner.h"
 
 struct SpeciesCount {
-	uint32_t id;
-	uint32_t count;
-	uint32_t weightedCount;
+    uint32_t id;
+    uint32_t count;
+    uint32_t weightedCount;
     uint32_t timeStamp;
     
     void reset() {
@@ -35,8 +35,8 @@ struct SpeciesCount {
 
 struct GenusCount {
     uint32_t id;
-	uint32_t count;
-	uint32_t weightedCount;
+    uint32_t count;
+    uint32_t weightedCount;
     uint32_t timeStamp;
     EList<SpeciesCount> speciesMap;
     
@@ -54,11 +54,11 @@ template <typename index_t, typename local_index_t>
 class Classifier : public HI_Aligner<index_t, local_index_t> {
     
 public:
-	
-	/**
-	 * Initialize with index.
-	 */
-	Classifier(const Ebwt<index_t>& ebwt,
+    
+    /**
+     * Initialize with index.
+     */
+    Classifier(const Ebwt<index_t>& ebwt,
                const EList<string>& refnames,
                index_t minHitLen = 22) :
     HI_Aligner<index_t, local_index_t>(
@@ -106,8 +106,8 @@ public:
             
             // get forward or reverse hits for this read from this->_hits[rdi]
             //  the strand is chosen based on higher average hit length in either direction
-    		index_t totalHitLength[2] = {0, 0};
-			ReadBWTHit<index_t>& hit = getForwardOrReverseHit(rdi, totalHitLength);
+            index_t totalHitLength[2] = {0, 0};
+            ReadBWTHit<index_t>& hit = getForwardOrReverseHit(rdi, totalHitLength);
             assert(hit.done());
 
             // choose candidate partial alignments for further alignment
@@ -117,18 +117,22 @@ public:
             // sort partial hits by size (number of genome positions), ascending, and then length, descending
             hit._partialHits.sort(compareBWTHits());
             
+#ifndef NDEBUG //FB
+            std::cerr <<  this->_rds[rdi]->name << '\t';
+#endif
+
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
 
-            	size_t hit_len = hit.getPartialHit(hi).len();
-            	// only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
-            	if(hit_len < _minHitLen)
-            		continue;
+                size_t hit_len = hit.getPartialHit(hi).len();
+                // only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
+                if(hit_len < _minHitLen)
+                    continue;
 
                 // get all coordinates of the hit
-				EList<Coord>& coords = getCoords(hit, hi, ebwtFw, ref, rnd,
-						maxGenomeHitSize, wlm, prm, him);
+                EList<Coord>& coords = getCoords(hit, hi, ebwtFw, ref, rnd,
+                        maxGenomeHitSize, wlm, prm, him);
                 if (coords.empty()) continue;
 
                 usedPortion += hit_len;
@@ -138,70 +142,30 @@ public:
                     coords.shufflePortion(0, coords.size(), rnd);
                 }
                 
+                // go through all coordinates reported for partial hit
                 for(index_t k = 0; k < coords.size() && genomeHitCnt < maxGenomeHitSize; k++, genomeHitCnt++) {
                     const Coord& coord = coords[k] ;
                     assert_lt(coord.ref(), _refnames.size());
+
+                    // extract numeric id from refName
                     const string& refName = _refnames[coord.ref()];
-                    uint64_t id = 0;
-                    for(size_t ni = 0; ni < refName.length(); ni++) {
-                        if(refName[ni] < '0' || refName[ni] > '9') break;
-                        id *= 10;
-                        id += (refName[ni] - '0');
-                    }
-                
+                    uint64_t id = extractID(refName);
                     uint32_t speciesID = (uint32_t)(id >> 32);
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
 
-		    // florian - scoring function
+                    // scoring function: calculate the weight of this partial hit
                     uint32_t addWeight = (uint32_t)((hit_len - 15) * (hit_len - 15));
                     
-                    uint32_t newScore = 0;
-                    size_t genusIdx = 0;
-                    for(; genusIdx < _genusMap.size(); genusIdx++) {
-                        if(_genusMap[genusIdx].id == genusID) {
-                            if(_genusMap[genusIdx].timeStamp != hi) {
-                                _genusMap[genusIdx].count += 1;
-                                _genusMap[genusIdx].weightedCount += addWeight;
-                                _genusMap[genusIdx].timeStamp = hi;
-                            }
-                            break;
-                        }
-                    }
-                    
-                    if(genusIdx >= _genusMap.size()) {
-                        _genusMap.expand();
-                        _genusMap.back().reset();
-                        _genusMap.back().id = genusID;
-                        _genusMap.back().count = 1;
-                        _genusMap.back().weightedCount = addWeight;
-                        _genusMap.back().timeStamp = hi;
-                    }
-                    
-                    assert_lt(genusIdx, _genusMap.size());
-                    GenusCount& genusCount = _genusMap[genusIdx];
-                    bool found = false;
-                    for(size_t mi = 0; mi < genusCount.speciesMap.size(); mi++) {
-                        if(genusCount.speciesMap[mi].id == speciesID) {
-                            found = true;
-                            if(genusCount.speciesMap[mi].timeStamp != hi) {
-                                genusCount.speciesMap[mi].count += 1;
-                                genusCount.speciesMap[mi].weightedCount += addWeight;
-                                genusCount.speciesMap[mi].timeStamp = hi;
-                                newScore = _genusMap[genusIdx].weightedCount;
-                            }
-                            break;
-                        }
-                    }
-                    
-                    if(!found) {
-                        genusCount.speciesMap.expand();
-                        genusCount.speciesMap.back().reset();
-                        genusCount.speciesMap.back().id = speciesID;
-                        genusCount.speciesMap.back().count = 1;
-                        newScore = genusCount.speciesMap.back().weightedCount = addWeight;
-                        genusCount.speciesMap.back().timeStamp = hi;
-                    }
-                
+                    // add hit to genus map and get new index in the map
+                    size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, addWeight);
+
+                    // add hit to species map and get new score for the species
+                    uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, addWeight);
+
+#ifndef NDEBUG //FB
+                    std::cerr <<  genusID << '/' << speciesID << ';';
+#endif
+
                     if(newScore > bestScore) {
                         secondBestScore = bestScore;
                         bestScore = newScore;
@@ -219,6 +183,9 @@ public:
                     break ;
                 }
             } // offsetSize
+#ifndef NDEBUG //FB
+            std::cerr <<  std::endl;
+#endif
         } // rdi
         
 #if 1
@@ -336,106 +303,106 @@ private:
     
     EList<uint16_t>    _tempTies;
 
-	void searchForwardAndReverse(index_t rdi,
-			const Ebwt<index_t>& ebwtFw, const Scoring& sc,
-			RandomSource& rnd, const index_t increment) {
+    void searchForwardAndReverse(index_t rdi,
+            const Ebwt<index_t>& ebwtFw, const Scoring& sc,
+            RandomSource& rnd, const index_t increment) {
 
-		const Read& rd = *(this->_rds[rdi]);
+        const Read& rd = *(this->_rds[rdi]);
 
-		bool done[2] = {false, false};
+        bool done[2] = {false, false};
         size_t cur[2] = {0, 0} ;
 
         index_t rdlen = rd.length();
         const size_t maxDiff = (rdlen / 2 > 2 * _minHitLen) ? rdlen / 2 : (2 * _minHitLen);
 
-		// search for partial hits on the forward and reverse strand
-		while (!done[0] || !done[1]) {
-			for (index_t fwi = 0; fwi < 2; fwi++) {
-				if (done[fwi])
-					continue;
+        // search for partial hits on the forward and reverse strand
+        while (!done[0] || !done[1]) {
+            for (index_t fwi = 0; fwi < 2; fwi++) {
+                if (done[fwi])
+                    continue;
 
-				size_t mineFw = 0, mineRc = 0;
-				bool fw = (fwi == 0);
-				ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
-				bool pseudogeneStop = false, anchorStop = false;
-				this->partialSearch(ebwtFw, rd, sc, fw, 0, mineFw, mineRc, hit,
-						rnd, pseudogeneStop, anchorStop);
-				if (hit.done()) {
-					done[fwi] = true;
-					cur[fwi] = rdlen;
-					continue;
-				}
-				cur[fwi] = hit.cur();
-				BWTHit<index_t>& lastHit = hit.getPartialHit(
-						hit.offsetSize() - 1);
-				if (lastHit.len() > increment) {
-					if (lastHit.len() < _minHitLen)
-						hit.setOffset(hit.cur() - increment);
-					else
-						hit.setOffset(hit.cur() + 1);
-				}
-				if (hit.cur() + _minHitLen >= rdlen) {
-					hit.done(true);
-					done[fwi] = true;
-					continue;
-				}
-			}
-			if (cur[0] > cur[1] + maxDiff) {
-				this->_hits[rdi][1].done(true);
-				done[1] = true;
-			} else if (cur[1] > cur[0] + maxDiff) {
-				this->_hits[rdi][0].done(true);
-				done[0] = true;
-			}
-		}
-	}
+                size_t mineFw = 0, mineRc = 0;
+                bool fw = (fwi == 0);
+                ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
+                bool pseudogeneStop = false, anchorStop = false;
+                this->partialSearch(ebwtFw, rd, sc, fw, 0, mineFw, mineRc, hit,
+                        rnd, pseudogeneStop, anchorStop);
+                if (hit.done()) {
+                    done[fwi] = true;
+                    cur[fwi] = rdlen;
+                    continue;
+                }
+                cur[fwi] = hit.cur();
+                BWTHit<index_t>& lastHit = hit.getPartialHit(
+                        hit.offsetSize() - 1);
+                if (lastHit.len() > increment) {
+                    if (lastHit.len() < _minHitLen)
+                        hit.setOffset(hit.cur() - increment);
+                    else
+                        hit.setOffset(hit.cur() + 1);
+                }
+                if (hit.cur() + _minHitLen >= rdlen) {
+                    hit.done(true);
+                    done[fwi] = true;
+                    continue;
+                }
+            }
+            if (cur[0] > cur[1] + maxDiff) {
+                this->_hits[rdi][1].done(true);
+                done[1] = true;
+            } else if (cur[1] > cur[0] + maxDiff) {
+                this->_hits[rdi][0].done(true);
+                done[0] = true;
+            }
+        }
+    }
 
-	ReadBWTHit<index_t>& getForwardOrReverseHit(index_t rdi, index_t (&totalHitLength)[2]) {
-		index_t avgHitLength[2] = {0, 0};
-		for(index_t fwi = 0; fwi < 2; fwi++) {
-			ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
-			index_t numHits = 0;
-			for(size_t i = 0; i < hit.offsetSize(); i++) {
-				if(hit.getPartialHit(i).len() < _minHitLen) continue;
-				totalHitLength[fwi] += hit.getPartialHit(i).len();
-				numHits++;
-			}
+    ReadBWTHit<index_t>& getForwardOrReverseHit(index_t rdi, index_t (&totalHitLength)[2]) {
+        index_t avgHitLength[2] = {0, 0};
+        for(index_t fwi = 0; fwi < 2; fwi++) {
+            ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
+            index_t numHits = 0;
+            for(size_t i = 0; i < hit.offsetSize(); i++) {
+                if(hit.getPartialHit(i).len() < _minHitLen) continue;
+                totalHitLength[fwi] += hit.getPartialHit(i).len();
+                numHits++;
+            }
 
-			if(numHits > 0) {
-				avgHitLength[fwi] = totalHitLength[fwi] / numHits;
-			}
-		}
+            if(numHits > 0) {
+                avgHitLength[fwi] = totalHitLength[fwi] / numHits;
+            }
+        }
 
-		// choose read direction with a higher average hit length
-		index_t fwi = (avgHitLength[0] > avgHitLength[1])? 0 : 1;
-		return this->_hits[rdi][fwi];
-	}
+        // choose read direction with a higher average hit length
+        index_t fwi = (avgHitLength[0] > avgHitLength[1])? 0 : 1;
+        return this->_hits[rdi][fwi];
+    }
 
     EList<Coord>& getCoords(ReadBWTHit<index_t>& hit, size_t hi,
-    		const Ebwt<index_t>& ebwtFw, const BitPairReference& ref, RandomSource& rnd, const index_t maxGenomeHitSize,
-			WalkMetrics& wlm, PerReadMetrics& prm, HIMetrics& him) {
+            const Ebwt<index_t>& ebwtFw, const BitPairReference& ref, RandomSource& rnd, const index_t maxGenomeHitSize,
+            WalkMetrics& wlm, PerReadMetrics& prm, HIMetrics& him) {
 
-    	BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
+        BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
 
-    	assert(!partialHit.hasGenomeCoords());
-    	bool straddled = false;
+        assert(!partialHit.hasGenomeCoords());
+        bool straddled = false;
 
-    	this->getGenomeIdx(
-    			ebwtFw,     // FB: Why is it called ...FW here?
-				ref,
-				rnd,
-				partialHit._top,
-				partialHit._bot,
-				hit._fw == 0, // FIXME: fwi and hit._fw are defined differently
-				maxGenomeHitSize - this->_genomeHits.size(),
-				hit._len - partialHit._bwoff - partialHit._len,
-				partialHit._len,
-				partialHit._coords,
-				wlm,       // why is it called wlm here?
-				prm,
-				him,
-				false, // reject straddled
-				straddled);
+        this->getGenomeIdx(
+                ebwtFw,     // FB: Why is it called ...FW here?
+                ref,
+                rnd,
+                partialHit._top,
+                partialHit._bot,
+                hit._fw == 0, // FIXME: fwi and hit._fw are defined differently
+                maxGenomeHitSize - this->_genomeHits.size(),
+                hit._len - partialHit._bwoff - partialHit._len,
+                partialHit._len,
+                partialHit._coords,
+                wlm,       // why is it called wlm here?
+                prm,
+                him,
+                false, // reject straddled
+                straddled);
 #ifndef NDEBUG //FB
 std::cerr <<  partialHit.len() << ':';
 #endif
@@ -445,24 +412,100 @@ std::cerr <<  partialHit.len() << ':';
        return partialHit._coords;
     }
 
+    // extract numeric ID from the beginning of a string
+    uint64_t extractID(const string& refName) {
+        uint64_t id = 0;
+        for (size_t ni = 0; ni < refName.length(); ni++) {
+            if (refName[ni] < '0' || refName[ni] > '9')
+                break;
 
-	// compare BWTHits by size, ascending, first, then by length, descending
-	//   TODO: move this operator into BWTHits if that is the standard way we would like to sort
-	//   TODO: this ordering does not necessarily give the best results
+            id *= 10;
+            id += (refName[ni] - '0');
+        }
+        return id;
+    }
+
+    // append a hit to genus map or update entry
+    size_t addHitToGenusMap(EList<GenusCount> &genusMap, uint32_t genusID, size_t hi, uint32_t addWeight) {
+        size_t genusIdx = 0;
+
+        for(; genusIdx < genusMap.size(); ++genusIdx) {
+            if(genusMap[genusIdx].id == genusID) {
+                if(genusMap[genusIdx].timeStamp != hi) {
+                    genusMap[genusIdx].count += 1;
+                    genusMap[genusIdx].weightedCount += addWeight;
+                    genusMap[genusIdx].timeStamp = hi;
+                }
+                break;
+            }
+        }
+
+        if(genusIdx >= genusMap.size()) {
+            genusMap.expand();
+            genusMap.back().reset();
+            genusMap.back().id = genusID;
+            genusMap.back().count = 1;
+            genusMap.back().weightedCount = addWeight;
+            genusMap.back().timeStamp = hi;
+        }
+
+        assert_lt(genusIdx, genusMap.size());
+        return genusIdx;
+    }
+
+    // append a hit to specie map or update entry
+    uint32_t addHitToSpeciesMap(GenusCount& genusCount, uint32_t speciesID, size_t hi, uint32_t addWeight) {
+
+        uint32_t newScore = 0;
+        bool found = false;
+
+        for(size_t mi = 0; mi < genusCount.speciesMap.size(); mi++) {
+            if(genusCount.speciesMap[mi].id == speciesID) {
+                found = true;
+                if(genusCount.speciesMap[mi].timeStamp != hi) {
+                    genusCount.speciesMap[mi].count += 1;
+                    genusCount.speciesMap[mi].weightedCount += addWeight;
+                    genusCount.speciesMap[mi].timeStamp = hi;
+                    newScore = genusCount.weightedCount;
+                } else {
+    #ifndef NDEBUG //FB
+                        std::cerr <<  "same hi!!";
+    #endif
+                }
+                break;
+            }
+        }
+
+        if(!found) {
+            genusCount.speciesMap.expand();
+            genusCount.speciesMap.back().reset();
+            genusCount.speciesMap.back().id = speciesID;
+            genusCount.speciesMap.back().count = 1;
+            newScore = genusCount.speciesMap.back().weightedCount = addWeight;
+            genusCount.speciesMap.back().timeStamp = hi;
+        }
+        return newScore;
+    }
+
+
+
+    // compare BWTHits by size, ascending, first, then by length, descending
+    //   TODO: move this operator into BWTHits if that is the standard way we would like to sort
+    //   TODO: this ordering does not necessarily give the best results
         struct compareBWTHits {
-		bool operator()(const BWTHit<index_t>& a, const BWTHit<index_t>& b) const {
+        bool operator()(const BWTHit<index_t>& a, const BWTHit<index_t>& b) const {
 
                         // sort ascending by size
-			if (a.size() < b.size()) return true;
-			if (a.size() > b.size()) return false;
+            if (a.size() < b.size()) return true;
+            if (a.size() > b.size()) return false;
 
                         // if size is equal, sort descending by length
                         if (b.len() < a.len()) return true;
-			if (b.len() > a.len()) return false;
-			
+            if (b.len() > a.len()) return false;
+            
                         return false;
-		}
-	};
+        }
+    };
 
 
 
