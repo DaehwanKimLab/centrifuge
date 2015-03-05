@@ -768,11 +768,16 @@ public:
 	 * Sort some of the contents.
 	 */
 	void sortPortion(size_t begin, size_t num) {
-		assert_leq(begin+num, cur_);
-		if(num < 2) return;
-		std::sort(list_ + begin, list_ + begin + num);
+		sortPortion(begin, num, std::less<T>());
 	}
-	
+
+	template<class Compare>
+	void sortPortion(size_t begin, size_t num, Compare comp) {
+			assert_leq(begin+num, cur_);
+			if(num < 2) return;
+			std::sort(list_ + begin, list_ + begin + num, comp);
+	}
+
 	/**
 	 * Shuffle a portion of the list.
 	 */
@@ -793,7 +798,12 @@ public:
 	 * Sort contents
 	 */
 	void sort() {
-		sortPortion(0, cur_);
+		sortPortion(0, cur_, std::less<T>());
+	}
+
+	template <class Compare>
+	void sort(Compare comp)  {
+		sortPortion(0, cur_, comp);
 	}
 
 	/**
