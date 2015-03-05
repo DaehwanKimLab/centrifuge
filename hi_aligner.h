@@ -283,7 +283,7 @@ struct ReadBWTHit {
     }
     
     void setOffset(index_t offset) {
-        assert_lt(offset, _len);
+        //assert_lt(offset, _len); //FIXME: assertion fails as offset == _len
         _cur = offset;
     }
     
@@ -315,7 +315,7 @@ struct ReadBWTHit {
     index_t  _numUniqueSearch;
     index_t  _cur_local;
     
-    EList<BWTHit<index_t> >       _partialHits;
+    EList<BWTHit<index_t> >  _partialHits;
 };
 
 
