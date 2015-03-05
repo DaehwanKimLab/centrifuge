@@ -114,34 +114,13 @@ public:
             index_t offsetSize = hit.offsetSize();
             this->_genomeHits.clear();
             
-            int hitLen[100];
-            int hitSize[100];
-            size_t hiMap[100];
-            for(size_t hi = 0; hi < offsetSize; hi++) {
-                hitLen[hi] = hit.getPartialHit(hi).len();
-                hitSize[hi] = hit.getPartialHit(hi).size();
-                hiMap[hi] = hi ;
-            }
-            
-            // Change to quicksort in future
-            for(size_t hi = 0; hi < offsetSize; hi++) {
-                for(size_t hj = hi + 1; hj < offsetSize; hj++) {
-                    if(hitSize[ hiMap[hi] ] > hitSize[ hiMap[hj] ]) { // When use size()
-                        size_t tmp = hiMap[hi];
-                        hiMap[hi] = hiMap[hj];
-                        hiMap[hj] = tmp;
-                    } else if(hitSize[ hiMap[hi] ] == hitSize[ hiMap[hj] ] && hitLen[ hiMap[hi] ] < hitLen[ hiMap[hj] ]) {
-                        size_t tmp = hiMap[hi];
-                        hiMap[hi] = hiMap[hj];
-                        hiMap[hj] = tmp;
-                    }
-                }
-            }
+            // sort partial hits by size (number of genome positions), ascending, and then length, descending
+            hit._partialHits.sort(compareBWTHits());
             
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
-                BWTHit<index_t>& partialHit = hit.getPartialHit(hiMap[ hi ]);
+                BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
                 if(partialHit.len() < _minHitLen)
                     continue;
                 assert(!partialHit.hasGenomeCoords());
@@ -442,6 +421,27 @@ private:
 		index_t fwi = (avgHitLength[0] > avgHitLength[1])? 0 : 1;
 		return this->_hits[rdi][fwi];
 	}
+
+	// compare BWTHits by size, ascending, first, then by length, descending
+	//   TODO: move this operator into BWTHits if that is the standard way we would like to sort
+	//   TODO: this ordering does not necessarily give the best results
+        struct compareBWTHits {
+		bool operator()(const BWTHit<index_t>& a, const BWTHit<index_t>& b) const {
+
+                        // sort ascending by size
+			if (a.size() < b.size()) return true;
+			if (a.size() > b.size()) return false;
+
+                        // if size is equal, sort descending by length
+                        if (b.len() < a.len()) return true;
+			if (b.len() > a.len()) return false;
+			
+                        return false;
+		}
+	};
+
+
+
 };
 
 
