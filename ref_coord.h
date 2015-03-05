@@ -29,8 +29,9 @@ typedef int64_t TRefId;
 typedef int64_t TRefOff;
 
 /**
- * Encapsulates a reference coordinate; i.e. identifiers for (a) a
- * reference sequence, and (b) a 0-based offset into that sequence.
+ * Encapsulates a reference coordinate; i.e. identifiers for
+ *  (a) a reference sequence, and
+ *  (b) a 0-based offset into that sequence.
  */
 class Coord {
 

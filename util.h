@@ -24,7 +24,7 @@
 #include <limits>
 
 /**
- * C++ version char* style "itoa":
+ * C++ version char* style "itoa": Convert integer to string
  */
 template<typename T>
 char* itoa10(const T& value, char* result) {
