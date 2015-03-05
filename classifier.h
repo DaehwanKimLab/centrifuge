@@ -100,88 +100,16 @@ public:
         // for each mate. only called once for unpaired data
         for(index_t rdi = 0; rdi < (this->_paired ? 2 : 1); rdi++) {
             assert(this->_rds[rdi] != NULL);
-            const Read& rd = *(this->_rds[rdi]);
-            index_t rdlen = rd.length();
-            index_t fwi;
-            bool done[2] = {false, false};
-            size_t cur[2] = {0, 0} ;
-            const size_t maxDiff = (rdlen / 2 > 2 * _minHitLen) ? rdlen / 2 : (2 * _minHitLen);
-            while(!done[0] || !done[1]) {
-                for(fwi = 0; fwi < 2; fwi++) {
-                    if(done[fwi]) continue;
-                    size_t mineFw = 0, mineRc = 0;
-                    bool fw = (fwi == 0);
-                    ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
-                    bool pseudogeneStop = false, anchorStop = false;
-                    this->partialSearch(
-                                        ebwtFw,
-                                        rd,
-                                        sc,
-                                        fw,
-                                        0,
-                                        mineFw,
-                                        mineRc,
-                                        hit,
-                                        rnd,
-                                        pseudogeneStop,
-                                        anchorStop);
-                    if(hit.done()) {
-                        done[fwi] = true;
-                        cur[fwi] = rdlen ;
-                        continue;
-                    }
-                    cur[fwi] = hit.cur();
-                    
-                    BWTHit<index_t>& lastHit = hit.getPartialHit(hit.offsetSize() - 1);
-                    if(lastHit.len() > increment) {
-                        if(lastHit.len() < _minHitLen)
-                            hit.setOffset(hit.cur() - increment);
-                        else
-                            hit.setOffset(hit.cur() + 1);
-                    }
-                    
-                    if(hit.cur() + _minHitLen >= rdlen) {
-                        hit.done(true);
-                        done[fwi] = true;
-                        continue;
-                    }
-                }
-                
-                if(cur[0] > cur[1] + maxDiff) {
-                    this->_hits[rdi][1].done(true);
-                    done[1] = true;
-                } else if(cur[1] > cur[0] + maxDiff) {
-                    this->_hits[rdi][0].done(true);
-                    done[0] = true ;
-                }
-            }
-            
-            // choose fw or rc of a read
-            index_t avgHitLength[2] = {0, 0};
-            index_t totalHitLength[2] = {0, 0};
-            for(fwi = 0; fwi < 2; fwi++) {
-                ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
-                index_t numHits = 0;
-                for(size_t i = 0; i < hit.offsetSize(); i++) {
-                    if(hit.getPartialHit(i).len() < _minHitLen) continue;
-                    totalHitLength[fwi] += hit.getPartialHit(i).len();
-                    numHits++;
-                }
-                
-                if(numHits > 0) {
-                    avgHitLength[fwi] = totalHitLength[fwi] / numHits;
-                }
-            }
-            
-            if(avgHitLength[0] > avgHitLength[1]) {
-                fwi = 0;
-            } else {
-                fwi = 1;
-            }
 
-            bool fw = (fwi == 0);
-            ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
+            // search for partial hits on the forward and reverse strand (saved in this->_hits[rdi])
+            searchForwardAndReverse(rdi, ebwtFw, sc, rnd, increment);
+            
+            // get forward or reverse hits for this read from this->_hits[rdi]
+            //  the strand is chosen based on higher average hit length in either direction
+    		index_t totalHitLength[2] = {0, 0};
+			ReadBWTHit<index_t>& hit = getForwardOrReverseHit(rdi, totalHitLength);
             assert(hit.done());
+
             // choose candidate partial alignments for further alignment
             index_t offsetSize = hit.offsetSize();
             this->_genomeHits.clear();
@@ -225,7 +153,7 @@ public:
                                    rnd,
                                    partialHit._top,
                                    partialHit._bot,
-                                   fw,
+                                   hit._f,
                                    maxGenomeHitSize - this->_genomeHits.size(),
                                    hit._len - partialHit._bwoff - partialHit._len,
                                    partialHit._len,
@@ -317,8 +245,9 @@ public:
                 if(genomeHitCnt >= maxGenomeHitSize)
                     break;
                 
-                if(rdi == (this->_paired ? 2 : 1) - 1 && bestScore > secondBestScore +
-					(totalHitLength[fwi] - usedPortion - 15) * (totalHitLength[fwi] - usedPortion - 15)) {
+                // FIXME FB: Benchmark the effect of this statement
+                bool last_round = rdi == (this->_paired ? 1 : 0);
+                if (last_round && bestScore > secondBestScore + (totalHitLength[hit._fw] - usedPortion - 15) * (totalHitLength[hit._fw] - usedPortion - 15)) {
                     break ;
                 }
             } // offsetSize
@@ -438,6 +367,81 @@ private:
     index_t            _minHitLen;
     
     EList<uint16_t>    _tempTies;
+
+	void searchForwardAndReverse(index_t rdi,
+			const Ebwt<index_t>& ebwtFw, const Scoring& sc,
+			RandomSource& rnd, const index_t increment) {
+
+		const Read& rd = *(this->_rds[rdi]);
+
+		bool done[2] = {false, false};
+        size_t cur[2] = {0, 0} ;
+
+        index_t rdlen = rd.length();
+        const size_t maxDiff = (rdlen / 2 > 2 * _minHitLen) ? rdlen / 2 : (2 * _minHitLen);
+
+		// search for partial hits on the forward and reverse strand
+		while (!done[0] || !done[1]) {
+			for (index_t fwi = 0; fwi < 2; fwi++) {
+				if (done[fwi])
+					continue;
+
+				size_t mineFw = 0, mineRc = 0;
+				bool fw = (fwi == 0);
+				ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
+				bool pseudogeneStop = false, anchorStop = false;
+				this->partialSearch(ebwtFw, rd, sc, fw, 0, mineFw, mineRc, hit,
+						rnd, pseudogeneStop, anchorStop);
+				if (hit.done()) {
+					done[fwi] = true;
+					cur[fwi] = rdlen;
+					continue;
+				}
+				cur[fwi] = hit.cur();
+				BWTHit<index_t>& lastHit = hit.getPartialHit(
+						hit.offsetSize() - 1);
+				if (lastHit.len() > increment) {
+					if (lastHit.len() < _minHitLen)
+						hit.setOffset(hit.cur() - increment);
+					else
+						hit.setOffset(hit.cur() + 1);
+				}
+				if (hit.cur() + _minHitLen >= rdlen) {
+					hit.done(true);
+					done[fwi] = true;
+					continue;
+				}
+			}
+			if (cur[0] > cur[1] + maxDiff) {
+				this->_hits[rdi][1].done(true);
+				done[1] = true;
+			} else if (cur[1] > cur[0] + maxDiff) {
+				this->_hits[rdi][0].done(true);
+				done[0] = true;
+			}
+		}
+	}
+
+	ReadBWTHit<index_t>& getForwardOrReverseHit(index_t rdi, index_t (&totalHitLength)[2]) {
+		index_t avgHitLength[2] = {0, 0};
+		for(index_t fwi = 0; fwi < 2; fwi++) {
+			ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
+			index_t numHits = 0;
+			for(size_t i = 0; i < hit.offsetSize(); i++) {
+				if(hit.getPartialHit(i).len() < _minHitLen) continue;
+				totalHitLength[fwi] += hit.getPartialHit(i).len();
+				numHits++;
+			}
+
+			if(numHits > 0) {
+				avgHitLength[fwi] = totalHitLength[fwi] / numHits;
+			}
+		}
+
+		// choose read direction with a higher average hit length
+		index_t fwi = (avgHitLength[0] > avgHitLength[1])? 0 : 1;
+		return this->_hits[rdi][fwi];
+	}
 };
 
 
