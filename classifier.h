@@ -89,9 +89,15 @@ public:
            RandomSource&            rnd,
            AlnSinkWrap<index_t>&    sink)
     {
-        _genusMap.clear();        
+        _genusMap.clear();
+
         const index_t increment = 10;
         size_t bestScore = 0, secondBestScore = 0;
+        const ReportingParams& rp = sink.reportingParams();
+        const index_t maxGenomeHitSize = rp.khits;
+
+
+        // for each mate. only called once for unpaired data
         for(index_t rdi = 0; rdi < (this->_paired ? 2 : 1); rdi++) {
             assert(this->_rds[rdi] != NULL);
             const Read& rd = *(this->_rds[rdi]);
@@ -174,11 +180,9 @@ public:
             }
 
             bool fw = (fwi == 0);
-            const ReportingParams& rp = sink.reportingParams();
             ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
             assert(hit.done());
             // choose candidate partial alignments for further alignment
-            const index_t maxGenomeHitSize = rp.khits;
             index_t offsetSize = hit.offsetSize();
             this->_genomeHits.clear();
             
