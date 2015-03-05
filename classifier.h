@@ -153,7 +153,7 @@ public:
                                    rnd,
                                    partialHit._top,
                                    partialHit._bot,
-                                   hit._f,
+                                   hit._fw == 0,
                                    maxGenomeHitSize - this->_genomeHits.size(),
                                    hit._len - partialHit._bwoff - partialHit._len,
                                    partialHit._len,
@@ -247,7 +247,7 @@ public:
                 
                 // FIXME FB: Benchmark the effect of this statement
                 bool last_round = rdi == (this->_paired ? 1 : 0);
-                if (last_round && bestScore > secondBestScore + (totalHitLength[hit._fw] - usedPortion - 15) * (totalHitLength[hit._fw] - usedPortion - 15)) {
+                if (last_round && bestScore > secondBestScore + (totalHitLength[hit._fw == 0] - usedPortion - 15) * (totalHitLength[hit._fw == 0] - usedPortion - 15)) {
                     break ;
                 }
             } // offsetSize
