@@ -120,30 +120,19 @@ public:
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
-                BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
-                if(partialHit.len() < _minHitLen)
-                    continue;
-                assert(!partialHit.hasGenomeCoords());
-                usedPortion += partialHit.len();
-                bool straddled = false;
-                this->getGenomeIdx(
-                                   ebwtFw,
-                                   ref,
-                                   rnd,
-                                   partialHit._top,
-                                   partialHit._bot,
-                                   hit._fw == 0,
-                                   maxGenomeHitSize - this->_genomeHits.size(),
-                                   hit._len - partialHit._bwoff - partialHit._len,
-                                   partialHit._len,
-                                   partialHit._coords,
-                                   wlm,
-                                   prm,
-                                   him,
-                                   false, // reject straddled
-                                   straddled);
-                if(!partialHit.hasGenomeCoords()) continue;
-                EList<Coord>& coords = partialHit._coords;
+
+            	size_t hit_len = hit.getPartialHit(hi).len();
+            	// only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
+            	if(hit_len < _minHitLen)
+            		continue;
+
+                // get all coordinates of the hit
+				EList<Coord>& coords = getCoords(hit, hi, ebwtFw, ref, rnd,
+						maxGenomeHitSize, wlm, prm, him);
+                if (coords.empty()) continue;
+
+                usedPortion += hit_len;
+
                 assert_gt(coords.size(), 0);
                 if(genomeHitCnt + coords.size() > maxGenomeHitSize) {
                     coords.shufflePortion(0, coords.size(), rnd);
@@ -164,7 +153,7 @@ public:
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
 
 		    // florian - scoring function
-                    uint32_t addWeight = (uint32_t)((partialHit.len() - 15) * (partialHit.len() - 15));
+                    uint32_t addWeight = (uint32_t)((hit_len - 15) * (hit_len - 15));
                     
                     uint32_t newScore = 0;
                     size_t genusIdx = 0;
@@ -421,6 +410,41 @@ private:
 		index_t fwi = (avgHitLength[0] > avgHitLength[1])? 0 : 1;
 		return this->_hits[rdi][fwi];
 	}
+
+    EList<Coord>& getCoords(ReadBWTHit<index_t>& hit, size_t hi,
+    		const Ebwt<index_t>& ebwtFw, const BitPairReference& ref, RandomSource& rnd, const index_t maxGenomeHitSize,
+			WalkMetrics& wlm, PerReadMetrics& prm, HIMetrics& him) {
+
+    	BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
+
+    	assert(!partialHit.hasGenomeCoords());
+    	bool straddled = false;
+
+    	this->getGenomeIdx(
+    			ebwtFw,     // FB: Why is it called ...FW here?
+				ref,
+				rnd,
+				partialHit._top,
+				partialHit._bot,
+				hit._fw == 0, // FIXME: fwi and hit._fw are defined differently
+				maxGenomeHitSize - this->_genomeHits.size(),
+				hit._len - partialHit._bwoff - partialHit._len,
+				partialHit._len,
+				partialHit._coords,
+				wlm,       // why is it called wlm here?
+				prm,
+				him,
+				false, // reject straddled
+				straddled);
+#ifndef NDEBUG //FB
+std::cerr <<  partialHit.len() << ':';
+#endif
+
+
+        // get all coordinates of the hit
+       return partialHit._coords;
+    }
+
 
 	// compare BWTHits by size, ascending, first, then by length, descending
 	//   TODO: move this operator into BWTHits if that is the standard way we would like to sort
