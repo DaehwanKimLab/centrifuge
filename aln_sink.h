@@ -1707,13 +1707,13 @@ void AlnSinkSam<index_t>::appendMate(
     }
     o.append('\t');
 
-    // species ID
-    itoa10<int64_t>(rs->speciesID(), buf);
+    // genus ID
+    itoa10<int64_t>(rs->genusID(), buf);
     o.append(buf);
     o.append('\t');
     
-    // genus ID
-    itoa10<int64_t>(rs->genusID(), buf);
+    // species ID
+    itoa10<int64_t>(rs->speciesID(), buf);
     o.append(buf);
     o.append('\t');
     
