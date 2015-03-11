@@ -430,7 +430,7 @@ while ( 1 )
 	}
 	close fpOut ;
 
-	`jellyfish count --if tmp_$prefix.testingKmer -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 8 $fileName` ;
+	`jellyfish count --if tmp_$prefix.testingKmer -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 4 $fileName` ;
 	`jellyfish dump tmp_$prefix.jf > tmp_$prefix.jf_dump` ;
 	open FP1, "tmp_$prefix.jf_dump";
 
@@ -464,5 +464,5 @@ foreach $i (keys %localKmer )
 
 # clean up
 `rm tmp_$prefix.jf tmp_$prefix.jf_dump tmp_$prefix.testingKmer` ;
-#`rm nucmer_$prefix.*` ;
+`rm nucmer_$prefix*` ;
 print "Finish.\n" ;
