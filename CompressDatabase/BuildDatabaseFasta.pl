@@ -184,9 +184,22 @@ sub solve
 	my $file ;
 	my @subspeciesList = @{ $speciesList{ $speciesId } } ;
 	$genusId = $taxTree{ $speciesId } ;
-	if ( !defined $genusId )
+	while ( 1 )
 	{
-		$genusId = 0 ;
+		if ( !defined $genusId || $genusId <= 1 )
+		{
+			$genusId = 0 ;
+			last ;
+		}
+
+		if ( defined $genus{ $genusId } )
+		{
+			last ;
+		}
+		else
+		{
+			$genusId = $taxTree{ $genusId } ;
+		}
 	}
 
 	my $FP1 ;
