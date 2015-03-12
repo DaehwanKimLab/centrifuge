@@ -160,10 +160,12 @@ endif
 
 CENTRIFUGE_BIN_LIST = centrifuge-build-bin \
 	centrifuge-class \
-	centrifuge-inspect-bin
+	centrifuge-inspect-bin \
+	centrifuge-compress-bin
 CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 	centrifuge-class-debug \
-	centrifuge-inspect-bin-debug
+	centrifuge-inspect-bin-debug \
+	centrifuge-compress-bin-debug
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
 	$(wildcard scripts/*.pl) \
@@ -260,6 +262,22 @@ centrifuge-build-bin-debug: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_BUILD_CPPS_MAIN) \
+	$(LIBS) $(BUILD_LIBS)
+
+centrifuge-compress-bin: centrifuge_compress.cpp $(SHARED_CPPS) $(HEADERS)
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
+	$(INC) \
+	-o $@ $< \
+	$(SHARED_CPPS) $(BUILD_CPPS) \
+	$(LIBS) $(BUILD_LIBS)
+
+centrifuge-compress-bin-debug: centrifuge_compress.cpp $(SHARED_CPPS) $(HEADERS)
+	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
+	$(INC) \
+	-o $@ $< \
+	$(SHARED_CPPS) $(BUILD_CPPS) \
 	$(LIBS) $(BUILD_LIBS)
 
 

@@ -26,7 +26,7 @@
 
 using namespace std;
 
-const std::string gEbwt_ext("hc");
+const std::string gEbwt_ext("cf");
 
 /**
  * Try to find the Bowtie index specified by the user.  First try the

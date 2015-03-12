@@ -1,20 +1,20 @@
 /*
- * Copyright 2011, Ben Langmead <langmea@cs.jhu.edu>
+ * Copyright 2015, Daehwan Kim <infphilo@gmail.com>
  *
- * This file is part of Bowtie 2.
+ * This file is part of Centrifuge.
  *
- * Bowtie 2 is free software: you can redistribute it and/or modify
+ * Centrifuge is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Bowtie 2 is distributed in the hope that it will be useful,
+ * Centrifuge is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
+ * along with Centrifuge.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <iostream>
@@ -69,6 +69,7 @@ static bool writeRef;
 static bool justRef;
 static bool reverseEach;
 static string wrapper;
+static int across;
 
 static void resetOptions() {
 	verbose        = true;  // be talkative (default)
@@ -98,6 +99,7 @@ static void resetOptions() {
 	writeRef       = true;  // write compact reference to .3.bt2/.4.bt2
 	justRef        = false; // *just* write compact reference, don't index
 	reverseEach    = false;
+    across         = 60; // number of characters across in FASTA output
     wrapper.clear();
 }
 
@@ -334,77 +336,75 @@ static void parseOptions(int argc, const char **argv) {
 
 EList<string> filesWritten;
 
-/**
- * Delete all the index files that we tried to create.  For when we had to
- * abort the index-building process due to an error.
- */
-static void deleteIdxFiles(
-	const string& outfile,
-	bool doRef,
-	bool justRef)
+static void print_fasta_record(
+                               ostream& fout,
+                               const string& defline,
+                               const SString<char>& seq,
+                               size_t len)
 {
-	
-	for(size_t i = 0; i < filesWritten.size(); i++) {
-		cerr << "Deleting \"" << filesWritten[i].c_str()
-		     << "\" file written during aborted indexing attempt." << endl;
-		remove(filesWritten[i].c_str());
-	}
+    fout << ">";
+    fout << defline.c_str() << endl;
+    
+    if(across > 0) {
+        size_t i = 0;
+        while (i + across < len)
+        {
+            for(size_t j = 0; j < across; j++) {
+                int base = seq.get(i + j);
+                assert_lt(base, 4);
+                fout << "ACGTN"[base];
+            }
+            fout << endl;
+            i += across;
+        }
+        if (i < len) {
+            for(size_t j = i; j < len; j++) {
+                int base = seq.get(j);
+                assert_lt(base, 4);
+                fout << "ACGTN"[base];
+            }
+            fout << endl;
+        }
+    } else {
+        for(size_t j = 0; j < len; j++) {
+            int base = seq.get(j);
+            assert_lt(base, 4);
+            fout << "ACGTN"[base];
+        }
+        fout << endl;
+    }
 }
-
-extern void initializeCntLut();
 
 /**
  * Drive the index construction process and optionally sanity-check the
  * result.
  */
-template<typename TStr>
 static void driver(
-	const string& infile,
-	EList<string>& infiles,
-	const string& outfile,
+	const string& fafile,
+	const string& safile,
 	bool packed,
 	int reverse)
 {
-    initializeCntLut();
-	EList<FileBuf*> is(MISC_CAT);
+    EList<FileBuf*> is(MISC_CAT);
 	bool bisulfite = false;
 	RefReadInParams refparams(false, reverse, nsToAs, bisulfite);
-	assert_gt(infiles.size(), 0);
-	if(format == CMDLINE) {
-		// Adapt sequence strings to stringstreams open for input
-		stringstream *ss = new stringstream();
-		for(size_t i = 0; i < infiles.size(); i++) {
-			(*ss) << ">" << i << endl << infiles[i].c_str() << endl;
-		}
-		FileBuf *fb = new FileBuf(ss);
-		assert(fb != NULL);
-		assert(!fb->eof());
-		assert(fb->get() == '>');
-		ASSERT_ONLY(fb->reset());
-		assert(!fb->eof());
-		is.push_back(fb);
-	} else {
-		// Adapt sequence files to ifstreams
-		for(size_t i = 0; i < infiles.size(); i++) {
-			FILE *f = fopen(infiles[i].c_str(), "r");
-			if (f == NULL) {
-				cerr << "Error: could not open "<< infiles[i].c_str() << endl;
-				throw 1;
-			}
-			FileBuf *fb = new FileBuf(f);
-			assert(fb != NULL);
-			if(fb->peek() == -1 || fb->eof()) {
-				cerr << "Warning: Empty fasta file: '" << infile.c_str() << "'" << endl;
-				continue;
-			}
-			assert(!fb->eof());
-			assert(fb->get() == '>');
-			ASSERT_ONLY(fb->reset());
-			assert(!fb->eof());
-			is.push_back(fb);
-		}
-	}
-	if(is.empty()) {
+    FILE *f = fopen(fafile.c_str(), "r");
+    if (f == NULL) {
+        cerr << "Error: could not open "<<fafile.c_str() << endl;
+        throw 1;
+    }
+    FileBuf *fb = new FileBuf(f);
+    assert(fb != NULL);
+    if(fb->peek() == -1 || fb->eof()) {
+        cerr << "Warning: Empty fasta file: '" << fafile.c_str() << "'" << endl;
+        throw 1;
+    }
+    assert(!fb->eof());
+    assert(fb->get() == '>');
+    ASSERT_ONLY(fb->reset());
+    assert(!fb->eof());
+    is.push_back(fb);
+    if(is.empty()) {
 		cerr << "Warning: All fasta inputs were empty" << endl;
 		throw 1;
 	}
@@ -412,59 +412,184 @@ static void driver(
 	// sequences.  A record represents a stretch of unambiguous
 	// characters in one of the input sequences.
 	EList<RefRecord> szs(MISC_CAT);
-	std::pair<size_t, size_t> sztot;
-	{
-		if(verbose) cout << "Reading reference sizes" << endl;
-		Timer _t(cout, "  Time reading reference sizes: ", verbose);
-		if(!reverse && (writeRef || justRef) && false) {
-			filesWritten.push_back(outfile + ".3." + gEbwt_ext);
-			filesWritten.push_back(outfile + ".4." + gEbwt_ext);
-			sztot = BitPairReference::szsFromFasta(is, outfile, bigEndian, refparams, szs, sanityCheck);
-		} else {
-			sztot = BitPairReference::szsFromFasta(is, string(), bigEndian, refparams, szs, sanityCheck);
-		}
-	}
-	if(justRef) return;
-	assert_gt(sztot.first, 0);
-	assert_gt(sztot.second, 0);
+	BitPairReference::szsFromFasta(is, string(), bigEndian, refparams, szs, sanityCheck);
 	assert_gt(szs.size(), 0);
-	// Construct index from input strings and parameters
-	filesWritten.push_back(outfile + ".1." + gEbwt_ext);
-	filesWritten.push_back(outfile + ".2." + gEbwt_ext);
-	TStr s;
-	Ebwt<TIndexOffU> ebwt(
-                          s,
-                          packed,
-                          0,
-                          1,  // TODO: maybe not?
-                          lineRate,
-                          offRate,      // suffix-array sampling rate
-                          ftabChars,    // number of chars in initial arrow-pair calc
-                          outfile,      // basename for .?.ebwt files
-                          reverse == 0, // fw
-                          !entireSA,    // useBlockwise
-                          bmax,         // block size for blockwise SA builder
-                          bmaxMultSqrt, // block size as multiplier of sqrt(len)
-                          bmaxDivN,     // block size as divisor of len
-                          noDc? 0 : dcv,// difference-cover period
-                          is,           // list of input streams
-                          szs,          // list of reference sizes
-                          (TIndexOffU)sztot.first,  // total size of all unambiguous ref chars
-                          refparams,    // reference read-in parameters
-                          seed,         // pseudo-random number generator seed
-                          -1,           // override offRate
-                          doSaFile,     // make a file with just the suffix array in it
-                          doBwtFile,    // make a file with just the BWT string in it
-                          verbose,      // be talkative
-                          autoMem,      // pass exceptions up to the toplevel so that we can adjust memory settings automatically
-                          sanityCheck); // verify results and internal consistency
-	// Note that the Ebwt is *not* resident in memory at this time.  To
-	// load it into memory, call ebwt.loadIntoMemory()
-	if(verbose) {
-		// Print Ebwt's vital stats
-		ebwt.eh().print(cout);
-	}
-	if(sanityCheck) {
+    
+    EList<string> refnames;
+    
+    SString<char> s; EList<uint32_t> sa;
+    assert_eq(szs.size(), 1);
+    size_t jlen = szs[0].len;
+    try {
+        s.resize(jlen);
+        RefReadInParams rpcp = refparams;
+        // For each filebuf
+        assert_eq(is.size(), 1);
+        FileBuf *fb = is[0];
+        assert(!fb->eof());
+        // For each *fragment* (not necessary an entire sequence) we
+        // can pull out of istream l[i]...
+        if(!fb->eof()) {
+            // Push a new name onto our vector
+            refnames.push_back("");
+            TIndexOffU distoff = 0;
+            fastaRefReadAppend(*fb, true, s, distoff, rpcp, &refnames.back());
+        }
+        fb->reset();
+        assert(!fb->eof());
+        
+        ifstream in(safile.c_str(), ios::binary);
+        uint64_t sa_size = readIndex<uint64_t>(in, false);
+        assert_eq(s.length() + 1, sa_size);
+        sa.reserveExact(sa_size); sa.clear();
+        for(size_t i = 0; i < sa_size; i++) {
+            uint64_t sa_pos = readIndex<uint64_t>(in, false);
+            sa.push_back((uint32_t)sa_pos);
+        }
+        assert_eq(s.length() + 1, sa.size());
+        
+        // Joined reference sequence now in 's'
+    } catch(bad_alloc& e) {
+        // If we throw an allocation exception in the try block,
+        // that means that the joined version of the reference
+        // string itself is too larger to fit in memory.  The only
+        // alternatives are to tell the user to give us more memory
+        // or to try again with a packed representation of the
+        // reference (if we haven't tried that already).
+        cerr << "Could not allocate space for a joined string of " << jlen << " elements." << endl;
+        // There's no point passing this exception on.  The fact
+        // that we couldn't allocate the joined string means that
+        // --bmax is irrelevant - the user should re-run with
+        // ebwt-build-packed
+        if(packed) {
+            cerr << "Please try running bowtie-build on a computer with more memory." << endl;
+        } else {
+            cerr << "Please try running bowtie-build in packed mode (-p/--packed) or in automatic" << endl
+            << "mode (-a/--auto), or try again on a computer with more memory." << endl;
+        }
+        if(sizeof(void*) == 4) {
+            cerr << "If this computer has more than 4 GB of memory, try using a 64-bit executable;" << endl
+            << "this executable is 32-bit." << endl;
+        }
+        throw 1;
+    }
+    // Succesfully obtained joined reference string
+    assert_eq(s.length(), jlen);
+    assert_eq(s.length() % 2, 0);
+    size_t sense_seq_len = s.length() / 2;
+    assert_geq(sense_seq_len, 2);
+    
+#if 1
+    // daehwan - for debugging purposes
+    const size_t min_sim_length = 100;
+    
+    // Compress sequences by removing redundant sub-sequences
+    for(size_t i1 = 0; i1 < sa.size() - 1; i1++) {
+        // daehwan - for debugging purposes
+        if((i1+1) % 10000000 == 0) {
+            cerr << ((i1 + 1) / 1000000) << "M" << endl;
+        }
+        size_t pos1 = sa[i1];
+        if(pos1 == s.length()) continue;
+        // opos2 is relative pos of pos2 on the other strand
+        size_t opos1 = s.length() - pos1 - 1;
+        // cpos2 is canonical pos on the sense strand
+        size_t cpos1 = min(pos1, opos1);
+        // Check if the sequence (defined by cpos1) had been removed
+        if(s[cpos1] > 3) continue;
+
+        // Compare with the following sequences
+        // daehwan - for debugging purposes
+        for(size_t i2 = i1 + 1; i2 < sa.size() /*&& i2 <= i1 + 10*/; i2++) {
+            size_t pos2 = sa[i2];
+            if(pos2 == s.length()) continue;
+            // opos2 is relative pos of pos2 on the other strand
+            size_t opos2 = s.length() - pos2 - 1;
+            // cpos2 is canonical pos on the sense strand
+            size_t cpos2 = min(pos2, opos2);
+            // Check if the sequence (defined by cpos2) had been removed
+            if(s[cpos2] > 3) continue;
+            
+            // Do not proceed if both sequences defined by pos1 and pos2, resp.,
+            // on antisense strand
+            if(pos1 >= sense_seq_len && pos2 >= sense_seq_len) continue;
+
+            const size_t max_mismatches = 1;
+            size_t perfect_matches = 0;
+            size_t j1 = 0, mismatches = 0;
+            while(pos1 + j1 < sense_seq_len && pos2 + j1 < sense_seq_len) {
+                int base1 = s[pos1 + j1];
+                int base2 = s[pos2 + j1];
+                if(base1 > 3 || base2 > 3) break;
+                if(mismatches <= 0) perfect_matches += 1;
+                if(base1 != base2) {
+                    mismatches += 1;
+                    if(mismatches > max_mismatches) break;
+                }
+                j1++;
+            }
+            size_t j2 = 1; mismatches = 0;
+            while(j2 <= pos1 && j2 <= pos2) {
+                int base1 = s[pos1 - j2];
+                int base2 = s[pos2 - j2];
+                if(base1 > 3 || base2 > 3) break;
+                if(mismatches <= 0) perfect_matches += 1;
+                if(base1 != base2) {
+                    mismatches += 1;
+                    if(mismatches > max_mismatches) break;
+                }
+                j2++;
+            }
+            if(pos2 >= sense_seq_len) {
+                size_t tmp = j1;
+                j1 = j2;
+                j2 = tmp;
+            }
+            size_t j = j1 + j2;
+            
+            if(perfect_matches < min<size_t>(min_sim_length, 31)) break;
+            
+            // Do not proceed if two sequences are not similar
+            if(j < min_sim_length) continue;
+            
+            for(size_t k = 0; k < j1; k++) {
+                assert_lt(cpos2 + k, sense_seq_len);
+                ASSERT_ONLY(int base1 = s[cpos2 + k]);
+                ASSERT_ONLY(int base2 = s[s.length() - cpos2 - k - 1]);
+                assert_eq(base1 + base2, 3);
+                s.set(4, cpos2 + k);
+            }
+            for(size_t k = 1; k < j2; k++) {
+                assert_leq(k, cpos2);
+                ASSERT_ONLY(int base1 = s[cpos2 - k]);
+                ASSERT_ONLY(int base2 = s[s.length() - cpos2 + k - 1]);
+                assert_eq(base1 + base2, 3);
+                s.set(4, cpos2 - k);
+            }
+        }
+    }
+#else
+    // Compress sequences by removing redundant sub-sequences
+    EList<uint32_t> sa_sim;
+    sa_sim.reserveExact(sa.size()); sa_sim.push_back(0);
+    for(size_t i = 1; i < sa.size(); i++) {
+        size_t pos1 = sa[i-1], pos2 = sa[i];
+        size_t j = 0;
+        while(pos1 + j < s.length() && pos2 + j < s.length()) {
+            int base1 = s[pos1 + j]; assert_lt(base1, 4);
+            int base2 = s[pos2 + j]; assert_lt(base2, 4);
+            if(base1 != base2) break;
+            j++;
+        }
+        sa_sim.push_back(j);
+        cout << j << endl;
+    }
+    exit(1);
+
+#endif
+    
+    if(sanityCheck) {
+#if 0
 		// Try restoring the original string (if there were
 		// multiple texts, what we'll get back is the joined,
 		// padded string, not a list)
@@ -499,25 +624,67 @@ static void driver(
 				cout << "Passed restore check: (" << s2.length() << " chars)" << endl;
 			}
 		}
+#endif
 	}
+    
+    
+    // Output compressed sequence
+    // daehwan - for debugging purposes
+    const size_t min_seq_len = 31;
+    size_t cur_pos = 0, cur_seq_len = 0;
+    for(size_t i = 0; i < sense_seq_len; i++) {
+        int base = s[i];
+        assert_lt(base, 4);
+        // daehwan - for debugging purposes
+#if 1
+        if(base < 4) {
+            s.set(base, cur_pos);
+            cur_pos++;
+            cur_seq_len++;
+        } else {
+            if(cur_seq_len < min_seq_len) {
+                assert_lt(cur_seq_len, i);
+                assert_leq(cur_seq_len, cur_pos);
+                for(size_t j = i - cur_seq_len; j < i; j++) {
+                    assert_lt(s[j], 4);
+                    s.set(4, j);
+                }
+                cur_pos -= cur_seq_len;
+            }
+            cur_seq_len = 0;
+        }
+#else
+        if(base < 4) {
+            cur_seq_len++;
+        } else {
+            if(cur_seq_len < min_seq_len) {
+                for(size_t j = i - cur_seq_len; j < i; j++) {
+                    s.set(4, j);
+                }
+            }
+            cur_seq_len = 0;
+        }
+        cur_pos++;
+#endif
+    }
+    print_fasta_record(cout, refnames[0], s, cur_pos);
 }
 
 static const char *argv0 = NULL;
 
-extern "C" {
 /**
  * main function.  Parses command-line arguments.
  */
-int centrifuge_build(int argc, const char **argv) {
+int centrifuge_compress(int argc, const char **argv) {
 	string outfile;
 	try {
 		// Reset all global state, including getopt state
 		opterr = optind = 1;
 		resetOptions();
 
-		string infile;
-		EList<string> infiles(MISC_CAT);
-
+		string fafile;
+        string safile;
+		
 		parseOptions(argc, argv);
 		argv0 = argv[0];
 		if(showVersion) {
@@ -547,7 +714,7 @@ int centrifuge_build(int argc, const char **argv) {
 			printUsage(cerr);
 			return 1;
 		}
-		infile = argv[optind++];
+		fafile = argv[optind++];
 
 		// Get output filename
 		if(optind >= argc) {
@@ -555,17 +722,11 @@ int centrifuge_build(int argc, const char **argv) {
 			printUsage(cerr);
 			return 1;
 		}
-		outfile = argv[optind++];
-
-		tokenize(infile, ",", infiles);
-		if(infiles.size() < 1) {
-			cerr << "Tokenized input file list was empty!" << endl;
-			printUsage(cerr);
-			return 1;
-		}
+		safile = argv[optind++];
 
 		// Optionally summarize
 		if(verbose) {
+#if 0
 			cout << "Settings:" << endl
 				 << "  Output files: \"" << outfile.c_str() << ".*." << gEbwt_ext << "\"" << endl
 				 << "  Line rate: " << lineRate << " (line is " << (1<<lineRate) << " bytes)" << endl
@@ -606,54 +767,28 @@ int centrifuge_build(int argc, const char **argv) {
 			for(size_t i = 0; i < infiles.size(); i++) {
 				cout << "  " << infiles[i].c_str() << endl;
 			}
-		}
+#endif
+        }
 		// Seed random number generator
 		srand(seed);
 		{
-			Timer timer(cout, "Total time for call to driver() for forward index: ", verbose);
-			if(!packed) {
-				try {
-					driver<SString<char> >(infile, infiles, outfile, false, REF_READ_FORWARD);
-				} catch(bad_alloc& e) {
-					if(autoMem) {
-						cerr << "Switching to a packed string representation." << endl;
-						packed = true;
-					} else {
-						throw e;
-					}
-				}
-			}
-			if(packed) {
-				driver<S2bDnaString>(infile, infiles, outfile, true, REF_READ_FORWARD);
-			}
-		}
-#if 0
-		int reverseType = reverseEach ? REF_READ_REVERSE_EACH : REF_READ_REVERSE;
-		srand(seed);
-		Timer timer(cout, "Total time for backward call to driver() for mirror index: ", verbose);
-		if(!packed) {
 			try {
-				driver<SString<char> >(infile, infiles, outfile + ".rev", false, reverseType);
-			} catch(bad_alloc& e) {
-				if(autoMem) {
-					cerr << "Switching to a packed string representation." << endl;
-					packed = true;
-				} else {
-					throw e;
-				}
-			}
+                driver(fafile, safile, false, REF_READ_FORWARD);
+            } catch(bad_alloc& e) {
+                if(autoMem) {
+                    cerr << "Switching to a packed string representation." << endl;
+                    packed = true;
+                } else {
+                    throw e;
+                }
+            }
 		}
-		if(packed) {
-			driver<S2bDnaString>(infile, infiles, outfile + ".rev", true, reverseType);
-		}
-#endif
 		return 0;
 	} catch(std::exception& e) {
 		cerr << "Error: Encountered exception: '" << e.what() << "'" << endl;
 		cerr << "Command: ";
 		for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 		cerr << endl;
-		deleteIdxFiles(outfile, writeRef || justRef, justRef);
 		return 1;
 	} catch(int e) {
 		if(e != 0) {
@@ -662,8 +797,44 @@ int centrifuge_build(int argc, const char **argv) {
 			for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 			cerr << endl;
 		}
-		deleteIdxFiles(outfile, writeRef || justRef, justRef);
 		return e;
 	}
 }
+
+/**
+ * bowtie-build main function.  It is placed in a separate source file
+ * to make it slightly easier to compile as a library.
+ *
+ * If the user specifies -A <file> as the first two arguments, main
+ * will interpret that file as having one set of command-line arguments
+ * per line, and will dispatch each batch of arguments one at a time to
+ * bowtie-build.
+ */
+int main(int argc, const char **argv) {
+    if(argc > 2 && strcmp(argv[1], "-A") == 0) {
+        const char *file = argv[2];
+        ifstream in;
+        in.open(file);
+        char buf[4096];
+        int lastret = -1;
+        while(in.getline(buf, 4095)) {
+            EList<string> args(MISC_CAT);
+            args.push_back(string(argv[0]));
+            tokenize(buf, " \t", args);
+            const char **myargs = (const char**)malloc(sizeof(char*)*args.size());
+            for(size_t i = 0; i < args.size(); i++) {
+                myargs[i] = args[i].c_str();
+            }
+            if(args.size() == 1) continue;
+            lastret = centrifuge_compress((int)args.size(), myargs);
+            free(myargs);
+        }
+        if(lastret == -1) {
+            cerr << "Warning: No arg strings parsed from " << file << endl;
+            return 0;
+        }
+        return lastret;
+    } else {
+        return centrifuge_compress(argc, argv);
+    }
 }

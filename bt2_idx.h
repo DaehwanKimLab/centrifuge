@@ -678,6 +678,8 @@ public:
 		const RefReadInParams& refparams,
 		uint32_t seed,
 		int32_t overrideOffRate = -1,
+        bool doSaFile = false,
+        bool doBwtFile = false,
 		bool verbose = false,
 		bool passMemExc = false,
 		bool sanityCheck = false) :
@@ -712,6 +714,27 @@ public:
 			     << "Bowtie." << endl;
 			throw 1;
 		}
+        _inSaStr = file + ".sa";
+        _inBwtStr = file + ".bwt";
+        ofstream *saOut = NULL, *bwtOut = NULL;
+        if(doSaFile) {
+            saOut = new ofstream(_inSaStr.c_str(), ios::binary);
+            if(!saOut->good()) {
+                cerr << "Could not open suffix-array file for writing: \"" << _inSaStr.c_str() << "\"" << endl
+                << "Please make sure the directory exists and that permissions allow writing by" << endl
+                << "Bowtie." << endl;
+                throw 1;
+            }
+        }
+        if(doBwtFile) {
+            bwtOut = new ofstream(_inBwtStr.c_str(), ios::binary);
+            if(!bwtOut->good()) {
+                cerr << "Could not open suffix-array file for writing: \"" << _inBwtStr.c_str() << "\"" << endl
+                << "Please make sure the directory exists and that permissions allow writing by" << endl
+                << "Bowtie." << endl;
+                throw 1;
+            }
+        }
 		// Build
 		initFromVector<TStr>(
 							 s,
@@ -721,6 +744,8 @@ public:
 							 refparams,
 							 fout1,
 							 fout2,
+                             saOut,
+                             bwtOut,
 							 useBlockwise,
 							 bmax,
 							 bmaxSqrtMult,
@@ -748,6 +773,28 @@ public:
 			cerr << "Index is corrupt: File size for " << _in2Str.c_str() << " should have been " << tellpSz2
 			     << " but is actually " << fileSize(_in2Str.c_str()) << "." << endl;
 		}
+        if(saOut != NULL) {
+            // Check on suffix array output file size
+            int64_t tellpSzSa = (int64_t)saOut->tellp();
+            VMSG_NL("Wrote " << tellpSzSa << " bytes to suffix-array file: " << _inSaStr.c_str());
+            saOut->close();
+            if(tellpSzSa > fileSize(_inSaStr.c_str())) {
+                err = true;
+                cerr << "Index is corrupt: File size for " << _inSaStr.c_str() << " should have been " << tellpSzSa
+                << " but is actually " << fileSize(_inSaStr.c_str()) << "." << endl;
+            }
+        }
+        if(bwtOut != NULL) {
+            // Check on suffix array output file size
+            int64_t tellpSzBwt = (int64_t)bwtOut->tellp();
+            VMSG_NL("Wrote " << tellpSzBwt << " bytes to BWT file: " << _inBwtStr.c_str());
+            bwtOut->close();
+            if(tellpSzBwt > fileSize(_inBwtStr.c_str())) {
+                err = true;
+                cerr << "Index is corrupt: File size for " << _inBwtStr.c_str() << " should have been " << tellpSzBwt
+                << " but is actually " << fileSize(_inBwtStr.c_str()) << "." << endl;
+            }
+        }
 		if(err) {
 			cerr << "Please check if there is a problem with the disk or if disk is full." << endl;
 			throw 1;
@@ -952,6 +999,8 @@ public:
 	                    const RefReadInParams& refparams,
 	                    ofstream& out1,
 	                    ofstream& out2,
+                        ofstream* saOut,
+                        ofstream* bwtOut,
 	                    bool useBlockwise,
 	                    index_t bmax,
 	                    index_t bmaxSqrtMult,
@@ -1105,12 +1154,17 @@ public:
 				assert(bsa.suffixItrIsReset());
 				assert_eq(bsa.size(), s.length()+1);
 				VMSG_NL("Converting suffix-array elements to index image");
-				buildToDisk(bsa, s, out1, out2);
+				buildToDisk(bsa, s, out1, out2, saOut, bwtOut);
 				out1.flush(); out2.flush();
-				if(out1.fail() || out2.fail()) {
-					cerr << "An error occurred writing the index to disk.  Please check if the disk is full." << endl;
-					throw 1;
-				}
+                bool failed = out1.fail() || out2.fail();
+                if(saOut != NULL) {
+                    saOut->flush();
+                    failed = failed || saOut->fail();
+                }
+                if(bwtOut != NULL) {
+                    bwtOut->flush();
+                    failed = failed || bwtOut->fail();
+                }
 				break;
 			} catch(bad_alloc& e) {
 				if(_passMemExc) {
@@ -1611,7 +1665,7 @@ public:
 	template <typename TStr> static TStr join(EList<TStr>& l, uint32_t seed);
 	template <typename TStr> static TStr join(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, uint32_t seed);
 	template <typename TStr> void joinToDisk(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, TStr& ret, ostream& out1, ostream& out2);
-	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2);
+	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut);
 
 	// I/O
 	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams<index_t> *params, bool mmSweep, bool loadNames, bool startVerbose);
@@ -2472,6 +2526,8 @@ public:
 	FILE    *_in2;    // input fd for secondary index file
 	string     _in1Str; // filename for primary index file
 	string     _in2Str; // filename for secondary index file
+    string     _inSaStr;  // filename for suffix-array file
+    string     _inBwtStr; // filename for BWT file
 	index_t    _zOff;
 	index_t    _zEbwtByteOff;
 	int        _zEbwtBpOff;
@@ -2800,10 +2856,12 @@ void Ebwt<index_t>::joinToDisk(
 template <typename index_t>
 template <typename TStr>
 void Ebwt<index_t>::buildToDisk(
-	InorderBlockwiseSA<TStr>& sa,
-	const TStr& s,
-	ostream& out1,
-	ostream& out2)
+                                InorderBlockwiseSA<TStr>& sa,
+                                const TStr& s,
+                                ostream& out1,
+                                ostream& out2,
+                                ostream* saOut,
+                                ostream* bwtOut)
 {
 	const EbwtParams<index_t>& eh = this->_eh;
 
@@ -2883,6 +2941,20 @@ void Ebwt<index_t>::buildToDisk(
 	// Iterate over packed bwt bytes
 	VMSG_NL("Entering Ebwt loop");
 	ASSERT_ONLY(index_t beforeEbwtOff = (index_t)out1.tellp());
+    
+    // First integer in the suffix-array output file is the length of the
+    // array, including $
+    if(saOut != NULL) {
+        // Write length word
+        writeIndex<index_t>(*saOut, len+1, this->toBe());
+    }
+    
+    // First integer in the BWT output file is the length of BWT(T), including $
+    if(bwtOut != NULL) {
+        // Write length word
+        writeIndex<index_t>(*bwtOut, len+1, this->toBe());
+    }
+    
 	while(side < ebwtTotSz) {
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
@@ -2902,6 +2974,9 @@ void Ebwt<index_t>::buildToDisk(
 			if(si <= len) {
 				// Still in the SA; extract the bwtChar
 				index_t saElt = sa.nextSuffix();
+                if(saOut != NULL) {
+                    writeIndex<index_t>(*saOut, saElt, this->toBe());
+                }
 				// (that might have triggered sa to calc next suf block)
 				if(saElt == 0) {
 					// Don't add the '$' in the last column to the BWT
@@ -2962,15 +3037,17 @@ void Ebwt<index_t>::buildToDisk(
 #ifdef CENTRIFUGE
                     index_t tidx = 0, toff = 0, tlen = 0;
                     bool straddled2 = false;
-                    joinedToTextOff(
-                                    0,
-                                    saElt,
-                                    tidx,
-                                    toff,
-                                    tlen,
-                                    false,        // reject straddlers?
-                                    straddled2);  // straddled?
-					writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
+                    if(saElt > 0) {
+                        joinedToTextOff(
+                                        0,
+                                        saElt - 1,
+                                        tidx,
+                                        toff,
+                                        tlen,
+                                        false,        // reject straddlers?
+                                        straddled2);  // straddled?
+                    }
+                    writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
 #else
                     writeIndex<index_t>(out2, saElt, this->toBe());
 #endif
