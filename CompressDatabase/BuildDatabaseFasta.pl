@@ -7,7 +7,7 @@ use strict ;
 use threads ;
 use threads::shared ;
 
-my $usage = "perl a.pl path_to_download_files path_to_taxnonomy [-o compressed.fa -bss ./ -t 1]\n" ;
+my $usage = "perl a.pl path_to_download_files path_to_taxnonomy [-o compressed.fa -bss ./ -noCompress -t 1]\n" ;
 
 my $level = "species" ;
 my $path = $ARGV[0] ;
@@ -33,6 +33,8 @@ my @speciesListKey ;
 my $speciesUsed : shared ;
 my $debug: shared ;
 
+my $noCompress = 0 ;
+
 die $usage if ( scalar( @ARGV ) == 0 ) ;
 
 for ( $i = 2 ; $i < scalar( @ARGV ) ; ++$i )
@@ -57,6 +59,10 @@ for ( $i = 2 ; $i < scalar( @ARGV ) ; ++$i )
 	{
 		$numOfThreads = $ARGV[$i + 1] ;
 		++$i ;
+	}
+	elsif ( $ARGV[$i] eq "-noCompress" )
+	{
+		$noCompress = 1 ;
 	}
 	else
 	{
@@ -237,21 +243,41 @@ sub solve
 
 #return ;
 # Build the sequence
-	`perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id` ;
+	my $seq = "" ;
+	if ( $noCompress == 0 )
+	{
+		`perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id` ;
 
 # Merge all the fragmented sequence into one big chunk.
-	`cat tmp_${tid}_${id}_*.fa > tmp_${tid}_$id.fa` ;
+		`cat tmp_${tid}_${id}_*.fa > tmp_${tid}_$id.fa` ;
 
-	open FP1, "tmp_${tid}_$id.fa" ;
-	my $seq = "" ;
-	while ( <FP1> )
-	{
-		chomp ;
-		next if ( /^>/ ) ;
-		$seq .= $_ ;
+		open FP1, "tmp_${tid}_$id.fa" ;
+		while ( <FP1> )
+		{
+			chomp ;
+			next if ( /^>/ ) ;
+			$seq .= $_ ;
+		}
+		close FP1 ;
 	}
-	close FP1 ;
-
+	else
+	{
+		foreach $i ( @subspeciesList )
+		{
+			foreach my $j ( @{$tidToGid{ $i } } )
+			{
+				$file =  $gidToFile{ $j } ;
+				open FP1, $file ;
+				while ( <FP1> )
+				{
+					chomp ;
+					next if ( /^>/ ) ;
+					$seq .= $_ ;
+				}
+				close FP1 ;
+			}
+		}
+	}
 	open fpOut, ">>${output}_${tid}" ;
 	print fpOut "$header\n$seq\n" ;
 	close fpOut ;
