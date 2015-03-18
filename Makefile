@@ -117,6 +117,21 @@ BUILD_CPPS = diff_sample.cpp
 
 CENTRIFUGE_CPPS_MAIN = $(SEARCH_CPPS) centrifuge_main.cpp
 CENTRIFUGE_BUILD_CPPS_MAIN = $(BUILD_CPPS) centrifuge_build_main.cpp
+CENTRIFUGE_COMPRESS_CPPS_MAIN = $(BUILD_CPPS) \
+	aligner_seed.cpp \
+	aligner_sw.cpp \
+	aligner_cache.cpp \
+	dp_framer.cpp \
+	aligner_bt.cpp sse_util.cpp \
+	aligner_swsse.cpp \
+	aligner_swsse_loc_i16.cpp \
+	aligner_swsse_ee_i16.cpp \
+	aligner_swsse_loc_u8.cpp \
+	aligner_swsse_ee_u8.cpp \
+	scoring.cpp \
+	mask.cpp \
+	qual.cpp
+
 
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
 VERSION = $(shell cat VERSION)
@@ -264,20 +279,20 @@ centrifuge-build-bin-debug: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(SHARED_CPPS) $(CENTRIFUGE_BUILD_CPPS_MAIN) \
 	$(LIBS) $(BUILD_LIBS)
 
-centrifuge-compress-bin: centrifuge_compress.cpp $(SHARED_CPPS) $(HEADERS)
+centrifuge-compress-bin: centrifuge_compress.cpp $(SHARED_CPPS) $(CENTRIFUGE_COMPRESS_CPPS_MAIN) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
 	$(INC) \
 	-o $@ $< \
-	$(SHARED_CPPS) $(BUILD_CPPS) \
+	$(SHARED_CPPS) $(CENTRIFUGE_COMPRESS_CPPS_MAIN) \
 	$(LIBS) $(BUILD_LIBS)
 
-centrifuge-compress-bin-debug: centrifuge_compress.cpp $(SHARED_CPPS) $(HEADERS)
+centrifuge-compress-bin-debug: centrifuge_compress.cpp $(SHARED_CPPS) $(CENTRIFUGE_COMPRESS_CPPS_MAIN) $(HEADERS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
 	$(INC) \
 	-o $@ $< \
-	$(SHARED_CPPS) $(BUILD_CPPS) \
+	$(SHARED_CPPS) $(CENTRIFUGE_COMPRESS_CPPS_MAIN) \
 	$(LIBS) $(BUILD_LIBS)
 
 

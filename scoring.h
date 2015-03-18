@@ -387,7 +387,7 @@ public:
 	int maxRefGaps(
 		int64_t minsc,
 		size_t rdlen) const;
-
+    
 	/**
 	 * Given a read sequence, return true iff the read passes the N filter.
 	 * The N filter rejects reads with more than the number of Ns calculated by

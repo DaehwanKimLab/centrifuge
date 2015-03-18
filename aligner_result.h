@@ -245,6 +245,8 @@ public:
 	AlnScore           score()          const { return score_;     }
     uint32_t           speciesID()      const { return speciesID_; }
     uint32_t           genusID()        const { return genusID_;   }
+    
+    EList<Edit>&       ned()                  { return ned_;      }
 
 	/**
 	 * Print the sequence for the read that aligned using A, C, G and
@@ -306,6 +308,8 @@ protected:
 	AlnScore     score_;        // best SW score found
     uint32_t     speciesID_;
     uint32_t     genusID_;
+    
+    EList<Edit>  ned_;          // base edits
 };
 
 typedef uint64_t TNumAlns;
