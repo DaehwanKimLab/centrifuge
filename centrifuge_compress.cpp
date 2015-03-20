@@ -400,11 +400,18 @@ struct Region {
     size_t pos;
     size_t fw_length;
     bool   low_complexity;
-    EList<RegionSimilar, 4> hits;
+    
+    size_t match_begin;
+    size_t match_end;
+    
+    size_t match_size() {
+        assert_leq(match_begin, match_end);
+        return match_end - match_begin;
+    }
     
     void reset() {
         pos = fw_length = 0, low_complexity = false;
-        hits.clear();
+        match_begin = match_end = 0;
     }
     
     bool operator< (const Region& o) const {
@@ -550,7 +557,8 @@ static void driver(
     //
     const size_t min_seed_length = min_kmer * 2;
     
-    EList<Region> matches;
+    EList<Region> regions;
+    EList<RegionSimilar> regions_similar;
     {
         EList<size_t> sa;
         EList<uint16_t> prefix_lengths;
@@ -568,7 +576,7 @@ static void driver(
             size_t last_i1 = 0;
             for(size_t i1 = 0; i1 < sa_size - 1; i1++) {
                 // daehwan - for debugging purposes
-                if((i1 + 1) % 10000000 == 0) {
+                if((i1 + 1) % 50000000 == 0) {
                     cerr << "\t\t" << (i1 + 1) / 1000000 << " million" << endl;
                 }
                 if(i1 >= sa_end) {
@@ -642,7 +650,7 @@ static void driver(
                     
                     if(j1 < min_kmer + 10) {
                         if(i2 > i1) break;
-                        else        continue;
+                        else continue;
                     }
                     
                     // Do not proceed if two sequences are not similar
@@ -652,9 +660,11 @@ static void driver(
                     if(!expanded && j1 <= prefix_lengths[pos1]) continue;
                     
                     if(!expanded) {
-                        matches.expand();
-                        matches.back().pos = pos1;
-                        matches.back().fw_length = j1;
+                        regions.expand();
+                        regions.back().reset();
+                        regions.back().pos = pos1;
+                        regions.back().fw_length = j1;
+                        regions.back().match_begin = regions.back().match_end = regions_similar.size();
                         for(size_t k = 0; k < j1; k++) {
                             size_t tmp_length = j1 - k;
                             if(prefix_lengths[pos1 + k] < tmp_length) {
@@ -664,28 +674,29 @@ static void driver(
                         expanded = true;
                     }
                     
-                    if(matches.back().fw_length < j1) {
-                        matches.back().fw_length = j1;
+                    if(regions.back().fw_length < j1) {
+                        regions.back().fw_length = j1;
                     }
                     
-                    matches.back().hits.expand();
-                    matches.back().hits.back().reset();
-                    matches.back().hits.back().fw = fw;
-                    matches.back().hits.back().pos = cpos2;
+                    regions_similar.expand();
+                    regions_similar.back().reset();
+                    regions_similar.back().fw = fw;
+                    regions_similar.back().pos = cpos2;
                     if(fw) {
-                        matches.back().hits.back().fw_length = j1;
-                        matches.back().hits.back().bw_length = j2;
+                        regions_similar.back().fw_length = j1;
+                        regions_similar.back().bw_length = j2;
                     } else {
-                        matches.back().hits.back().fw_length = j1 > 0 ? j2 + 1 : 0;
-                        matches.back().hits.back().bw_length = j1 > 0 ? j1 - 1 : 0;
+                        regions_similar.back().fw_length = j1 > 0 ? j2 + 1 : 0;
+                        regions_similar.back().bw_length = j1 > 0 ? j1 - 1 : 0;
                     }
                     
-                    if(matches.back().hits.size() >= 20) break;
+                    regions.back().match_end = regions_similar.size();
+                    if(regions.back().match_size() >= 20) break;
                 }
                 
                 last_i1 = i1;
                 assert_geq(last_i1, sa_begin);
-                if(last_i1 + 1024 > sa_begin) {
+                if(last_i1 >= sa_begin + 1024) {
                     assert_lt(last_i1, sa_end);
                     sa.erase(0, last_i1 - sa_begin);
                     sa_begin = last_i1;                    
@@ -693,15 +704,16 @@ static void driver(
                 }
                 
                 if(expanded) {
-                    assert_gt(matches.size(), 0);
-                    EList<RegionSimilar, 4>& hits = matches.back().hits;
-                    if(hits.size() > 1) {
-                        hits.sort();
-                        size_t cur_pos = 1;
-                        for(size_t i = 1; i < hits.size(); i++) {
+                    assert_gt(regions.size(), 0);
+                    assert_lt(regions.back().match_begin, regions.back().match_end);
+                    assert_eq(regions.back().match_end, regions_similar.size());
+                    if(regions.back().match_size() > 1) {
+                        regions_similar.sortPortion(regions.back().match_begin, regions.back().match_size());
+                        size_t cur_pos = regions.back().match_begin + 1;
+                        for(size_t i = regions.back().match_begin + 1; i < regions.back().match_end; i++) {
                             assert_gt(cur_pos, 0);
-                            const RegionSimilar& last_region = hits[cur_pos-1];
-                            const RegionSimilar& new_region = hits[i];
+                            const RegionSimilar& last_region = regions_similar[cur_pos-1];
+                            const RegionSimilar& new_region = regions_similar[i];
                             if(last_region.fw == new_region.fw) {
                                 if(last_region.fw) {
                                     if(last_region.pos + last_region.fw_length >= new_region.pos) {
@@ -709,21 +721,22 @@ static void driver(
                                     }
                                 } else {
                                     if(last_region.pos + last_region.fw_length >= new_region.pos) {
-                                        hits[cur_pos-1] = new_region;
+                                        regions_similar[cur_pos-1] = new_region;
                                         continue;
                                     }
                                 }
                             }
                             if(cur_pos != i) {
-                                assert_lt(cur_pos, hits.size());
-                                hits[cur_pos] = new_region;
+                                assert_lt(cur_pos, regions_similar.size());
+                                regions_similar[cur_pos] = new_region;
                             }
                             cur_pos++;
                         }
-                        if(cur_pos < hits.size()) {
-                            matches.back().low_complexity = true;
-                            hits.resizeExact(cur_pos);
+                        if(cur_pos < regions.back().match_end) {
+                            regions.back().low_complexity = true;
                         }
+                        regions_similar.resize(cur_pos);
+                        regions.back().match_end = regions_similar.size();
                     }
                 }
             }
@@ -731,32 +744,32 @@ static void driver(
         
         {
             Timer _t(cerr, "  (3/5) Time sorting seeds and then removing redundant seeds: ", verbose);
-            matches.sort();
+            regions.sort();
             
-            if(matches.size() > 1) {
+            if(regions.size() > 1) {
                 size_t cur_pos = 1;
-                for(size_t i = 1; i < matches.size(); i++) {
+                for(size_t i = 1; i < regions.size(); i++) {
                     assert_gt(cur_pos, 0);
-                    const Region& last_region = matches[cur_pos-1];
-                    const Region& new_region = matches[i];
+                    const Region& last_region = regions[cur_pos-1];
+                    const Region& new_region = regions[i];
                     if(last_region.low_complexity && last_region.pos + last_region.fw_length > new_region.pos) continue;
                     if(last_region.pos + last_region.fw_length >= new_region.pos + new_region.fw_length) continue;
                     if(cur_pos != i) {
-                        assert_lt(cur_pos, matches.size());
-                        matches[cur_pos] = new_region;
+                        assert_lt(cur_pos, regions.size());
+                        regions[cur_pos] = new_region;
                     }
                     cur_pos++;
                 }
-                matches.resizeExact(cur_pos);
+                regions.resizeExact(cur_pos);
             }
         }
     }
 
-    // Print matches
+    // Print regions
 #if 0
-    cout << "no. of matches: " << matches.size() << endl << endl;
-    for(size_t i = 0; i < matches.size(); i++) {
-        const Region& region = matches[i];
+    cout << "no. of regions: " << regions.size() << endl << endl;
+    for(size_t i = 0; i < regions.size(); i++) {
+        const Region& region = regions[i];
         cout << "At " << region.pos << "\t" << region.fw_length << " bps" << endl;
         for(size_t j = 0; j < region.hits.size(); j++) {
             const RegionSimilar& region2 = region.hits[j];
@@ -780,10 +793,10 @@ static void driver(
         mask.fillZero();
         
         EList<RegionToMerge> merge_list;
-        for(size_t i = 0; i < matches.size(); i++) {
-            const Region& region = matches[i];
+        for(size_t i = 0; i < regions.size(); i++) {
+            const Region& region = regions[i];
             if(i == 0) {
-                for(size_t j = 0; j < region.hits.size(); j++) {
+                for(size_t j = region.match_begin; j < region.match_end; j++) {
                     merge_list.expand();
                     merge_list.back().reset();
                     merge_list.back().list.expand();
@@ -792,22 +805,23 @@ static void driver(
                 }
             } else {
                 assert_gt(i, 0);
-                for(size_t j = 0; j < region.hits.size(); j++) {
-                    const RegionSimilar& cmp_region = region.hits[j];
+                for(size_t j = region.match_begin; j < region.match_end; j++) {
+                    assert_lt(j, regions_similar.size());
+                    const RegionSimilar& cmp_region = regions_similar[j];
                     bool added = false;
                     for(size_t k = 0; k < merge_list.size(); k++) {
                         RegionToMerge& merge = merge_list[k];
                         uint32_t region_id1 = merge.list.back().first;
                         if(region_id1 >= i) break;
                         uint32_t region_id2 = merge.list.back().second;
-                        assert_lt(region_id1, matches.size());
-                        const Region& prev_region = matches[region_id1];
-                        assert_lt(region_id2, prev_region.hits.size());
+                        assert_lt(region_id1, regions.size());
+                        const Region& prev_region = regions[region_id1];
+                        assert_lt(region_id2, regions_similar.size());
                         
                         assert_lt(prev_region.pos, region.pos);
                         size_t gap = region.pos - prev_region.pos;
                         
-                        const RegionSimilar& prev_cmp_region = matches[region_id1].hits[region_id2];
+                        const RegionSimilar& prev_cmp_region = regions_similar[region_id2];
                         if(prev_cmp_region.fw != cmp_region.fw) continue;
                         if(prev_cmp_region.pos + cmp_region.bw_length == cmp_region.pos + prev_cmp_region.bw_length &&
                            prev_cmp_region.pos + prev_cmp_region.fw_length == cmp_region.pos + cmp_region.fw_length)
@@ -850,10 +864,10 @@ static void driver(
             for(size_t j = 0; j < merge_list.size(); j++) {
                 RegionToMerge& merge = merge_list[j];
                 uint32_t region_id1 = merge.list.back().first;
-                if(i + 1 < matches.size()) {
+                if(i + 1 < regions.size()) {
                     if(region_id1 == i) continue;
-                    assert_lt(region_id1, matches.size());
-                    const Region& prev_region = matches[region_id1];
+                    assert_lt(region_id1, regions.size());
+                    const Region& prev_region = regions[region_id1];
                     if(prev_region.pos + 200 > region.pos) continue;
                 }
                 merge_list[j].processed = true;
@@ -863,8 +877,8 @@ static void driver(
                 for(size_t k = 0; k < merge.list.size(); k++) {
                     uint32_t region_id1 = merge.list[k].first;
                     uint32_t region_id2 = merge.list[k].second;
-                    assert_lt(region_id1, matches.size());
-                    const Region& region = matches[region_id1];
+                    assert_lt(region_id1, regions.size());
+                    const Region& region = regions[region_id1];
                     assert_lt(region_id2, region.hits.size());
                     const RegionSimilar& sim_region = region.hits[region_id2];
                     assert_lt(region.pos, mask.size()); assert_lt(sim_region.pos, mask.size());
@@ -880,12 +894,9 @@ static void driver(
                 bool output_merge = merge.list.size() > 1;
                 if(!output_merge) {
                     assert_gt(merge.list.size(), 0);
-                    uint32_t region_id1 = merge.list[0].first;
                     uint32_t region_id2 = merge.list[0].second;
-                    assert_lt(region_id1, matches.size());
-                    const Region& region = matches[region_id1];
-                    assert_lt(region_id2, region.hits.size());
-                    const RegionSimilar& sim_region = region.hits[region_id2];
+                    assert_lt(region_id2, regions_similar.size());
+                    const RegionSimilar& sim_region = regions_similar[region_id2];
                     if(sim_region.bw_length + sim_region.fw_length >= min_sim_length) {
                         output_merge = true;
                     }
@@ -895,10 +906,10 @@ static void driver(
                     for(size_t k = 0; k < merge.list.size(); k++) {
                         uint32_t region_id1 = merge.list[k].first;
                         uint32_t region_id2 = merge.list[k].second;
-                        assert_lt(region_id1, matches.size());
-                        const Region& region = matches[region_id1];
-                        assert_lt(region_id2, region.hits.size());
-                        const RegionSimilar& sim_region = region.hits[region_id2];
+                        assert_lt(region_id1, regions.size());
+                        const Region& region = regions[region_id1];
+                        assert_lt(region_id2, regions_similar.size());
+                        const RegionSimilar& sim_region = regions_similar[region_id2];
                         
                         cout << "\t";
                         cout << k << ") at " << region.pos << "\t" << region.fw_length << " bps\t"
@@ -914,18 +925,18 @@ static void driver(
                     uint32_t region_id2 = merge.list[k].first;
                     
                     assert_lt(region_id1, region_id2);
-                    assert_lt(region_id2, matches.size());
+                    assert_lt(region_id2, regions.size());
                     
-                    Region& region1 = matches[region_id1];
-                    Region& region2 = matches[region_id2];
+                    Region& region1 = regions[region_id1];
+                    Region& region2 = regions[region_id2];
                     
                     uint32_t cmp_region_id1 = merge.list[k-1].second;
-                    assert_lt(cmp_region_id1, region1.hits.size());
-                    RegionSimilar& cmp_region1 = region1.hits[cmp_region_id1];
+                    assert_lt(cmp_region_id1, regions_similar.size());
+                    RegionSimilar& cmp_region1 = regions_similar[cmp_region_id1];
                     
                     uint32_t cmp_region_id2 = merge.list[k].second;
-                    assert_lt(cmp_region_id2, region2.hits.size());
-                    const RegionSimilar& cmp_region2 = region2.hits[cmp_region_id2];
+                    assert_lt(cmp_region_id2, regions_similar.size());
+                    const RegionSimilar& cmp_region2 = regions_similar[cmp_region_id2];
                     
                     assert_eq(cmp_region1.fw, cmp_region2.fw);
                     const bool fw = cmp_region1.fw;
@@ -1102,12 +1113,9 @@ static void driver(
                 }
                 
                 assert_eq(merge.list.size(), 1);
-                uint32_t region_id = merge.list[0].first;
-                assert_lt(region_id, matches.size());
-                const Region& region = matches[region_id];
                 uint32_t cmp_region_id = merge.list[0].second;
-                assert_lt(cmp_region_id, region.hits.size());
-                const RegionSimilar& cmp_region = region.hits[cmp_region_id];
+                assert_lt(cmp_region_id, regions_similar.size());
+                const RegionSimilar& cmp_region = regions_similar[cmp_region_id];
                 
                 if(cmp_region.bw_length + cmp_region.fw_length - 1 >= min_sim_length) {
                     assert_leq(cmp_region.bw_length, cmp_region.pos + 1);
