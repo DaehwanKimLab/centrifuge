@@ -685,7 +685,7 @@ static void driver(
                 
                 last_i1 = i1;
                 assert_geq(last_i1, sa_begin);
-                if(last_i1 > sa_begin) {
+                if(last_i1 + 1024 > sa_begin) {
                     assert_lt(last_i1, sa_end);
                     sa.erase(0, last_i1 - sa_begin);
                     sa_begin = last_i1;                    
