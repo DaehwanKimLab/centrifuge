@@ -464,11 +464,11 @@ static void driver(
     
     EList<string> refnames;
     
-    SString<char> s; EList<uint32_t> sa;
+    SString<char> s;
     assert_eq(szs.size(), 1);
     size_t jlen = szs[0].len;
     try {
-        Timer _t(cerr, "  (1/5) Time reading reference sequence and suffix array: ", verbose);
+        Timer _t(cerr, "  (1/5) Time reading reference sequence: ", verbose);
         
         s.resize(jlen);
         RefReadInParams rpcp = refparams;
@@ -486,17 +486,6 @@ static void driver(
         }
         fb->reset();
         assert(!fb->eof());
-        
-        ifstream in(safile.c_str(), ios::binary);
-        uint64_t sa_size = readIndex<uint64_t>(in, false);
-        assert_eq(s.length() + 1, sa_size);
-        sa.reserveExact(sa_size); sa.clear();
-        for(size_t i = 0; i < sa_size; i++) {
-            uint64_t sa_pos = readIndex<uint64_t>(in, false);
-            sa.push_back((uint32_t)sa_pos);
-        }
-        assert_eq(s.length() + 1, sa.size());
-        
         // Joined reference sequence now in 's'
     } catch(bad_alloc& e) {
         // If we throw an allocation exception in the try block,
@@ -524,8 +513,8 @@ static void driver(
     }
     // Succesfully obtained joined reference string
     assert_eq(s.length(), jlen);
-    assert_eq(s.length() % 2, 0);
-    size_t sense_seq_len = s.length() / 2;
+    size_t sense_seq_len = s.length();
+    size_t both_seq_len = sense_seq_len * 2;
     assert_geq(sense_seq_len, 2);
     
     SwAligner sw;
@@ -563,46 +552,72 @@ static void driver(
     
     EList<Region> matches;
     {
+        EList<size_t> sa;
         EList<uint16_t> prefix_lengths;
         prefix_lengths.resizeExact(sense_seq_len);
         prefix_lengths.fillZero();
         {
-            Timer _t(cerr, "  (2/5) Time finding seeds: ", verbose);
+            Timer _t(cerr, "  (2/5) Time finding seeds using suffix array and reference sequence: ", verbose);
+            
+            ifstream in(safile.c_str(), ios::binary);
+            const size_t sa_size = readIndex<uint64_t>(in, false);
+            assert_eq(both_seq_len + 1, sa_size);
+            size_t sa_begin = 0, sa_end = 0;
             
             // Compress sequences by removing redundant sub-sequences
             size_t last_i1 = 0;
-            for(size_t i1 = 0; i1 < sa.size() - 1; i1++) {
+            for(size_t i1 = 0; i1 < sa_size - 1; i1++) {
                 // daehwan - for debugging purposes
-                if((i1 + 1) % 50000000 == 0) {
+                if((i1 + 1) % 10000000 == 0) {
                     cerr << "\t\t" << (i1 + 1) / 1000000 << " million" << endl;
                 }
-                   
-                size_t pos1 = sa[i1];
-                if(pos1 == s.length()) continue;
+                if(i1 >= sa_end) {
+                    assert_leq(sa_begin, sa_end);
+                    assert_eq(i1, sa_end);
+                    size_t sa_pos = (size_t)readIndex<uint64_t>(in, false);
+                    sa.push_back(sa_pos);
+                    sa_end++;
+                    assert_eq(sa_end - sa_begin, sa.size());
+                }
+                
+                assert_geq(i1, sa_begin); assert_lt(i1, sa_end);
+                size_t pos1 = sa[i1-sa_begin];
+                if(pos1 == both_seq_len) continue;
                 if(pos1 + min_seed_length >= sense_seq_len) continue;
-                // Check if the sequence (defined by cpos1) had been removed
-                if(s[pos1] > 3) continue;
                 
                 // Compare with the following sequences
                 bool expanded = false;
-                for(size_t i2 = last_i1 + 1; i2 < sa.size(); i2++) {
+                for(size_t i2 = last_i1 + 1; i2 < sa_size; i2++) {
                     if(i1 == i2) continue;
+                    if(i2 >= sa_end) {
+                        assert_leq(sa_begin, sa_end);
+                        assert_eq(i2, sa_end);
+                        size_t sa_pos = (size_t)readIndex<uint64_t>(in, false);
+                        sa.push_back(sa_pos);
+                        sa_end++;
+                        assert_eq(sa_end - sa_begin, sa.size());
+                    }
                     
-                    size_t pos2 = sa[i2];
-                    if(pos2 == s.length()) continue;
+                    assert_geq(i2, sa_begin); assert_lt(i2, sa_end);
+                    size_t pos2 = sa[i2-sa_begin];
+                    if(pos2 == both_seq_len) continue;
                     // opos2 is relative pos of pos2 on the other strand
-                    size_t opos2 = s.length() - pos2 - 1;
+                    size_t opos2 = both_seq_len - pos2 - 1;
                     // cpos2 is canonical pos on the sense strand
                     size_t cpos2 = min(pos2, opos2);
-                    // Check if the sequence (defined by cpos2) had been removed
-                    if(s[cpos2] > 3) continue;
                     
                     bool fw = pos2 == cpos2;
                     
                     size_t j1 = 0; // includes the base at 'pos1'
-                    while(pos1 + j1 < sense_seq_len && pos2 + j1 < (fw ? sense_seq_len : s.length())) {
+                    while(pos1 + j1 < sense_seq_len && pos2 + j1 < (fw ? sense_seq_len : both_seq_len)) {
                         int base1 = s[pos1 + j1];
-                        int base2 = s[pos2 + j1];
+                        int base2;
+                        if(fw) {
+                            base2 = s[pos2 + j1];
+                        } else {
+                            assert_geq(cpos2, j1);
+                            base2 = 3 - s[cpos2 - j1];
+                        }
                         if(base1 > 3 || base2 > 3) break;
                         if(base1 != base2) break;
                         j1++;
@@ -610,7 +625,13 @@ static void driver(
                     size_t j2 = 0; // doesn't include the base at 'pos1'
                     while(j2 <= pos1 && (fw ? 0 : sense_seq_len) + j2 <= pos2) {
                         int base1 = s[pos1 - j2];
-                        int base2 = s[pos2 - j2];
+                        int base2;
+                        if(fw) {
+                            base2 = s[pos2 - j2];
+                        } else {
+                            assert_lt(cpos2 + j2, s.length());
+                            base2 = 3 - s[cpos2 + j2];
+                        }
                         if(base1 > 3 || base2 > 3) break;
                         if(base1 != base2) break;
                         j2++;
@@ -635,8 +656,9 @@ static void driver(
                         matches.back().pos = pos1;
                         matches.back().fw_length = j1;
                         for(size_t k = 0; k < j1; k++) {
-                            if(prefix_lengths[pos1 + k] < j1 - k) {
-                                prefix_lengths[pos1 + k] = j1 - k;
+                            size_t tmp_length = j1 - k;
+                            if(prefix_lengths[pos1 + k] < tmp_length) {
+                                prefix_lengths[pos1 + k] = tmp_length;
                             }
                         }
                         expanded = true;
@@ -662,6 +684,13 @@ static void driver(
                 }
                 
                 last_i1 = i1;
+                assert_geq(last_i1, sa_begin);
+                if(last_i1 > sa_begin) {
+                    assert_lt(last_i1, sa_end);
+                    sa.erase(0, last_i1 - sa_begin);
+                    sa_begin = last_i1;                    
+                    assert_eq(sa_end - sa_begin, sa.size());
+                }
                 
                 if(expanded) {
                     assert_gt(matches.size(), 0);
@@ -699,8 +728,6 @@ static void driver(
                 }
             }
         }
-        
-        sa.resizeExact(0);
         
         {
             Timer _t(cerr, "  (3/5) Time sorting seeds and then removing redundant seeds: ", verbose);
