@@ -1016,10 +1016,6 @@ static void driver(
                         }
                         
                         if(!aligned && do_swalign) {
-                            // daehwan - for debugging purposes
-                            left -= 5; right += 5;
-                            cmp_left -= 5; cmp_right += 5;
-                            
                             assert_lt(region1.pos, region2.pos);
                             for(size_t pos = left; pos <= right; pos++) {
                                 assert_lt(pos, s.length());
