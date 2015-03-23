@@ -22,6 +22,7 @@
 
 #include <string.h>
 #include <iostream>
+#include <stdlib.h>     /* exit, EXIT_FAILURE */
 #include "assert_helpers.h"
 #include "alphabet.h"
 #include "random_source.h"
@@ -2855,7 +2856,9 @@ public:
 				installChars(str);
 			}
 		} else {
-			install(str);
+			//FIXME FB: Commented install(str) as it does not conform with the function definition
+			//install(str);
+			exit(62);
 		}
 	}
 
