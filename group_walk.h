@@ -1138,13 +1138,14 @@ public:
 
 	/**
 	 * Advance the GroupWalk until all elements have been resolved.
+	 * FIXME FB: Commented as the types of advanceElements do not correlate with the types of the function definition.
 	 */
-	void resolveAll(WalkMetrics& met, PerReadMetrics& prm) {
-		WalkResult<index_t> res; // ignore results for now
-		for(size_t i = 0; i < elt_; i++) {
-			advanceElement((index_t)i, res, met, prm);
-		}
-	}
+//	void resolveAll(WalkMetrics& met, PerReadMetrics& prm) {
+//		WalkResult<index_t> res; // ignore results for now
+//		for(size_t i = 0; i < elt_; i++) {
+//			advanceElement((index_t)i, res, met, prm);
+//		}
+//	}
 
 	/**
 	 * Advance the GroupWalk until the specified element has been
