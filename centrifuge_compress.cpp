@@ -71,6 +71,8 @@ static bool justRef;
 static bool reverseEach;
 static string wrapper;
 static int across;
+static size_t minSimLen;  // minimum similar length
+static bool printN;
 
 static void resetOptions() {
 	verbose        = true;  // be talkative (default)
@@ -101,6 +103,8 @@ static void resetOptions() {
 	justRef        = false; // *just* write compact reference, don't index
 	reverseEach    = false;
     across         = 60; // number of characters across in FASTA output
+    minSimLen      = 100;
+    printN         = false;
     wrapper.clear();
 }
 
@@ -119,7 +123,9 @@ enum {
     ARG_SA,
 	ARG_WRAPPER,
     ARG_LOCAL_OFFRATE,
-    ARG_LOCAL_FTABCHARS
+    ARG_LOCAL_FTABCHARS,
+    ARG_MIN_SIMLEN,
+    ARG_PRINTN,
 };
 
 /**
@@ -161,6 +167,7 @@ static void printUsage(ostream& out) {
         << "    --localftabchars <int>  # of chars consumed in initial lookup in a local index (default: 6)" << endl
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
+        << "    --printN                print original sequence with mask" << endl
 	    << "    -h/--help               print detailed description of tool and its options" << endl
 	    << "    --usage                 print this usage message" << endl
 	    << "    --version               print version information and quit" << endl
@@ -206,6 +213,8 @@ static struct option long_options[] = {
 	{(char*)"color",          no_argument,       0,            'C'},
     {(char*)"sa",             no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each",   no_argument,       0,            ARG_REVERSE_EACH},
+    {(char*)"min-simlen",     required_argument, 0,            ARG_MIN_SIMLEN},
+    {(char*)"printN",         no_argument,       0,            ARG_PRINTN},
 	{(char*)"usage",          no_argument,       0,            ARG_USAGE},
     {(char*)"wrapper",        required_argument, 0,            ARG_WRAPPER},
 	{(char*)0, 0, 0, 0} // terminator
@@ -313,6 +322,10 @@ static void parseOptions(int argc, const char **argv) {
                 doSaFile = true;
                 break;
 			case ARG_NTOA: nsToAs = true; break;
+            case ARG_MIN_SIMLEN:
+                minSimLen = parseNumber<size_t>(2, "--min-simlen arg must be at least 2");
+                break;
+            case ARG_PRINTN: printN = true; break;
 			case 'a': autoMem = false; break;
 			case 'q': verbose = false; break;
 			case 's': sanityCheck = true; break;
@@ -398,19 +411,20 @@ struct RegionSimilar {
 
 struct Region {
     size_t pos;
-    size_t fw_length;
+    uint32_t fw_length;
+    uint32_t bw_length; // used for merging
     bool   low_complexity;
     
-    size_t match_begin;
-    size_t match_end;
+    uint32_t match_begin;
+    uint32_t match_end;
     
-    size_t match_size() {
+    uint32_t match_size() {
         assert_leq(match_begin, match_end);
         return match_end - match_begin;
     }
     
     void reset() {
-        pos = fw_length = 0, low_complexity = false;
+        pos = fw_length = bw_length = 0, low_complexity = false;
         match_begin = match_end = 0;
     }
     
@@ -553,9 +567,10 @@ static void driver(
     }
     //
     min_kmer += 4;
+    const size_t min_seed_length = min_kmer * 2;
     
     //
-    const size_t min_seed_length = min_kmer * 2;
+    min_kmer += 10;
     
     EList<Region> regions;
     EList<RegionSimilar> regions_similar;
@@ -569,6 +584,30 @@ static void driver(
             
             ifstream in(safile.c_str(), ios::binary);
             const size_t sa_size = readIndex<uint64_t>(in, false);
+#if 0
+            for(size_t i = 0; i < sa_size; i++) {
+                size_t pos = (size_t)readIndex<uint64_t>(in, false);
+                if(pos == sa_size) continue;
+                size_t opos = both_seq_len - pos - 1;
+                size_t cpos = min(pos, opos);
+                bool fw = pos == cpos;
+                cout << i << " ";
+                for(size_t j = 0; j < 20; j++) {
+                    int base = 0;
+                    if(fw) {
+                        if(pos + j >= sense_seq_len) break;
+                        base = s[pos+j];
+                    } else {
+                        if(cpos < j) break;
+                        base = 3 - s[cpos-j];
+                    }
+                    cout << "ACGT"[base];
+                }
+                cout << " " << pos << endl;
+            }
+            exit(1);
+#endif
+            
             assert_eq(both_seq_len + 1, sa_size);
             size_t sa_begin = 0, sa_end = 0;
             
@@ -576,7 +615,7 @@ static void driver(
             size_t last_i1 = 0;
             for(size_t i1 = 0; i1 < sa_size - 1; i1++) {
                 // daehwan - for debugging purposes
-                if((i1 + 1) % 50000000 == 0) {
+                if((i1 + 1) % 1000000 == 0) {
                     cerr << "\t\t" << (i1 + 1) / 1000000 << " million" << endl;
                 }
                 if(i1 >= sa_end) {
@@ -590,12 +629,20 @@ static void driver(
                 
                 assert_geq(i1, sa_begin); assert_lt(i1, sa_end);
                 size_t pos1 = sa[i1-sa_begin];
+                
                 if(pos1 == both_seq_len) continue;
                 if(pos1 + min_seed_length >= sense_seq_len) continue;
                 
+                // daehwan - for debugging purposes
+                if(pos1 == 102) {
+                    int kk = 0;
+                    kk += 20;
+                }
+                
                 // Compare with the following sequences
                 bool expanded = false;
-                for(size_t i2 = last_i1 + 1; i2 < sa_size; i2++) {
+                size_t i2 = last_i1 + 1;
+                for(; i2 < sa_size; i2++) {
                     if(i1 == i2) continue;
                     if(i2 >= sa_end) {
                         assert_leq(sa_begin, sa_end);
@@ -613,11 +660,18 @@ static void driver(
                     size_t opos2 = both_seq_len - pos2 - 1;
                     // cpos2 is canonical pos on the sense strand
                     size_t cpos2 = min(pos2, opos2);
-                    
                     bool fw = pos2 == cpos2;
+                    if(fw) {
+                        if(pos2 + min_kmer > sense_seq_len) continue;
+                    } else {
+                        if(pos2 + min_kmer > both_seq_len) continue;
+                    }
                     
                     size_t j1 = 0; // includes the base at 'pos1'
                     while(pos1 + j1 < sense_seq_len && pos2 + j1 < (fw ? sense_seq_len : both_seq_len)) {
+                        if(!fw) {
+                            if(pos1 < cpos2 && pos1 + (j1 * 2) >= cpos2) break;
+                        }
                         int base1 = s[pos1 + j1];
                         int base2;
                         if(fw) {
@@ -630,8 +684,16 @@ static void driver(
                         if(base1 != base2) break;
                         j1++;
                     }
+                    if(j1 < min_kmer) {
+                        if(i2 > i1) break;
+                        else continue;
+                    }
+                    
                     size_t j2 = 0; // doesn't include the base at 'pos1'
                     while(j2 <= pos1 && (fw ? 0 : sense_seq_len) + j2 <= pos2) {
+                        if(!fw) {
+                            if(cpos2 < pos1 && cpos2 + (j2 * 2) >= pos1) break;
+                        }
                         int base1 = s[pos1 - j2];
                         int base2;
                         if(fw) {
@@ -647,11 +709,6 @@ static void driver(
                     if(j2 > 0) j2--;
                     
                     size_t j = j1 + j2;
-                    
-                    if(j1 < min_kmer + 10) {
-                        if(i2 > i1) break;
-                        else continue;
-                    }
                     
                     // Do not proceed if two sequences are not similar
                     if(j < min_seed_length) continue;
@@ -739,6 +796,14 @@ static void driver(
                         regions.back().match_end = regions_similar.size();
                     }
                 }
+                
+                // daehwan - for debugging purposes
+#if 1
+                assert_lt(i1, i2);
+                if(i1 + 8 < i2) {
+                    i1 = i1 + (i2 - i1) / 2;
+                }
+#endif
             }
         }
         
@@ -781,9 +846,7 @@ static void driver(
     }
 #endif
     
-    // daehwan - for debugging purposes
-    // const size_t min_sim_length = min_seed_length * 2;
-    const size_t min_sim_length = 100;
+    const size_t min_sim_length = minSimLen;
     
     {
         Timer _t(cerr, "  (4/5) Time merging seeds and masking sequence: ", verbose);
@@ -826,6 +889,10 @@ static void driver(
                         if(prev_cmp_region.pos + cmp_region.bw_length == cmp_region.pos + prev_cmp_region.bw_length &&
                            prev_cmp_region.pos + prev_cmp_region.fw_length == cmp_region.pos + cmp_region.fw_length)
                             continue;
+                        
+                        if(!cmp_region.fw) {
+                            if(cmp_region.pos >= prev_region.pos && cmp_region.pos < region.pos) continue;
+                        }
                         
                         size_t cmp_gap = 0;
                         if(cmp_region.fw) {
@@ -890,7 +957,7 @@ static void driver(
                 if(skip_merge) continue;
 #endif
                 
-#if 1
+#if 0
                 bool output_merge = merge.list.size() > 1;
                 if(!output_merge) {
                     assert_gt(merge.list.size(), 0);
@@ -920,34 +987,46 @@ static void driver(
 #endif
                 
                 assert_gt(merge.list.size(), 0);
-                for(size_t k = merge.list.size() - 1; k > 0; k--) {
-                    uint32_t region_id1 = merge.list[k-1].first;
-                    uint32_t region_id2 = merge.list[k].first;
-                    
-                    assert_lt(region_id1, region_id2);
-                    assert_lt(region_id2, regions.size());
-                    
+                for(size_t k = 0; k < merge.list.size(); k++) {
+                    uint32_t region_id1 = merge.list[k].first;
+                    assert_lt(region_id1, regions.size());
                     Region& region1 = regions[region_id1];
-                    Region& region2 = regions[region_id2];
                     
-                    uint32_t cmp_region_id1 = merge.list[k-1].second;
+                    uint32_t cmp_region_id1 = merge.list[k].second;
                     assert_lt(cmp_region_id1, regions_similar.size());
-                    RegionSimilar& cmp_region1 = regions_similar[cmp_region_id1];
+                    const RegionSimilar& cmp_region1 = regions_similar[cmp_region_id1];
                     
-                    uint32_t cmp_region_id2 = merge.list[k].second;
-                    assert_lt(cmp_region_id2, regions_similar.size());
-                    const RegionSimilar& cmp_region2 = regions_similar[cmp_region_id2];
-                    
-                    assert_eq(cmp_region1.fw, cmp_region2.fw);
+                    if(cmp_region1.fw) {
+                        region1.fw_length = cmp_region1.fw_length;
+                        region1.bw_length = cmp_region1.bw_length;
+                    } else {
+                        region1.fw_length = cmp_region1.fw_length > 0 ? cmp_region1.bw_length + 1 : 0;
+                        region1.bw_length = cmp_region1.fw_length > 0 ? cmp_region1.fw_length - 1 : 0;
+                    }
+                }
+                
+                for(size_t k = 0; k < merge.list.size(); k++) {
+                    uint32_t region_id1 = merge.list[k].first;
+                    assert_lt(region_id1, regions.size());
+                    const Region& region1 = regions[region_id1];
+
+                    uint32_t cmp_region_id1 = merge.list[k].second;
+                    assert_lt(cmp_region_id1, regions_similar.size());
+                    const RegionSimilar& cmp_region1 = regions_similar[cmp_region_id1];
+
                     const bool fw = cmp_region1.fw;
-                    
-                    {
-                        // Set up query
-                        BTString seq;
+                    bool combined = false;
+                    if(k + 1 < merge.list.size()) {
+                        uint32_t region_id2 = merge.list[k+1].first;
+                        assert_lt(region_id1, region_id2);
+                        assert_lt(region_id2, regions.size());
+                        Region& region2 = regions[region_id2];
                         
-                        BTDnaString cmp_seq;
-                        BTString cmp_qual;
+                        uint32_t cmp_region_id2 = merge.list[k+1].second;
+                        assert_lt(cmp_region_id2, regions_similar.size());
+                        RegionSimilar& cmp_region2 = regions_similar[cmp_region_id2];
                         
+                        assert_eq(cmp_region1.fw, cmp_region2.fw);
                         size_t query_len, left = region1.pos, right = region2.pos, cmp_left, cmp_right;
                         if(fw) {
                             assert_lt(cmp_region1.pos, cmp_region2.pos);
@@ -991,31 +1070,37 @@ static void driver(
                             max_diffs = 0;
                         }
                         
-                        bool aligned = false, do_swalign = max_diffs > 0;
+                        bool do_swalign = max_diffs > 0;
                         if(left >= right && cmp_left >= cmp_right) {
-                            aligned = true;
+                            combined = true;
                         } else if(left >= right) {
                             assert_lt(cmp_left, cmp_right);
                             size_t gap = cmp_right - cmp_left + 1 + left - right;
                             if(gap <= max_diffs) {
-                                aligned = true;
-                                cmp_region1.gaps += gap;
+                                combined = true;
+                                cmp_region2.gaps += gap;
                             } else {
                                 do_swalign = false;
                             }
-                            
                         } else if(cmp_left >= cmp_right) {
                             assert_lt(left, right);
                             size_t gap = right - left + 1 + cmp_left - cmp_right;
                             if(gap <= max_diffs) {
-                                aligned = true;
-                                cmp_region1.gaps += gap;
+                                combined = true;
+                                cmp_region2.gaps += gap;
                             } else {
                                 do_swalign = false;
                             }
                         }
+                        /*else if(left + max_diffs >= right && cmp_left + max_diffs >= cmp_right) {
+                            combined = true;
+                        }*/
                         
-                        if(!aligned && do_swalign) {
+                        if(!combined && do_swalign) {
+                            BTString seq;
+                            BTDnaString cmp_seq;
+                            BTString cmp_qual;
+                            
                             assert_lt(region1.pos, region2.pos);
                             for(size_t pos = left; pos <= right; pos++) {
                                 assert_lt(pos, s.length());
@@ -1063,11 +1148,10 @@ static void driver(
                                 RandomSource rnd(seed);
                                 TAlScore bestCell = std::numeric_limits<TAlScore>::min();
                                 if(seq.length() <= 200) {
-                                    aligned = sw.align(rnd, bestCell);
+                                    combined = sw.align(rnd, bestCell);
                                 }
-                                
-#if 1
-                                if(aligned) {
+#if 0
+                                if(combined) {
                                     BTDnaString seqstr;
                                     for(size_t bi = 0; bi < seq.length(); bi++) {
                                         seqstr.append(firsts5[(int)seq[bi]]);
@@ -1085,45 +1169,44 @@ static void driver(
                             }
                         }
                         
-                        if(aligned) {
-                            if(cmp_region1.fw) {
+                        if(combined) {
+                            assert_lt(region1.pos, region2.pos);
+                            region2.bw_length = region2.pos - region1.pos + region1.bw_length;
+                            if(fw) {
                                 assert_lt(cmp_region1.pos, cmp_region2.pos);
-                                cmp_region1.fw_length = cmp_region2.pos - cmp_region1.pos + cmp_region2.fw_length;
+                                cmp_region2.bw_length = cmp_region2.pos - cmp_region1.pos + cmp_region1.bw_length;
                             } else {
                                 assert_lt(cmp_region2.pos, cmp_region1.pos);
-                                cmp_region1.bw_length = cmp_region1.pos - cmp_region2.pos + cmp_region2.bw_length;
-                            }
-                        } else {
-                            if(cmp_region2.bw_length + cmp_region2.fw_length - 1 >= min_sim_length) {
-                                assert_leq(cmp_region2.bw_length, cmp_region2.pos + 1);
-                                assert_leq(cmp_region2.pos + cmp_region2.fw_length, sense_seq_len);
-                                for(size_t pos = cmp_region2.pos + 1 - cmp_region2.bw_length; pos < cmp_region2.pos + cmp_region2.fw_length; pos ++) {
-                                    assert_lt(pos, mask.size());
-                                    mask[pos] = 1;
-                                }
+                                cmp_region2.fw_length = cmp_region1.pos - cmp_region2.pos + cmp_region1.fw_length;
                             }
                         }
                     }
                     
-                    merge.list.pop_back();
-                }
-                
-                assert_eq(merge.list.size(), 1);
-                uint32_t cmp_region_id = merge.list[0].second;
-                assert_lt(cmp_region_id, regions_similar.size());
-                const RegionSimilar& cmp_region = regions_similar[cmp_region_id];
-                
-                if(cmp_region.bw_length + cmp_region.fw_length - 1 >= min_sim_length) {
-                    assert_leq(cmp_region.bw_length, cmp_region.pos + 1);
-                    assert_leq(cmp_region.pos + cmp_region.fw_length, sense_seq_len);
-                    for(size_t pos = cmp_region.pos + 1 - cmp_region.bw_length; pos < cmp_region.pos + cmp_region.fw_length; pos ++) {
-                        assert_lt(pos, mask.size());
-                        mask[pos] = 1;
+                    // Mask sequence
+                    if(!combined || k + 1 == merge.list.size()) {
+                        if(cmp_region1.bw_length + cmp_region1.fw_length >= min_sim_length) {
+                            size_t mask_begin = 0, mask_end = 0;
+                            if(region1.pos < cmp_region1.pos) {
+                                assert_leq(cmp_region1.bw_length, cmp_region1.pos);
+                                mask_begin = cmp_region1.pos - cmp_region1.bw_length;
+                                assert_leq(cmp_region1.pos + cmp_region1.fw_length, s.length());
+                                mask_end = cmp_region1.pos + cmp_region1.fw_length;
+                            } else {
+                                assert_gt(region1.pos, cmp_region1.pos);
+                                assert_leq(region1.bw_length, region1.pos);
+                                mask_begin = region1.pos - region1.bw_length;
+                                assert_leq(region1.pos + region1.fw_length, s.length());
+                                mask_end = region1.pos + region1.fw_length;
+                            }
+                            for(size_t mask_pos = mask_begin; mask_pos < mask_end; mask_pos ++) {
+                                assert_lt(mask_pos, mask.size());
+                                mask[mask_pos] = 1;
+                            }
+                        }
                     }
-#if 1
-                    cout << (cmp_region.fw_length + cmp_region.bw_length - 1) << " bps is masked" << endl;
-#endif
                 }
+                
+                merge.list.resizeExact(0);
             }
             
             size_t cur_pos = 0;
@@ -1152,6 +1235,9 @@ static void driver(
     {
         Timer _t(cerr, "  (5/5) Time outputing compressed sequence: ", verbose);
 
+        if(printN) {
+            print_fasta_record(cout, refnames[0], s, s.length());
+        }
         size_t cur_seq_len = 0;
         for(size_t i = 0; i < sense_seq_len; i++) {
             int base = s[i];
@@ -1173,7 +1259,9 @@ static void driver(
                 cur_seq_len = 0;
             }
         }
-        print_fasta_record(cout, refnames[0], s, cur_pos);
+        if(!printN) {
+            print_fasta_record(cout, refnames[0], s, cur_pos);
+        }
     }
     
     cerr << endl;
