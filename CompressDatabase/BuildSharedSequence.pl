@@ -1,12 +1,11 @@
 #!/bin/perl
 
 use strict ;
+use Getopt::Long;
+use File::Basename;
 
-my $usage = "perl a.pl file_list [-prefix tmp -kmerSize 53 -kmerPortion 0.01 -nucmerIdy 99 -overlap 250 [-fragment] ]" ;
+my $usage = "perl ".basename($0)." file_list [-prefix tmp -kmerSize 53 -kmerPortion 0.01 -nucmerIdy 99 -overlap 250 [-fragment] ]" ;
 
-die "$usage\n" if ( scalar( @ARGV ) == 0 ) ;
-
-open FP1, $ARGV[0] ; 
 my @fileNames ; # Assume the genes for each subspecies are concatenated.
 my @used ;
 my $i ;
@@ -28,45 +27,22 @@ my %sharedKmerCnt ;
 my $nucmerIdy = 99 ;
 my $overlap = 250 ;
 my $fragment = 0 ;
+my $jellyfish = "/usr/bin/jellyfish";
 
-for  ( $i = 1 ; $i < scalar( @ARGV ) ; ++$i )
-{
-	if ( $ARGV[$i] eq "-prefix" )
-	{
-		$prefix = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[ $i ] eq "-kmerSize" )
-	{
-		$kmerSize = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[ $i ] eq "-kmerPortion" )
-	{
-		$useKmerPortion = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[$i] eq "-nucmerIdy" )
-	{
-		$nucmerIdy = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[$i] eq "-overlap" )
-	{
-		$overlap = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[$i] eq "-fragment" )
-	{
-		$fragment = 1 ;
-	}
-	else
-	{
-		die "$usage\n" ;
-	}
-}
+print `jellyfish --version`;
 
+GetOptions (
+	"prefix=s" => \$prefix,
+	"kmerSize=s" => \$kmerSize,
+	"kmerPortion=s" => \$useKmerPortion,
+	"nucmerIdy=s" => \$nucmerIdy,
+	"overlap=s" => \$overlap,
+	"fragment" => \$fragment,
+	"jellyfish=s" => \$jellyfish) 
+or die("Error in command line arguments. \n\n$usage");
 
+die "$usage\n" if ( scalar( @ARGV ) == 0 ) ;
+open FP1, $ARGV[0] ; 
 # Read in the file names
 while ( <FP1> )
 {
@@ -79,8 +55,8 @@ close( FP1 ) ;
 
 # Count and select kmers
 print "Find the kmers for testing\n" ;
-`jellyfish count -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 8 @fileNames` ;
-`jellyfish dump tmp_$prefix.jf > tmp_$prefix.jf_dump` ;
+system_call("$jellyfish count -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 8 @fileNames") ;
+system_call("$jellyfish dump tmp_$prefix.jf > tmp_$prefix.jf_dump") ;
 
 srand( 17 ) ;
 open FP1, "tmp_$prefix.jf_dump" ;
@@ -102,8 +78,8 @@ print "Get the kmer profile for each input file\n" ;
 for ( $i = 0 ; $i < scalar( @fileNames )  ; ++$i )
 {
 	my $fileName = $fileNames[ $i ] ;
-	`jellyfish count --if tmp_$prefix.testingKmer -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 8 $fileName` ;
-	`jellyfish dump tmp_$prefix.jf > tmp_$prefix.jf_dump` ;
+	system_call("$jellyfish count --if tmp_$prefix.testingKmer -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 8 $fileName") ;
+	system_call("$jellyfish dump tmp_$prefix.jf > tmp_$prefix.jf_dump") ;
 	open FP1, "tmp_$prefix.jf_dump";
 
 	while ( <FP1> )
@@ -190,7 +166,7 @@ while ( 1 )
 	}
 	my $nucmerC = 3 * $overlap ;
 	print "nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB\n" ; 
-	`nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB` ; 
+	system_call("nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; 
 
 	open FPCoords, "nucmer_$prefix.coords" ;
 	my $line ;
@@ -417,8 +393,8 @@ while ( 1 )
 	delete $localKmer{ $maxPair[1] } ;
 
 	#print defined( $localKmer{ $maxPair[0] }) ;
-	`rm $fileNameA` if ( $maxPair[0] >= scalar( @fileNames ) ) ;
-	`rm $fileNameB` if ( $maxPair[1] >= scalar( @fileNames ) ) ;
+	unlink glob("$fileNameA") if ( $maxPair[0] >= scalar( @fileNames ) ) ;
+	unlink glob("$fileNameB") if ( $maxPair[1] >= scalar( @fileNames ) ) ;
 
 	# Count the kmer for the new genome
 	my $fileName = $prefix."_".$index.".fa" ;
@@ -430,8 +406,8 @@ while ( 1 )
 	}
 	close fpOut ;
 
-	`jellyfish count --if tmp_$prefix.testingKmer -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 4 $fileName` ;
-	`jellyfish dump tmp_$prefix.jf > tmp_$prefix.jf_dump` ;
+	system_call("$jellyfish count --if tmp_$prefix.testingKmer -o tmp_$prefix.jf -m $kmerSize -s 5000000 -C -t 4 $fileName") ;
+	system_call("$jellyfish dump tmp_$prefix.jf > tmp_$prefix.jf_dump") ;
 	open FP1, "tmp_$prefix.jf_dump";
 
 	while ( <FP1> )
@@ -458,11 +434,20 @@ foreach $i (keys %localKmer )
 	{
 		my $path = $fileNames[ $i ] ;
 		my $fileName = $prefix."_".$i.".fa" ;
-		`cp $path $fileName` ;
+		system_call("cp $path $fileName") ;
 	}
 }
 
 # clean up
-`rm tmp_$prefix.jf tmp_$prefix.jf_dump tmp_$prefix.testingKmer` ;
-`rm nucmer_$prefix*` ;
+unlink glob("tmp_$prefix.jf tmp_$prefix.jf_dump tmp_$prefix.testingKmer") ;
+unlink glob("nucmer_$prefix*") ;
 print "Finish.\n" ;
+
+sub system_call {
+    print STDERR "SYSTEM CALL: ".join(" ",@_);
+	system(@_) == 0
+	  or die "system @_ failed: $?";
+    print STDERR " finished\n";
+}
+
+

@@ -1,21 +1,41 @@
 #!/bin/perl
 
-# Read .
-# Then merge the sequence for the chosen level
+# Read and merge the sequence for the chosen level
 
 use strict ;
+use warnings ;
+
 use threads ;
 use threads::shared ;
+use FindBin qw($Bin);
+use File::Basename;
+use File::Find;
+use Getopt::Long;
+use Cwd;
 
-my $usage = "perl a.pl path_to_download_files path_to_taxnonomy [-o compressed.fa -bss ./ -noCompress -t 1]\n" ;
+my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-o compressed.fa -bss . -noCompress -t 1]\n" ;
 
 my $level = "species" ;
+my $output = "compressed.fa" ;
+my $bssPath = $Bin; # take path of binary as script directory
+my $numOfThreads = 1 ;
+my $noCompress = 0 ;
+my $verbose = 0;
+
+GetOptions ("level|l=s" => \$level,
+			"output|o=s" => \$output,
+			"bss=s" => \$bssPath,
+			"threads|t=i" => \$numOfThreads,
+            "verbose|v" => \$verbose,
+			"noCompress" => \$noCompress)
+or die("Error in command line arguments. \n\n$usage");
+
+die $usage unless @ARGV == 2;
+
 my $path = $ARGV[0] ;
 my $taxPath = $ARGV[1] ;
+
 my $i ;
-my $output = "compressed.fa" ;
-my $bssPath = "./" ;
-my $numOfThreads = 1 ;
 
 my %gidToFile ;
 my %gidUsed ;
@@ -33,72 +53,42 @@ my @speciesListKey ;
 my $speciesUsed : shared ;
 my $debug: shared ;
 
-my $noCompress = 0 ;
-
-die $usage if ( scalar( @ARGV ) == 0 ) ;
-
-for ( $i = 2 ; $i < scalar( @ARGV ) ; ++$i )
-{
-	if ( $ARGV[$i] eq "-level" )
-	{
-		# No use now.
-		#$level = $ARGV[$i + 1] ; 
-		++$i ;
-	}
-	elsif ( $ARGV[$i] eq "-o" )
-	{
-		$output = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[$i] eq "-bss" )
-	{
-		$bssPath = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[$i] eq "-t" )
-	{
-		$numOfThreads = $ARGV[$i + 1] ;
-		++$i ;
-	}
-	elsif ( $ARGV[$i] eq "-noCompress" )
-	{
-		$noCompress = 1 ;
-	}
-	else
-	{
-		die $usage ;
-	}
-}
-
 #Extract the gid we met in the file
-`find $path -name *.fna > tmp_fna.out` ;
-#print "find $path -name *.fna > tmp_fna.out\n" ;
-open FP1, "tmp_fna.out" ;
-while ( <FP1> )
-{
-	chomp ;
-	my $file = $_ ;
-	open FP2, $file ;
+
+
+print STDERR "Step 1: Collecting all .fna files in $path and getting gids\n";
+find ( sub {
+    return unless -f;        # Must be a file
+    return unless /\.fna$/;  # Must end with `.fna` suffix
+    return unless -s;        # Must be non-zero
+
+    my $fullfile = $File::Find::name; ## file with full path, but the CWD is actually the file's path
+    my $file = $_; ## file name
+	open FP2, $file or die "Error opening $file: $!";
 	my $head = <FP2> ;
 	close FP2 ;
-	#print $file, "\n" ;
-	my $gid ;
-	if ( $head =~ /^>gi\|([0-9]+)?\|/ )
-	{
-		$gid = $1 ;
-		print "$gid $file\n" ;
+	if ( $head =~ /^>gi\|([0-9]+)?\|/ ) {
+		my $gid = $1 ;
+		print "$gid $file\n" if $verbose;
 		$gidUsed{ $gid } = 1 ;
-		$gidToFile{ $gid } = $file ;
-		$fileUsed{ $file } = 0 ;
+		$gidToFile{ $gid } = $fullfile ;
+		$fileUsed{ $fullfile } = 0 ;
+	} elsif ( $head =~ /^>kraken:taxid\|([0-9]+)?\|/ ) {
+		my $tid = $1 ;
+		$gidUsed{ $tid } = 1 ;
+		$gidToFile{ $tid } = $fullfile ;
+		$fileUsed{ $fullfile } = 0 ;
+		push @{ $tidToGid{ $tid } }, $tid ;	
+
+	} else {
+		print STDERR "Excluding $fullfile: Wrong header.\n";
 	}
-	else
-	{
-		die "$file has wrong header.\n"
-	}
-}
-close FP1 ;
-#print "1 over\n" ;
+
+}, $path );
+
+
 # Extract the tid that are associated with the gids
+print STDERR "Step 2: Extract the taxonomy ids that are associated with the gids\n";
 open FP1, "$taxPath/gi_taxid_nucl.dmp" ;
 while ( <FP1> )
 {
@@ -108,15 +98,16 @@ while ( <FP1> )
 	if ( defined( $gidUsed{ $cols[0] } ) )
 	{
 		push @{ $tidToGid{ $cols[1] } }, $cols[0] ;	
-		print $cols[0], " ", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" ;
+		print $cols[0], " ", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" if $verbose;
 	}
 }
 close FP1 ;
-#print "2 over\n" ;
+
+
 # Organize the tree
+print STDERR "Step 3: Organizing the taxonomical tree\n";
 open FP1, "$taxPath/nodes.dmp" ;
-while ( <FP1> )
-{
+while ( <FP1> ) {
 	chomp ;
 
 	my @cols = split ;
@@ -142,7 +133,8 @@ while ( <FP1> )
 }
 close FP1 ;
 
-# Organize put the sub-species tid into the corresponding species.
+# Put the sub-species taxonomy id into the corresponding species.
+print STDERR "Step 4: Putting the sub-species taxonomy id into the corresponding species\n";
 for $i ( keys %tidToGid )
 {
 	my $p = $i ;
@@ -179,9 +171,9 @@ sub solve
 # Extracts the files
 #print "find $pwd -name *.fna > tmp.list\n" ;
 	my $tid = threads->tid() - 1 ;
-	#`find $pwd -name *.fna > tmp_$tid.list` ;
+	#system_call("find $pwd -name *.fna > tmp_$tid.list") ;
 
-#`find $pwd -name *.fa >> tmp.list` ; # Just in case
+#system_call("find $pwd -name *.fa >> tmp.list") ; # Just in case
 # Build the header
 	my $genusId ;
 	my $speciesId = $_[0] ;
@@ -246,10 +238,10 @@ sub solve
 	my $seq = "" ;
 	if ( $noCompress == 0 )
 	{
-		`perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id` ;
+		system_call("perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id") ;
 
 # Merge all the fragmented sequence into one big chunk.
-		`cat tmp_${tid}_${id}_*.fa > tmp_${tid}_$id.fa` ;
+		system_call("cat tmp_${tid}_${id}_*.fa > tmp_${tid}_$id.fa");
 
 		open FP1, "tmp_${tid}_$id.fa" ;
 		while ( <FP1> )
@@ -282,14 +274,20 @@ sub solve
 	print fpOut "$header\n$seq\n" ;
 	close fpOut ;
 
-	`rm tmp_${tid}_*` ;	
+	unlink glob("tmp_${tid}_*");	
 }
 
+sub system_call {
+    print STDERR "SYSTEM CALL: ".join(" ",@_);
+	system(@_) == 0
+	  or die "system @_ failed: $?";
+    print STDERR " finished\n";
+}
 
 sub threadWrapper
 {
 	my $tid = threads->tid() - 1 ;
-	`rm ${output}_${tid}` ;
+	unlink("${output}_${tid}");
 
 	while ( 1 )
 	{
@@ -305,6 +303,7 @@ sub threadWrapper
 }
 
 
+print STDERR "Step 5: Merging sub-species\n";
 my @threads ;
 @speciesListKey = keys %speciesList ; 
 $speciesUsed = 0 ;
@@ -324,7 +323,8 @@ foreach (@threads)
 }
 
 # merge the files generated from each threads
-`cat ${output}_* > tmp_output.fa ; rm ${output}_*` ;
+system_call("cat ${output}_* > tmp_output.fa");
+unlink glob("${output}_*");
 
 #Merge the unused files
 open FP2, ">>", "tmp_output.fa" ;
@@ -353,6 +353,6 @@ print FP2 ">0 unknown_taxno_genomes\n$seq\n" ;
 close FP2 ;
 
 # Remove the Ns from the file
-`perl $bssPath/RemoveN.pl tmp_output.fa > $output` ;
+system_call("perl $bssPath/RemoveN.pl tmp_output.fa > $output") ;
 
-`rm tmp_*` ;
+unlink glob("tmp_*") ;
