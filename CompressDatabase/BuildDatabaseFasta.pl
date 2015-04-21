@@ -165,6 +165,19 @@ for $i ( keys %tidToGid )
 
 #exit ;
 
+sub GetGenomeSize
+{
+	open FPfa, $_[0] ;
+	my $size = 0 ;
+	while ( <FPfa> )
+	{
+		next if ( /^>/ ) ;
+		$size += length( $_ ) - 1 ;
+	}
+	close FPfa ;
+	return $size ;
+}
+
 # Compress one species.
 sub solve
 {
@@ -202,23 +215,28 @@ sub solve
 
 	my $FP1 ;
 	open FP1, ">tmp_$tid.list" ;
+	my $genomeSize = 0 ;
 	foreach $i ( @subspeciesList )
 	{
 		foreach my $j ( @{$tidToGid{ $i } } )
 		{
-			{
-				lock( $debug ) ;
-				print "Merge ", $gidToFile{ $j }, "\n" ;
-			}
+			#{
+			#	lock( $debug ) ;
+			#	print "Merge ", $gidToFile{ $j }, "\n" ;
+			#}
 			$file =  $gidToFile{ $j } ;
 			{
 				lock( $fileUsedLock ) ;
 				$fileUsed{ $file } = 1 ;
 			}
 			print FP1 $file, "\n" ;
+
+			$genomeSize += GetGenomeSize( $file ) ;
 		}
 	}
 	close FP1 ;
+
+	$genomeSize = int( $genomeSize / scalar( @subspeciesList ) ) ;
 		
 	#print $file, "\n" ;	
 	if ( $file =~ /\/(\w*?)uid/ )
@@ -230,7 +248,7 @@ sub solve
 		$speciesName = "" ;
 	}
 	my $id = ( $speciesId << 32 ) | $genusId ;
-	my $header = ">$id $speciesName" ;
+	my $header = ">$id $speciesName $genomeSize ".scalar( @subspeciesList ) ;
 	print $header, "\n" ;
 
 #return ;
@@ -278,7 +296,7 @@ sub solve
 }
 
 sub system_call {
-    print STDERR "SYSTEM CALL: ".join(" ",@_);
+    print STDERR "SYSTEM CALL: ".join(" ",@_)."\n" ;
 	system(@_) == 0
 	  or die "system @_ failed: $?";
     print STDERR " finished\n";
@@ -329,6 +347,8 @@ unlink glob("${output}_*");
 #Merge the unused files
 open FP2, ">>", "tmp_output.fa" ;
 my $seq = "" ;
+my $genomeSize = 0 ;
+my $k = 0 ;
 foreach $i ( keys %fileUsed )
 {
 	if ( $fileUsed{ $i } == 0 )
@@ -347,9 +367,13 @@ foreach $i ( keys %fileUsed )
 		}
 		
 		close FP1 ;
+		$genomeSize += GetGenomeSize( $i ) ;
+		++$k ;
 	}
 }
-print FP2 ">0 unknown_taxno_genomes\n$seq\n" ;
+$genomeSize /= $k ;
+$genomeSize = int( $genomeSize ) ;
+print FP2 ">0 unknown_taxno_genomes $genomeSize $k\n$seq\n" ;
 close FP2 ;
 
 # Remove the Ns from the file

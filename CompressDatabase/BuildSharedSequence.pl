@@ -27,7 +27,7 @@ my %sharedKmerCnt ;
 my $nucmerIdy = 99 ;
 my $overlap = 250 ;
 my $fragment = 0 ;
-my $jellyfish = "/usr/bin/jellyfish";
+my $jellyfish = "jellyfish";
 
 print `jellyfish --version`;
 
@@ -444,7 +444,7 @@ unlink glob("nucmer_$prefix*") ;
 print "Finish.\n" ;
 
 sub system_call {
-    print STDERR "SYSTEM CALL: ".join(" ",@_);
+    print STDERR "SYSTEM CALL: ".join(" ",@_)."\n" ;
 	system(@_) == 0
 	  or die "system @_ failed: $?";
     print STDERR " finished\n";
