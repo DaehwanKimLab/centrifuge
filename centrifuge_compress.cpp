@@ -633,12 +633,6 @@ static void driver(
                 if(pos1 == both_seq_len) continue;
                 if(pos1 + min_seed_length >= sense_seq_len) continue;
                 
-                // daehwan - for debugging purposes
-                if(pos1 == 102) {
-                    int kk = 0;
-                    kk += 20;
-                }
-                
                 // Compare with the following sequences
                 bool expanded = false;
                 size_t i2 = last_i1 + 1;
@@ -1391,7 +1385,7 @@ int centrifuge_compress(int argc, const char **argv) {
 		return 1;
 	} catch(int e) {
 		if(e != 0) {
-			cerr << "Error: Encountered internal Bowtie 2 exception (#" << e << ")" << endl;
+			cerr << "Error: Encountered internal Centrifuge exception (#" << e << ")" << endl;
 			cerr << "Command: ";
 			for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 			cerr << endl;

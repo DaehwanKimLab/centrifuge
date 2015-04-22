@@ -617,8 +617,11 @@ void Ebwt<index_t>::readIntoMemory(
 					if(_useMm) {
 #ifdef BOWTIE_MM
 #  ifdef CENTRIFUGE
+                        _offs.init((uint16_t*)(mmFile[1] + bytesRead), offsLen, false);
+                        bytesRead += (offsLen * sizeof(uint16_t));
+                        fseek(_in2, (offsLen * sizeof(uint16_t)), SEEK_CUR);
 #  else
-						_offs.init((index_t*)(mmFile[1] + bytesRead), offsLen, false);
+                        _offs.init((index_t*)(mmFile[1] + bytesRead), offsLen, false);
 						bytesRead += (offsLen * sizeof(index_t));
 						fseek(_in2, (offsLen * sizeof(index_t)), SEEK_CUR);
 #  endif

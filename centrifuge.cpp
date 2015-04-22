@@ -790,7 +790,7 @@ static void printUsage(ostream& out) {
 	if(wrapper.empty()) {
 		cerr << endl
 		     << "*** Warning ***" << endl
-			 << "'hisat-align' was run directly.  It is recommended that you run the wrapper script 'hisat' instead." << endl
+			 << "'centrifuge-class' was run directly.  It is recommended that you run the wrapper script 'centrifuge' instead." << endl
 			 << endl;
 	}
 }
@@ -3120,7 +3120,7 @@ int centrifuge(int argc, const char **argv) {
 		return 1;
 	} catch(int e) {
 		if(e != 0) {
-			cerr << "Error: Encountered internal Bowtie 2 exception (#" << e << ")" << endl;
+			cerr << "Error: Encountered internal Centrifuge exception (#" << e << ")" << endl;
 			cerr << "Command: ";
 			for(int i = 0; i < argc; i++) cerr << argv[i] << " ";
 			cerr << endl;
