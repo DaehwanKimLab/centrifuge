@@ -445,8 +445,10 @@ print "Finish.\n" ;
 
 sub system_call {
     print STDERR "SYSTEM CALL: ".join(" ",@_)."\n" ;
-	system(@_) == 0
-	  or die "system @_ failed: $?";
+	if (system(@_) != 0) {
+      print "\n";
+	  die "system @_ failed: $!";
+    }
     print STDERR " finished\n";
 }
 
