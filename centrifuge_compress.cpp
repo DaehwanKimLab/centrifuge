@@ -363,7 +363,7 @@ static void print_fasta_record(
         size_t i = 0;
         while (i + across < len)
         {
-            for(size_t j = 0; j < across; j++) {
+            for(size_t j = 0; j < (unsigned)across; j++) {
                 int base = seq.get(i + j);
                 assert_lt(base, 4);
                 fout << "ACGTN"[base];
