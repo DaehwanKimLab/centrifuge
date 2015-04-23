@@ -132,6 +132,7 @@ CENTRIFUGE_COMPRESS_CPPS_MAIN = $(BUILD_CPPS) \
 	mask.cpp \
 	qual.cpp
 
+CENTRIFUGE_REPORT_CPPS_MAIN=$(BUILD_CPPS)
 
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
 VERSION = $(shell cat VERSION)

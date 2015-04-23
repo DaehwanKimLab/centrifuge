@@ -150,7 +150,7 @@ public:
 
                     // extract numeric id from refName
                     const string& refName = _refnames[coord.ref()];
-                    uint64_t id = extractID(refName);
+                    uint64_t id = extractIDFromRefName(refName);
                     uint32_t speciesID = (uint32_t)(id >> 32);
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
 
@@ -442,7 +442,7 @@ std::cerr <<  partialHit.len() << ':';
         return genusIdx;
     }
 
-    // append a hit to specie map or update entry
+    // append a hit to species map or update entry
     uint32_t addHitToSpeciesMap(GenusCount& genusCount, uint32_t speciesID, size_t hi, uint32_t addWeight) {
 
         uint32_t newScore = 0;
@@ -458,7 +458,7 @@ std::cerr <<  partialHit.len() << ':';
                     newScore = genusCount.weightedCount;
                 } else {
     #ifndef NDEBUG //FB
-                        std::cerr <<  "same hi!!";
+                        std::cerr <<  "same hit!!";
     #endif
                 }
                 break;
