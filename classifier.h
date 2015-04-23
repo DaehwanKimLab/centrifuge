@@ -21,6 +21,7 @@
 #define CLASSIFIER_H_
 
 #include "hi_aligner.h"
+#include "util.h"
 
 struct SpeciesCount {
     uint32_t id;
@@ -412,18 +413,6 @@ std::cerr <<  partialHit.len() << ':';
        return partialHit._coords;
     }
 
-    // extract numeric ID from the beginning of a string
-    uint64_t extractID(const string& refName) {
-        uint64_t id = 0;
-        for (size_t ni = 0; ni < refName.length(); ni++) {
-            if (refName[ni] < '0' || refName[ni] > '9')
-                break;
-
-            id *= 10;
-            id += (refName[ni] - '0');
-        }
-        return id;
-    }
 
     // append a hit to genus map or update entry
     size_t addHitToGenusMap(EList<GenusCount> &genusMap, uint32_t genusID, size_t hi, uint32_t addWeight) {
