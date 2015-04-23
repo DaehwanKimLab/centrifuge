@@ -50,4 +50,19 @@ char* itoa10(const T& value, char* result) {
 	return out;
 }
 
+// extract numeric ID from the beginning of a string
+inline
+uint64_t extractIDFromRefName(const string& refName) {
+    uint64_t id = 0;
+    for (size_t ni = 0; ni < refName.length(); ni++) {
+        if (refName[ni] < '0' || refName[ni] > '9')
+            break;
+
+        id *= 10;
+        id += (refName[ni] - '0');
+    }
+    return id;
+}
+
+
 #endif /*ndef UTIL_H_*/
