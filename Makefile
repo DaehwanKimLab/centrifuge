@@ -164,6 +164,7 @@ RELEASE_FLAGS  = -O3 $(BITS_FLAG) $(SSE_FLAG) -funroll-loops -g3
 RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(EXTRA_FLAGS)\""
 NOASSERT_FLAGS = -DNDEBUG
 FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
+CFLAGS         = -fdiagnostics-color=always
 
 ifeq (1,$(USE_SRA))
 	ifeq (1, $(MACOS))
@@ -176,11 +177,14 @@ endif
 CENTRIFUGE_BIN_LIST = centrifuge-build-bin \
 	centrifuge-class \
 	centrifuge-inspect-bin \
-	centrifuge-compress-bin
+	centrifuge-compress-bin \
+	centrifuge-report-bin
+	
 CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 	centrifuge-class-debug \
 	centrifuge-inspect-bin-debug \
-	centrifuge-compress-bin-debug
+	centrifuge-compress-bin-debug \
+	centrifuge-report-bin-debug
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
 	$(wildcard scripts/*.pl) \
@@ -238,6 +242,7 @@ DEFS=-fno-strict-aliasing \
      -DBUILD_TIME="\"`date`\"" \
      -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
      $(FILE_FLAGS) \
+	 $(CFLAGS) \
      $(PREF_DEF) \
      $(MM_DEF) \
      $(SHMEM_DEF) \
@@ -294,6 +299,23 @@ centrifuge-compress-bin-debug: centrifuge_compress.cpp $(SHARED_CPPS) $(CENTRIFU
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_COMPRESS_CPPS_MAIN) \
 	$(LIBS) $(BUILD_LIBS)
+
+centrifuge-report-bin: centrifuge_report.cpp $(SHARED_CPPS) $(CENTRIFUGE_REPORT_CPPS_MAIN) $(HEADERS)
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
+	$(INC) \
+	-o $@ $< \
+	$(SHARED_CPPS) $(CENTRIFUGE_REPORT_CPPS_MAIN) \
+	$(LIBS) $(BUILD_LIBS)
+
+centrifuge-report-bin-debug: centrifuge_report.cpp $(SHARED_CPPS) $(CENTRIFUGE_REPORT_CPPS_MAIN) $(HEADERS)
+	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
+	$(INC) \
+	-o $@ $< \
+	$(SHARED_CPPS) $(CENTRIFUGE_REPORT_CPPS_MAIN) \
+	$(LIBS) $(BUILD_LIBS)
+
 
 
 #
