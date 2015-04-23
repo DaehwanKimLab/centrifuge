@@ -251,6 +251,8 @@ static uint64_t        thread_rids_mindist;
 
 static uint32_t minHitLen;
 
+static string reportFile;
+
 #define DMAX std::numeric_limits<double>::max()
 
 static void resetOptions() {
@@ -446,6 +448,7 @@ static void resetOptions() {
     no_spliced_alignment = false;
     rna_strandness = RNA_STRANDNESS_UNKNOWN;
     minHitLen = 22;
+    reportFile = "centrifuge-species_report.csv";
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -640,6 +643,7 @@ static struct option long_options[] = {
     {(char*)"no-spliced-alignment",   no_argument, 0,        ARG_NO_SPLICED_ALIGNMENT},
     {(char*)"rna-strandness",   required_argument, 0,        ARG_RNA_STRANDNESS},
     {(char*)"min-hitlen",   required_argument, 0,        ARG_MIN_HITLEN},
+	{(char*)"report-file",  required_argument, 0, ARG_REPORT_FILE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -690,7 +694,7 @@ static void printUsage(ostream& out) {
 		tool_name = "hisat";
 	}
 	out << "Usage: " << endl
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>] [-R <report>]" << endl
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
 	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
@@ -706,6 +710,7 @@ static void printUsage(ostream& out) {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
 	out <<     "  <sam>      File for SAM output (default: stdout)" << endl
+	    <<     "  <report>   File for tabular report output (default: " << reportFile << ")" << endl
 	    << endl
 	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
 		<< "  specified many times.  E.g. '-U file1.fq,file2.fq -U file3.fq'." << endl
@@ -740,6 +745,9 @@ static void printUsage(ostream& out) {
 		<< "  --no-dovetail      not concordant when mates extend past each other" << endl
 		<< "  --no-contain       not concordant when one mate alignment contains other" << endl
 		<< "  --no-overlap       not concordant when mates overlap at all" << endl
+		<< endl
+		<< "Score:" << endl
+		<< "  --min-hit-length <int>  minimum length of hits (default "<<minHitLen<<", must be greater than 15)" << endl
 		<< endl
 	    << " Output:" << endl;
 	//if(wrapper == "basic-0") {
@@ -1428,6 +1436,10 @@ static void parseOption(int next_option, const char *arg) {
         case ARG_MIN_HITLEN: {
             minHitLen = parseInt(15, "--min-hitlen arg must be at least 15", arg);
             break;
+        }
+        case ARG_REPORT_FILE: {
+        	reportFile = arg;
+        	break;
         }
 		default:
 			printUsage(cerr);
