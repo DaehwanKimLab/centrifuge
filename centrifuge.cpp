@@ -27,6 +27,7 @@
 #include <math.h>
 #include <utility>
 #include <limits>
+#include <map>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -250,7 +251,6 @@ static MUTEX_T         thread_rids_mutex;
 static uint64_t        thread_rids_mindist;
 
 static uint32_t minHitLen;
-
 static string reportFile;
 
 #define DMAX std::numeric_limits<double>::max()
@@ -1705,6 +1705,7 @@ struct PerfMetrics {
 		olm.reset();
 		wlm.reset();
 		rpm.reset();
+		spm.reset();
 		nbtfiltst = 0;
 		nbtfiltsc = 0;
 		nbtfiltdo = 0;
@@ -1712,6 +1713,7 @@ struct PerfMetrics {
 		olmu.reset();
 		wlmu.reset();
 		rpmu.reset();
+		spmu.reset();
 		nbtfiltst_u = 0;
 		nbtfiltsc_u = 0;
 		nbtfiltdo_u = 0;
@@ -1726,6 +1728,7 @@ struct PerfMetrics {
 		const OuterLoopMetrics *ol,
 		const WalkMetrics *wl,
 		const ReportingMetrics *rm,
+		const SpeciesMetrics *sm,
 		uint64_t nbtfiltst_,
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_,
@@ -1741,6 +1744,9 @@ struct PerfMetrics {
 		}
 		if(rm != NULL) {
 			rpmu.merge(*rm, false);
+		}
+		if (sm != NULL) {
+			spmu.merge(*sm, false);
 		}
 		nbtfiltst_u += nbtfiltst_;
 		nbtfiltsc_u += nbtfiltsc_;
@@ -1977,6 +1983,7 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
 		const ReportingMetrics& rp = total ? rpm : rpmu;
+		const SpeciesMetrics& sp = total ? spm : spmu;
 
 		// 8. Paired reads
 		itoa10<uint64_t>(rp.npaired, buf);
@@ -2141,6 +2148,7 @@ struct PerfMetrics {
 		olmu.reset();
 		wlmu.reset();
 		rpmu.reset();
+		spmu.reset();
 		nbtfiltst_u = 0;
 		nbtfiltsc_u = 0;
 		nbtfiltdo_u = 0;
@@ -2150,6 +2158,7 @@ struct PerfMetrics {
 	OuterLoopMetrics  olm;   // overall metrics
 	WalkMetrics       wlm;   // metrics related to walking left (i.e. resolving reference offsets)
 	ReportingMetrics  rpm;   // metrics related to reporting
+	SpeciesMetrics    spm;   // metrics related to species
 	uint64_t          nbtfiltst;
 	uint64_t          nbtfiltsc;
 	uint64_t          nbtfiltdo;
@@ -2158,6 +2167,7 @@ struct PerfMetrics {
 	OuterLoopMetrics  olmu;  // overall metrics
 	WalkMetrics       wlmu;  // metrics related to walking left (i.e. resolving reference offsets)
 	ReportingMetrics  rpmu;  // metrics related to reporting
+	SpeciesMetrics    spmu;  // metrics related to species counting
 	uint64_t          nbtfiltst_u;
 	uint64_t          nbtfiltsc_u;
 	uint64_t          nbtfiltdo_u;
@@ -2253,11 +2263,12 @@ static inline void printEEScoreMsg(
 
 
 #define MERGE_METRICS(met, sync) { \
-	msink.mergeMetrics(rpm); \
+	msink.mergeMetrics(rpm,spm); \
 	met.merge( \
 		&olm, \
 		&wlm, \
 		&rpm, \
+		&spm, \
 		nbtfiltst, \
 		nbtfiltsc, \
 		nbtfiltdo, \
@@ -2266,6 +2277,7 @@ static inline void printEEScoreMsg(
 	olm.reset(); \
 	wlm.reset(); \
 	rpm.reset(); \
+	spm.reset(); \
     him.reset(); \
 }
 
@@ -2319,6 +2331,7 @@ static void multiseedSearchWorker(void *vp) {
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
+	SpeciesMetrics spm;
 	RandomSource rnd, rndArb;
 	uint64_t nbtfiltst = 0; // TODO: find a new home for these
 	uint64_t nbtfiltsc = 0; // TODO: find a new home for these
@@ -2651,6 +2664,7 @@ static void multiseedSearchWorker(void *vp) {
                                      sortByScore,          // prioritize by alignment score
                                      rnd,                  // pseudo-random generator
                                      rpm,                  // reporting metrics
+									 spm,                  // species metrics
                                      prm,                  // per-read metrics
                                      !seedSumm,            // suppress seed summaries?
                                      seedSumm);            // suppress alignments?
@@ -2918,12 +2932,30 @@ static void driver(
             penNoncanSplice,// non-canonical splicing penalty
                    0,
             &penIntronLen);  // penalty as to intron length
-		EList<size_t> reflens;
-		for(size_t i = 0; i < ebwt.nPat(); i++) {
-			reflens.push_back(ebwt.plen()[i]);
-		}
+
 		EList<string> refnames;
 		readEbwtRefnames<index_t>(adjIdxBase, refnames);
+
+		EList<size_t> reflens;
+		map<uint32_t,pair<string,uint64_t> > taxidToNameLen;
+		for(size_t i = 0; i < ebwt.nPat(); i++) {
+			// cerr << "Push back to reflens: "<<  refnames[i] << " is so long: " << ebwt.plen()[i] << endl;
+			reflens.push_back(ebwt.plen()[i]);
+
+			// extract numeric id from refName
+			const string& refName = refnames[i];
+			uint64_t id = extractIDFromRefName(refName);
+			uint32_t speciesID = (uint32_t)(id >> 32);
+
+			// extract name from refName
+			//index_t avglen = refName.substr(refName.find_last_of(' ')); //TODO: use the average len provided in the header
+			const string& name_part = refName.substr(refName.find_first_of(' '));
+
+			//uint32_t genusID = (uint32_t)(id & 0xffffffff);
+			taxidToNameLen[speciesID] = pair<string,uint64_t>(name_part,ebwt.plen()[i]);
+
+		}
+
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
@@ -2955,6 +2987,8 @@ static void driver(
 		if(!metricsFile.empty() && metricsIval > 0) {
 			metricsOfb = new OutFileBuf(metricsFile);
 		}
+
+
 		// Do the search for all input reads
 		assert(patsrc != NULL);
 		assert(mssink != NULL);
@@ -2985,6 +3019,24 @@ static void driver(
 				gReportMixed,
 				hadoopOut);
 		}
+
+		// write the species report into the corresponding file
+		if (!reportFile.empty()) {
+			ofstream reportOfb;
+			reportOfb.open(reportFile.c_str());
+			map<uint32_t,uint32_t> spmu = metrics.spmu.species_counts;
+			reportOfb << "name" << '\t' << "taxid" << '\t' << "length" << '\t' << "reads" << '\t' << "covered_length" << '\t' << "sum_score" << endl;
+			for (map<uint32_t,uint32_t>::const_iterator it = spmu.begin(); it != spmu.end(); ++it) {
+				uint32_t taxid = it->first;
+				reportOfb << taxidToNameLen[taxid].first << '\t' << taxid << '\t' << taxidToNameLen[taxid].second << '\t'
+						  << it->second << '\t' << "covered_length" << '\t' << "sum_score" << endl;
+				reportOfb << it->first;
+
+			}
+			reportOfb.close();
+		}
+
+
 		oq.flush(true);
 		assert_eq(oq.numStarted(), oq.numFinished());
 		assert_eq(oq.numStarted(), oq.numFlushed());

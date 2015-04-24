@@ -27,6 +27,8 @@
 #include "outq.h"
 #include "aligner_result.h"
 #include <utility>
+#include <map>
+#include <set>
 
 // Forward decl
 template <typename index_t>
@@ -34,6 +36,64 @@ class SeedResults;
 
 enum {
 	OUTPUT_SAM = 1
+};
+
+
+
+/**
+ * Metrics summarizing the species level information we have
+ */
+struct SpeciesMetrics {
+
+	SpeciesMetrics():mutex_m() {
+	    reset();
+	}
+
+	void reset() {
+		species_counts.clear();
+		species_kmers.clear();
+	}
+
+	void init(
+		map<uint32_t,uint32_t> species_counts_,
+		map<uint32_t,set<uint32_t> > species_kmers_)
+	{
+		species_counts = species_counts_;
+		species_kmers = species_kmers_;
+    }
+
+	/**
+	 * Merge (add) the counters in the given ReportingMetrics object
+	 * into this object.  This is the only safe way to update a
+	 * ReportingMetrics shared by multiple threads.
+	 */
+	void merge(const SpeciesMetrics& met, bool getLock = false) {
+        ThreadSafe ts(&mutex_m, getLock);
+
+        // update species read count
+        for(map<uint32_t,uint32_t>::const_iterator it = met.species_counts.begin(); it != met.species_counts.end(); ++it) {
+        	if (species_counts.find(it->first) == species_counts.end()) {
+        		species_counts[it->first] = it->second;
+        	} else {
+        		species_counts[it->first] += it->second;
+        	}
+        }
+
+        // update species k-mers
+        for(map<uint32_t, set<uint32_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
+        	species_kmers[it->first].insert(it->second.begin(),it->second.end());
+        }
+
+    }
+
+	void addSpecies(const uint32_t species) {
+		++species_counts[species];
+	}
+
+	map<uint32_t,uint32_t> species_counts;          // read count per species
+	map<uint32_t, set<uint32_t> > species_kmers;    // unique k-mer count per species
+
+	MUTEX_T mutex_m;
 };
 
 /**
@@ -322,6 +382,7 @@ public:
 		AlnRes               *rs2,
 		const AlnSetSumm&     summ,
 		const PerReadMetrics& prm,
+		SpeciesMetrics& sm,
 		bool                  report2) = 0;
 
 	/**
@@ -347,6 +408,7 @@ public:
 		bool                  maxed,          // true iff -m/-M exceeded
 		const AlnSetSumm&     summ,           // summary
 		const PerReadMetrics& prm,            // per-read metrics
+		SpeciesMetrics& sm,             // species metrics
 		bool                  getLock = true) // true iff lock held by caller
 	{
 		assert(rd1 != NULL || rd2 != NULL);
@@ -355,7 +417,7 @@ public:
         for(size_t i = 0; i < select1.size(); i++) {
             AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
             AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
-            append(o, threadId, rd1, rd2, rdid, r1, r2, summ, prm, true);
+            append(o, threadId, rd1, rd2, rdid, r1, r2, summ, prm, sm, true);
         }
 	}
 
@@ -374,7 +436,8 @@ public:
 		bool                  report2,        // report alns for both mates?
 		bool                  getLock = true) // true iff lock held by caller
 	{
-		append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ, prm, report2);
+		// FIXME: reportUnaligned does nothing
+		//append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ, prm, NULL,report2);
 	}
 
 	/**
@@ -408,6 +471,7 @@ public:
 				mixed,
 				hadoopOut);
 		}
+		// TODO: print species metrics!
 	}
 
 #ifndef NDEBUG
@@ -470,8 +534,9 @@ public:
 	/**
 	 * Merge given metrics in with ours by summing all individual metrics.
 	 */
-	void mergeMetrics(const ReportingMetrics& met, bool getLock = true) {
+	void mergeMetrics(const ReportingMetrics& met, SpeciesMetrics& smet, bool getLock = true) {
 		met_.merge(met, getLock);
+		smet_.merge(smet, getLock);
 	}
 
 	/**
@@ -488,6 +553,7 @@ protected:
 	const StrList&     refnames_;     // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReportingMetrics   met_;          // global repository of reporting metrics
+	SpeciesMetrics     smet_;         // global repository of species metrics
 };
 
 /**
@@ -654,6 +720,7 @@ public:
 		bool               sortByScore,  // prioritize alignments by score
 		RandomSource&      rnd,          // pseudo-random generator
 		ReportingMetrics&  met,          // reporting metrics
+		SpeciesMetrics&    smet,         // species metrics
 		const PerReadMetrics& prm,       // per-read metrics
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false);
@@ -905,10 +972,11 @@ public:
 		AlnRes* rs2,               // alignments for mate #2
 		const AlnSetSumm& summ,    // summary
 		const PerReadMetrics& prm, // per-read metrics
+		SpeciesMetrics& sm,  // species metrics
 		bool report2)              // report alns for both mates
 	{
 		assert(rd1 != NULL || rd2 != NULL);
-        appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, prm);
+        appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, prm, sm);
 	}
 
 protected:
@@ -926,7 +994,9 @@ protected:
 		AlnRes* rs,
 		AlnRes* rso,
 		const AlnSetSumm& summ,
-        const PerReadMetrics& prm); // per-read metrics
+        const PerReadMetrics& prm, // per-read metrics
+		SpeciesMetrics& sm   // species metrics
+		);
 
 
 	BTDnaString      dseq_;    // buffer for decoded read sequence
@@ -1147,6 +1217,7 @@ void AlnSinkWrap<index_t>::finishRead(
 									  bool               sortByScore,  // prioritize alignments by score
 									  RandomSource&      rnd,          // pseudo-random generator
 									  ReportingMetrics&  met,          // reporting metrics
+									  SpeciesMetrics&    smet,         // species metrics
 									  const PerReadMetrics& prm,       // per-read metrics
 									  bool suppressSeedSummary,        // = true
 									  bool suppressAlignments)         // = false
@@ -1181,6 +1252,7 @@ void AlnSinkWrap<index_t>::finishRead(
 		assert_leq(nconcord, rs_.size());
 		assert_gt(rp_.khits, 0);
 		met.nread++;
+
 		if(readIsPair()) {
 			met.npaired++;
 		} else {
@@ -1212,7 +1284,8 @@ void AlnSinkWrap<index_t>::finishRead(
 						  NULL,
 						  pairMax,
 						  concordSumm,
-                          prm);
+                          prm,
+						  smet);
 			if(pairMax) {
 				// met.nconcord_rep++;
 			} else {
@@ -1225,6 +1298,7 @@ void AlnSinkWrap<index_t>::finishRead(
 				}
 			}
 			init_ = false;
+			// write read to file
 			//g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
 		}
@@ -1330,6 +1404,9 @@ bool AlnSinkWrap<index_t>::report(int stage,
 	assert(rs != NULL);
     st_.foundConcordant();
     rs_.push_back(*rs);
+
+
+
 	// Tally overall alignment score
 	TAlScore score = rs->score().score();
 	// Update best score so far
@@ -1691,7 +1768,8 @@ void AlnSinkSam<index_t>::appendMate(
 									 AlnRes* rs,
 									 AlnRes* rso,
 									 const AlnSetSumm& summ,
-									 const PerReadMetrics& prm)
+									 const PerReadMetrics& prm,
+									 SpeciesMetrics& sm)
 {
 	if(rs == NULL) {
 		return;
@@ -1706,6 +1784,10 @@ void AlnSinkSam<index_t>::appendMate(
         o.append(rd.name[i]);
     }
     o.append('\t');
+
+    sm.addSpecies(rs->speciesID());
+//    map<uint32_t,uint32_t> sc = sm.species_counts;
+//    (sc[rs->speciesID_])++;
 
     // genus ID
     itoa10<int64_t>(rs->genusID(), buf);
