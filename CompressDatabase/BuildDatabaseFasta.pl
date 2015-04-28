@@ -1,4 +1,4 @@
-#!/bin/perl
+#!/usr/bin/perl
 
 # Read and merge the sequence for the chosen level
 
@@ -13,7 +13,7 @@ use File::Find;
 use Getopt::Long;
 use Cwd;
 
-my $usage = "USAGE: perl ".basename($0)." --taxonomy=<taxnonomy directory>  <fasta file directories>* [-o compressed.fa -bss . -noCompress -t 1]\n" ;
+my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-o compressed.fa -bss . -noCompress -t 1]\n" ;
 
 my $level = "species" ;
 my $output = "compressed.fa" ;
@@ -21,23 +21,19 @@ my $bssPath = $Bin; # take path of binary as script directory
 my $numOfThreads = 1 ;
 my $noCompress = 0 ;
 my $verbose = 0;
-my $useEutils = 0;
 
-my $taxPath;
 GetOptions ("level|l=s" => \$level,
 			"output|o=s" => \$output,
 			"bss=s" => \$bssPath,
 			"threads|t=i" => \$numOfThreads,
             "verbose|v" => \$verbose,
-            "taxonomy=s" => \$taxPath,
-            "use-eutils|e" => \$useEutils,
 			"noCompress" => \$noCompress)
 or die("Error in command line arguments. \n\n$usage");
 
-die $usage unless @ARGV > 1;
-die $usage unless defined $taxPath;
+die $usage unless @ARGV == 2;
 
-my @paths = @ARGV;
+my $path = $ARGV[0] ;
+my $taxPath = $ARGV[1] ;
 
 my $i ;
 
@@ -56,12 +52,15 @@ my %taxTree ;
 my @speciesListKey ;
 my $speciesUsed : shared ;
 my $debug: shared ;
+my %speciesIdToName : shared ;
 
-###############################################################################
-print STDERR "Step 1: Collecting all .fna files in @paths and getting gids\n";
+#Extract the gid we met in the file
+
+
+print STDERR "Step 1: Collecting all .fna files in $path and getting gids\n";
 find ( sub {
     return unless -f;        # Must be a file
-    return unless /\.fna$/;  # Must end with `.fna` suffix
+    return unless /\.f[n]?a$/;  # Must end with `.fna` or `.fa` suffix
     return unless -s;        # Must be non-zero
 
     my $fullfile = $File::Find::name; ## file with full path, but the CWD is actually the file's path
@@ -69,98 +68,77 @@ find ( sub {
 	open FP2, $file or die "Error opening $file: $!";
 	my $head = <FP2> ;
 	close FP2 ;
-	if ( $head =~ /^>gi\|([0-9]+)?\|/ ) 
-    {
+	if ( $head =~ /^>gi\|([0-9]+)?\|/ ) {
 		my $gid = $1 ;
 		print "$gid $file\n" if $verbose;
 		$gidUsed{ $gid } = 1 ;
 		$gidToFile{ $gid } = $fullfile ;
 		$fileUsed{ $fullfile } = 0 ;
-	} elsif ( $head =~ /^>[a-zA-Z]*:taxid\|([0-9]+)?\|/ ) 
-    {
+	} elsif ( $head =~ /^>kraken:taxid\|([0-9]+)?\|/ ) {
 		my $tid = $1 ;
 		$gidUsed{ $tid } = 1 ;
 		$gidToFile{ $tid } = $fullfile ;
 		$fileUsed{ $fullfile } = 0 ;
 		push @{ $tidToGid{ $tid } }, $tid ;	
 
-	} else 
-    {
+	} else {
 		print STDERR "Excluding $fullfile: Wrong header.\n";
 	}
 
-}, @paths );
+}, $path );
 
 
-###############################################################################
-print STDERR "Step 2: Extract the mapping taxonomy id -> gids\n";
-
-if ($useEutils) {
-    # First, build the Eutils query
-    my $utils = 'http://eutils.ncbi.nlm.nih.gov/entrez/eutils'; # Base URL for searches
-    my $db = 'nuccore'; # Default to PubMed database; this may be changed.
-
-    my $esearch = "$utils/esummary.fcgi?db=$db";
-
-    foreach my $gid (keys %gidUsed) {
-        my $esearch_result = get("$esearch&id=$gid");
-        my @matches = ($esearch_result =~ m(<Item Name="TaxId" Type="Integer">([0-9]*)</Item>)g);
-        die "so many or few matches for $gid: @matches" if (scalar @matches != 1);
-	    push @{ $tidToGid{ $matches[0] } }, $gid;
-    }
-} else {
-    open my $FP1,"<","$taxPath/gi_taxid_nucl.dmp" or die "Error opening $taxPath/gi_taxid_nucl.dmp: $!";
-    while ( <$FP1> )
-    {
-    	chomp ;
-    	my ($gid,$tid) = split ;
-	    push @{ $tidToGid{ $tid } }, $gid;
-    }
-    close ($FP1);
-}
-
-
-###############################################################################
-print STDERR "Step 3: Organizing the taxonomical tree taxid -> parent-taxid\n";
-open FP1, "$taxPath/nodes.dmp" or die "Error opening $taxPath/nodes.dmp: $!";
-while ( <FP1> ) {
+# Extract the tid that are associated with the gids
+print STDERR "Step 2: Extract the taxonomy ids that are associated with the gids\n";
+open FP1, "$taxPath/gi_taxid_nucl.dmp" ;
+while ( <FP1> )
+{
 	chomp ;
-
-    # Format: 
-	#  1 tax_id					-- node id in GenBank taxonomy database
- 	#  2 parent tax_id				-- parent node id in GenBank taxonomy database
- 	#  3 rank					-- rank of this node (superkingdom, kingdom, ...) 
- 	#  4 embl code				-- locus-name prefix; not unique
- 	#  5 division id				-- see division.dmp file
- 	#  6 inherited div flag  (1 or 0)		-- 1 if node inherits division from parent
- 	#  7 genetic code id				-- see gencode.dmp file
- 	#  8 inherited GC  flag  (1 or 0)		-- 1 if node inherits genetic code from parent
- 	#  9 mitochondrial genetic code id		-- see gencode.dmp file
- 	# 10 inherited MGC flag  (1 or 0)		-- 1 if node inherits mitochondrial gencode from parent
- 	# 11 GenBank hidden flag (1 or 0)            -- 1 if name is suppressed in GenBank entry lineage
- 	# 12 hidden subtree root flag (1 or 0)       -- 1 if this subtree has no sequence data yet
- 	# 13 comments				-- free-text comments and citations
-
-    #   tax_id  |   parent tax_id  |    rank      |  embl code | division id | genetic code |   inh GC  |
-	my ($tid, undef, $parentTid, undef, $rank ) = split;
-
-	$taxTree{ $tid } = $parentTid ;
-	if ( $rank eq "species" ) {
-		$species{ $tid } = 1 ;
-	}
-	elsif ( $rank eq "genus" )
+	my @cols = split ;		
+	#print $cols[0], "\n" ;	
+	if ( defined( $gidUsed{ $cols[0] } ) )
 	{
-		$genus{ $tid } = 1 ;
+		push @{ $tidToGid{ $cols[1] } }, $cols[0] ;	
+		print $cols[0], " ", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" if $verbose;
 	}
 }
 close FP1 ;
 
-###############################################################################
+
+# Organize the tree
+print STDERR "Step 3: Organizing the taxonomical tree\n";
+open FP1, "$taxPath/nodes.dmp" ;
+while ( <FP1> ) {
+	chomp ;
+
+	my @cols = split ;
+	#next if ( !defined $tidToGid{ $cols[0] } ) ;
+	
+	my $tid = $cols[0] ;
+	my $parentTid = $cols[2] ;
+	my $rank = $cols[4] ;
+	#print "subspecies: $tid $parentTid\n" ;
+	#push @{ $species{ $parentTid } }, $tid ;
+	#$tidToSpecies{ $tid } = $parentTid ;
+
+	$taxTree{ $cols[0] } = $cols[2] ;
+	#print $cols[0], "=>", $cols[2], "\n" ;
+	if ( $rank eq "species" )	
+	{
+		$species{ $cols[0] } = 1 ;
+	}
+	elsif ( $rank eq "genus" )
+	{
+		$genus{ $cols[0] } = 1 ;
+	}
+}
+close FP1 ;
+
 # Put the sub-species taxonomy id into the corresponding species.
-print STDERR "Step 4: Associating sub-species taxonomy ids with the species taxonomy id\n";
-for my $tid ( keys %tidToGid )
+print STDERR "Step 4: Putting the sub-species taxonomy id into the corresponding species\n";
+for $i ( keys %tidToGid )
 {
-	my $p = $tid ;
+	my $p = $i ;
 	my $found = 0 ;
 	while ( 1 )
 	{
@@ -170,13 +148,36 @@ for my $tid ( keys %tidToGid )
 			$found = 1 ;
 			last ;
 		}
-        last unless defined $taxTree{ $p };
-		$p = $taxTree{ $p } ;
+		if ( defined $taxTree{ $p } )
+		{
+			$p = $taxTree{ $p } ;
+		}
+		else
+		{
+			last ;
+		}
 	}
 
-	push(@{ $speciesList{ $p } }, $tid) if $found;
+	if ( $found == 1 )
+	{
+		push @{ $speciesList{ $p } }, $i ;
+	}
 }
 
+print STDERR "Step 5: Reading the name of the species\n";
+open FP1, "$taxPath/names.dmp" ;
+while ( <FP1> )
+{
+	next if (!/scientific name/ ) ;
+	my @cols = split /\t/ ;
+	
+	if ( defined $species{ $cols[0] } )
+	{
+		$speciesIdToName{ $cols[0] } = $cols[2] ;
+	}
+}
+close FP1 ;
+#exit ;
 
 sub GetGenomeSize
 {
@@ -252,13 +253,18 @@ sub solve
 	$genomeSize = int( $genomeSize / scalar( @subspeciesList ) ) ;
 		
 	#print $file, "\n" ;	
-	if ( $file =~ /\/(\w*?)uid/ )
+	#if ( $file =~ /\/(\w*?)uid/ )
+	#{
+	#	$speciesName = ( split /_/, $1 )[0]."_". ( split /_/, $1 )[1] ;
+	#}
+	if ( defined $speciesIdToName{ $speciesId } )
 	{
-		$speciesName = ( split /_/, $1 )[0]."_". ( split /_/, $1 )[1] ;
+		$speciesName = $speciesIdToName{ $speciesId } ;
+		$speciesName =~ s/ /_/g ;
 	}
 	else
 	{
-		$speciesName = "" ;
+		$speciesName = "Unknown_species_name" ;
 	}
 	my $id = ( $speciesId << 32 ) | $genusId ;
 	my $header = ">$id $speciesName $genomeSize ".scalar( @subspeciesList ) ;
@@ -267,7 +273,7 @@ sub solve
 #return ;
 # Build the sequence
 	my $seq = "" ;
-	if ( $noCompress == 0 )
+	if ( $noCompress == 0 && $genomeSize < 50000000 )
 	{
 		system_call("perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id") ;
 
@@ -309,7 +315,7 @@ sub solve
 }
 
 sub system_call {
-    print STDERR "SYSTEM CALL: ".join(" ",@_)."\n" ;
+    print STDERR "SYSTEM CALL: ".join(" ",@_);
 	system(@_) == 0
 	  or die "system @_ failed: $?";
     print STDERR " finished\n";
@@ -334,8 +340,7 @@ sub threadWrapper
 }
 
 
-###############################################################################
-print STDERR "Step 5: Merging sub-species\n";
+print STDERR "Step 6: Merging sub-species\n";
 my @threads ;
 @speciesListKey = keys %speciesList ; 
 $speciesUsed = 0 ;
@@ -391,6 +396,6 @@ print FP2 ">0 unknown_taxno_genomes $genomeSize $k\n$seq\n" ;
 close FP2 ;
 
 # Remove the Ns from the file
-system_call("perl $bssPath/RemoveN.pl tmp_output.fa > $output") ;
+system_call("$bssPath/RemoveN tmp_output.fa > $output") ;
 
 unlink glob("tmp_*") ;
