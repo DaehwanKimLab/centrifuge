@@ -21,14 +21,15 @@
 #define ALN_SINK_H_
 
 #include <limits>
+#include <utility>
+#include <map>
 #include "read.h"
 #include "ds.h"
 #include "simple_func.h"
 #include "outq.h"
 #include "aligner_result.h"
-#include <utility>
-#include <map>
-#include <set>
+#include "hyperloglogplus.h"
+
 
 // Forward decl
 template <typename index_t>
@@ -56,7 +57,7 @@ struct SpeciesMetrics {
 
 	void init(
 		map<uint32_t,uint32_t> species_counts_,
-		map<uint32_t,set<uint32_t> > species_kmers_)
+		map<uint32_t,HyperLogLogPlus<uint64_t> > species_kmers_)
 	{
 		species_counts = species_counts_;
 		species_kmers = species_kmers_;
@@ -80,18 +81,35 @@ struct SpeciesMetrics {
         }
 
         // update species k-mers
-        for(map<uint32_t, set<uint32_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
-        	species_kmers[it->first].insert(it->second.begin(),it->second.end());
+        for(map<uint32_t, HyperLogLogPlus<uint64_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
+
+        	HyperLogLogPlus<uint64_t>* other = *it->second;
+        	species_kmers[it->first].merge(other);
         }
 
     }
 
-	void addSpecies(const uint32_t species) {
+	void addSpecies(uint32_t species) {
 		++species_counts[species];
 	}
 
+	void addAllKmers(uint32_t species, BTDnaString btdna, size_t begin, size_t len) {
+		uint64_t kmer = btdna.int_kmer<uint64_t>(begin,begin+len);
+		species_kmers[species].add(kmer);
+		size_t i = begin;
+		while (i+32 < len) {
+			kmer = btdna.next_kmer(kmer,i);
+			species_kmers[species].add(kmer);
+			++i;
+		}
+	}
+
+	size_t nDistinctKmers(uint32_t species) {
+		return(species_kmers[species].cardinality());
+	}
+
 	map<uint32_t,uint32_t> species_counts;          // read count per species
-	map<uint32_t, set<uint32_t> > species_kmers;    // unique k-mer count per species
+	map<uint32_t,HyperLogLogPlus<uint64_t> > species_kmers;    // unique k-mer count per species
 
 	MUTEX_T mutex_m;
 };
@@ -683,6 +701,10 @@ public:
 		assert(rp_.repOk());
 	}
 
+	AlnSink& getSink() {
+		return(g_);
+	}
+
 	/**
 	 * Initialize the wrapper with a new read pair and return an
 	 * integer >= -1 indicating which stage the aligner should start
@@ -789,6 +811,7 @@ public:
     
     const ReportingParams& reportingParams() { return rp_;}
 	
+    const SpeciesMetrics& speciesMetrics() { return g_.speciesMetrics(); }
 	
 	/**
 	 * Return true iff at least two alignments have been reported so far for an
@@ -1769,7 +1792,8 @@ void AlnSinkSam<index_t>::appendMate(
 									 AlnRes* rso,
 									 const AlnSetSumm& summ,
 									 const PerReadMetrics& prm,
-									 SpeciesMetrics& sm)
+									 SpeciesMetrics& sm,
+									 )
 {
 	if(rs == NULL) {
 		return;
