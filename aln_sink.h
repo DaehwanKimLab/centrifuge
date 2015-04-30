@@ -83,7 +83,7 @@ struct SpeciesMetrics {
         // update species k-mers
         for(map<uint32_t, HyperLogLogPlus<uint64_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
 
-        	HyperLogLogPlus<uint64_t>* other = *it->second;
+        	const HyperLogLogPlus<uint64_t>* other = &(it->second);
         	species_kmers[it->first].merge(other);
         }
 
@@ -94,6 +94,9 @@ struct SpeciesMetrics {
 	}
 
 	void addAllKmers(uint32_t species, BTDnaString btdna, size_t begin, size_t len) {
+#ifndef NDEBUG //FB
+		//cerr << "add all kmers for " << species << " from " << begin << " for " << len << endl;
+#endif
 		uint64_t kmer = btdna.int_kmer<uint64_t>(begin,begin+len);
 		species_kmers[species].add(kmer);
 		size_t i = begin;
@@ -564,6 +567,10 @@ public:
 		return oq_;
 	}
 
+	SpeciesMetrics* speciesMetricsPtr() {
+		return &smet_;
+	}
+
 protected:
 
 	OutputQueue&       oq_;           // output queue
@@ -701,7 +708,7 @@ public:
 		assert(rp_.repOk());
 	}
 
-	AlnSink& getSink() {
+	AlnSink<index_t>& getSink() {
 		return(g_);
 	}
 
@@ -811,7 +818,7 @@ public:
     
     const ReportingParams& reportingParams() { return rp_;}
 	
-    const SpeciesMetrics& speciesMetrics() { return g_.speciesMetrics(); }
+    SpeciesMetrics* speciesMetricsPtr() { return g_.speciesMetricsPtr(); }
 	
 	/**
 	 * Return true iff at least two alignments have been reported so far for an
@@ -1792,7 +1799,7 @@ void AlnSinkSam<index_t>::appendMate(
 									 AlnRes* rso,
 									 const AlnSetSumm& summ,
 									 const PerReadMetrics& prm,
-									 SpeciesMetrics& sm,
+									 SpeciesMetrics& sm
 									 )
 {
 	if(rs == NULL) {

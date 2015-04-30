@@ -20,7 +20,7 @@
 #include<bitset>
 
 #include "hyperloglogbias.h"
-#include "third_party/MurmurHash3.h"
+#include "third_party/MurmurHash3.cpp"
 using namespace std;
 
 //#define NDEBUG
@@ -50,6 +50,32 @@ double linearCounting(uint32_t m, uint32_t v) {
 	}
 	double fm = double(m);
 	return fm * log(fm/double(v));
+}
+
+/**
+  * from Numerical Recipes, 3rd Edition, p 352
+  * Returns hash of u as a 64-bit integer.
+  *
+*/
+inline uint64_t ranhash (uint64_t u) {
+  uint64_t v = u * 3935559000370003845 + 2691343689449507681;
+
+  v ^= v >> 21; v ^= v << 37; v ^= v >>  4;
+
+  v *= 4768777513237032717;
+
+  v ^= v << 20; v ^= v >> 41; v ^= v <<  5;
+
+  return v;
+}
+
+inline uint64_t murmurhash3_finalizer (uint64_t key)  {
+	key ^= key >> 33;
+	key *= 0xff51afd7ed558ccd;
+	key ^= key >> 33;
+	key *= 0xc4ceb9fe1a85ec53;
+	key ^= key >> 33;
+	return key;
 }
 
 /**
@@ -123,6 +149,7 @@ T extractBits(T bits, uint8_t hi) {
 
 // TODO: switch between builtin clz and 64_clz based on architecture
 //#define clz(x) __builtin_clz(x)
+#if 0
 static int clz_manual(uint64_t x)
 {
   // This uses a binary search (counting down) algorithm from Hacker's Delight.
@@ -136,7 +163,7 @@ static int clz_manual(uint64_t x)
    y = x >> 1;  if (y != 0) return n - 2;
    return n - x;
 }
-
+#endif
 
 uint32_t clz(const uint32_t x) {
 	return __builtin_clz(x);
@@ -171,24 +198,13 @@ typedef uint64_t HashSize;
  * HyperLogLogPlus class
  * typename T corresponds to the hash size - usually either uint32_t or uint64_t (implemented for uint64_t)
  */
-template <typename T>
+template <typename T_KEY>
 class HyperLogLogPlus {
-
-	vector<uint8_t> M;  // registers (M) of size m
-	uint8_t p;            // precision
-	uint32_t m;           // number of registers
-	bool sparse;          // sparse representation of the data?
-	TmpSetType tmpSet;
-	SparseListType sparseList; // TODO: use a compressed list instead
-
-	vector<vector<double> > rawEstimateData;
-	vector<vector<double> > biasData;
-
-	// sparse versions of p and m
-	static const uint8_t  pPrime = 25; // precision when using a sparse representation
-	static const uint32_t mPrime = 1 << (pPrime -1); // 2^pPrime
-
 public:
+
+	HyperLogLogPlus() : p(10), sparse(true) {
+		this->m = 1 << this->p;
+	}
 
 	/**
 	 * Create new HyperLogLogPlus counter
@@ -212,8 +228,8 @@ public:
 	 * Aggregation of items. Adds a new item to the counter.
 	 * @param item
 	 */
-	void add(T item) {
-		add(item, sizeof(item));
+	void add(T_KEY item) {
+		add(item, sizeof(T_KEY));
 	}
 
 	/**
@@ -221,13 +237,16 @@ public:
 	 * @param item
 	 * @param size  size of item
 	 */
-	void add(T item, size_t size) {
+	void add(T_KEY item, size_t size) {
 
 		// compute hash for item
-	    HashSize out[2];
-	    uint32_t seed = 0;
-	    MurmurHash3_x64_128((void *)item, size, seed, &out);
-	    HashSize x = out[0];
+//	    HashSize out[2];
+//	    uint32_t seed = 0;
+//	    MurmurHash3_x86_128((void *)item, size, seed, &out);
+//	    //MurmurHash3_x64_128((void *)item, size, seed, &out);
+//	    HashSize x = out[0];
+		//HashSize x = ranhash(item);
+		HashSize x = item;
 	
 #ifdef DEBUG2
 		uint32_t y = encodeHash(x);
@@ -324,10 +343,11 @@ public:
 	 * Merge another HyperLogLogPlus into this. Converts to normal representation
 	 * @param other
 	 */
-	void merge(HyperLogLogPlus<T>* other) {
+	void merge(const HyperLogLogPlus<T_KEY>* other) {
 		if (this->p != other->p) {
 			throw std::invalid_argument("precisions must be equal");
 		}
+
 
 		if (sparse) {
 			toNormal();
@@ -538,7 +558,7 @@ private:
 	 * @param k the hash bits
 	 * @return index and rank in non-sparse format
 	 */
-	idx_n_rank decodeHash(uint32_t k)  {
+	idx_n_rank decodeHash(uint32_t k) const  {
 
 		// check if the last bit is 1
 		if ( (k & 1) == 1) {
@@ -556,8 +576,23 @@ private:
 		}
 	}
 
+private:
 
+	vector<uint8_t> M;  // registers (M) of size m
+	uint8_t p;            // precision
+	uint32_t m;           // number of registers
+	bool sparse;          // sparse representation of the data?
+	TmpSetType tmpSet;
+	SparseListType sparseList; // TODO: use a compressed list instead
 
+	vector<vector<double> > rawEstimateData;
+	vector<vector<double> > biasData;
+
+	// sparse versions of p and m
+	static const uint8_t  pPrime = 25; // precision when using a sparse representation
+	static const uint32_t mPrime = 1 << (pPrime -1); // 2^pPrime
+
+	
 };
 
 

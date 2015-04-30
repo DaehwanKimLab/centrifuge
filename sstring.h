@@ -3127,15 +3127,20 @@ public:
 	template<typename UINT>
 	UINT int_kmer(size_t begin,size_t end) {
 		const size_t k_size = sizeof(UINT) * 4;  // size of the kmer, two bits are used per nucleotide
-		assert_lt(end, this->len_);
+		assert_leq(end, this->len_);
 
 		UINT word = 0;
 		// go through _cs until end or kmer-size is reached
-		for (int j = 0; j < k_size && (size_t)(begin+j) < end; j++) {
+		for (size_t j = 0; j < k_size && (size_t)(begin+j) < end; j++) {
 				int bp = (int)this->cs_[begin+j];
-				assert_range(0, 3, (int)bp);
+				// assert_range(0, 3, (int)bp); //
+				// cerr << (begin+j) << ":" << "ACGTXYZ"[bp] << " "; //
+				if (bp < 0 || bp > 3) {
+					// skip non-ACGT bases
+					continue;
+				}
 				UINT shift = (UINT)(k_size - j - 1) << 1;
-				UINT bp_shift = bp << shift;
+				//UINT bp_shift = bp << shift;
 				//cerr << "ACGT"[ bp ] << ":" << bitset<k_size*2>(bp) << " " << shift << " " << bitset<k_size*2>(bp << shift) << endl ;
 				word |= (bp << shift);
 		}

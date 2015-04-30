@@ -256,6 +256,11 @@ static string reportFile;
 #define DMAX std::numeric_limits<double>::max()
 
 static void resetOptions() {
+
+#ifndef NDEBUG
+	cerr << "Setting standard options" << endl;
+#endif
+
 	mates1.clear();
 	mates2.clear();
 	mates12.clear();
@@ -694,7 +699,7 @@ static void printUsage(ostream& out) {
 		tool_name = "hisat";
 	}
 	out << "Usage: " << endl
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>] [-R <report>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>] [--report-file <report>]" << endl
 	    << endl
 		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
 	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
@@ -1451,6 +1456,7 @@ static void parseOption(int next_option, const char *arg) {
  * Read command-line arguments
  */
 static void parseOptions(int argc, const char **argv) {
+
 	int option_index = 0;
 	int next_option;
 	saw_M = false;
@@ -1728,13 +1734,14 @@ struct PerfMetrics {
 		const OuterLoopMetrics *ol,
 		const WalkMetrics *wl,
 		const ReportingMetrics *rm,
-		const SpeciesMetrics *sm,
+		SpeciesMetrics *sm,
 		uint64_t nbtfiltst_,
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_,
         const HIMetrics *hi,
 		bool getLock)
 	{
+
 		ThreadSafe ts(&mutex_m, getLock);
 		if(ol != NULL) {
 			olmu.merge(*ol, false);
@@ -1983,7 +1990,7 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
 		const ReportingMetrics& rp = total ? rpm : rpmu;
-		const SpeciesMetrics& sp = total ? spm : spmu;
+		// const SpeciesMetrics& sp = total ? spm : spmu; // TODO: do something with sp
 
 		// 8. Paired reads
 		itoa10<uint64_t>(rp.npaired, buf);
@@ -2297,6 +2304,7 @@ static inline void printEEScoreMsg(
  * -
  */
 static void multiseedSearchWorker(void *vp) {
+
 	int tid = *((int*)vp);
 	assert(multiseed_ebwtFw != NULL);
 	assert(multiseedMms == 0 || multiseed_ebwtBw != NULL);
@@ -2432,6 +2440,7 @@ static void multiseedSearchWorker(void *vp) {
 					}
 				}
 			}
+
 			prm.reset(); // per-read metrics
 			prm.doFmString = false;
 			if(sam_print_xt) {
@@ -2595,6 +2604,7 @@ static void multiseedSearchWorker(void *vp) {
 				}
 				assert_gt(streak[0], 0);
 				// Calculate # seed rounds for each mate
+
 				size_t nrounds[2] = { nSeedRounds, nSeedRounds };
 				if(filt[0] && filt[1]) {
 					nrounds[0] = (size_t)ceil((double)nrounds[0] / 2.0);
@@ -2674,6 +2684,7 @@ static void multiseedSearchWorker(void *vp) {
 		else if(rdid >= qUpto) {
 			break;
 		}
+
 		if(metricsPerRead) {
 			MERGE_METRICS(metricsPt, nthreads > 1);
 			nametmp = ps->bufa().name;
@@ -2704,6 +2715,7 @@ static void multiseedSearch(
     const EList<string>& refnames,
 	OutFileBuf *metricsOfb)
 {
+
     multiseed_patsrc = &patsrc;
 	multiseed_msink  = &msink;
 	multiseed_ebwtFw = &ebwtFw;
@@ -3021,15 +3033,17 @@ static void driver(
 		}
 
 		// write the species report into the corresponding file
+		cerr << "report file " << reportFile << endl;
 		if (!reportFile.empty()) {
+			cerr << "report file" << endl;
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
-			map<uint32_t,uint32_t> spmu = metrics.spmu.species_counts;
-			reportOfb << "name" << '\t' << "taxid" << '\t' << "length" << '\t' << "reads" << '\t' << "covered_length" << '\t' << "sum_score" << endl;
-			for (map<uint32_t,uint32_t>::const_iterator it = spmu.begin(); it != spmu.end(); ++it) {
+			map<uint32_t,uint32_t> species_count = metrics.spmu.species_counts;
+			reportOfb << "name" << '\t' << "taxid" << '\t' << "length" << '\t' << "reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << endl;
+			for (map<uint32_t,uint32_t>::const_iterator it = species_count.begin(); it != species_count.end(); ++it) {
 				uint32_t taxid = it->first;
 				reportOfb << taxidToNameLen[taxid].first << '\t' << taxid << '\t' << taxidToNameLen[taxid].second << '\t'
-						  << it->second << '\t' << "covered_length" << '\t' << "sum_score" << endl;
+						  << it->second << '\t' << mssink->speciesMetricsPtr()->nDistinctKmers(taxid) << '\t' << "sum_score" << endl;
 				reportOfb << it->first;
 
 			}
@@ -3068,7 +3082,9 @@ int centrifuge(int argc, const char **argv) {
 			if(i < argc-1) argstr += " ";
 		}
 		if(startVerbose) { cerr << "Entered main(): "; logTime(cerr, true); }
+
 		parseOptions(argc, argv);
+
 		argv0 = argv[0];
 		if(showVersion) {
 			cout << argv0 << " version " << CENTRIFUGE_VERSION << endl;

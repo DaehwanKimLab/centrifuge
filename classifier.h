@@ -122,6 +122,9 @@ public:
             std::cerr <<  this->_rds[rdi]->name << '\t';
 #endif
 
+            // TODO: Is it the best thing to use patFw, here?
+            BTDnaString btdna = this->_rds[rdi]->patFw;
+
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
@@ -137,11 +140,17 @@ public:
                 if (coords.empty()) continue;
 
                 usedPortion += hit_len;
+				BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
+
+                // scoring function: calculate the weight of this partial hit
+				// TODO test divide by n_genomes
+                uint32_t addWeight = (uint32_t)((hit_len - 15) * (hit_len - 15));
 
                 assert_gt(coords.size(), 0);
                 if(genomeHitCnt + coords.size() > maxGenomeHitSize) {
                     coords.shufflePortion(0, coords.size(), rnd);
                 }
+
                 
                 // go through all coordinates reported for partial hit
                 for(index_t k = 0; k < coords.size() && genomeHitCnt < maxGenomeHitSize; k++, genomeHitCnt++) {
@@ -154,14 +163,13 @@ public:
                     uint32_t speciesID = (uint32_t)(id >> 32);
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
 
-                    // scoring function: calculate the weight of this partial hit
-                    uint32_t addWeight = (uint32_t)((hit_len - 15) * (hit_len - 15));
-                    
                     // add hit to genus map and get new index in the map
                     size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, addWeight);
 
                     // add hit to species map and get new score for the species
                     uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, addWeight);
+
+					sink.speciesMetricsPtr()->addAllKmers(speciesID, btdna, partialHit._bwoff,partialHit.len());
 
 #ifndef NDEBUG //FB
                     std::cerr <<  genusID << '/' << speciesID << ';';
