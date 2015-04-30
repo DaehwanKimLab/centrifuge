@@ -23,8 +23,8 @@
 #include "third_party/MurmurHash3.h"
 using namespace std;
 
-#define NDEBUG
-#define NDEBUG2
+//#define NDEBUG
+//#define NDEBUG2
 #define arr_len(a) (a + sizeof a / sizeof a[0])
 
 // experimentally determined threshold values for  p - 4
@@ -229,9 +229,9 @@ public:
 	    MurmurHash3_x64_128((void *)item, size, seed, &out);
 	    HashSize x = out[0];
 	
+#ifdef DEBUG2
 		uint32_t y = encodeHash(x);
 		idx_n_rank ir = decodeHash(y);
-#ifdef DEBUG2
 		cerr << bitset<64>(x) << " ~> " << bitset<32>(y) << " --> ["<< uint32_t(ir.idx) << "]["<< uint32_t(ir.rank)<<":"<<bitset<8>(ir.rank)<<"]" << endl;
 #endif
 
@@ -324,7 +324,7 @@ public:
 	 * Merge another HyperLogLogPlus into this. Converts to normal representation
 	 * @param other
 	 */
-	void merge(HyperLogLogPlus* other) {
+	void merge(HyperLogLogPlus<T>* other) {
 		if (this->p != other->p) {
 			throw std::invalid_argument("precisions must be equal");
 		}
@@ -485,7 +485,7 @@ private:
 		if (rawEstimateTable.back()  <= estimate) { return rawEstimateTable.back() - biasTable.back(); }
 	
 		// get iterator to first element that is not smaller than estimate
-		iterator it = lower_bound(rawEstimateTable.begin(),rawEstimateTable.end(),estimate);
+		vector<double>::const_iterator it = lower_bound(rawEstimateTable.begin(),rawEstimateTable.end(),estimate);
 		size_t pos = it - rawEstimateTable.begin();
 
 		double e1 = rawEstimateTable[pos-1];
@@ -527,7 +527,7 @@ private:
 	struct idx_n_rank {
 		uint32_t idx;
 		uint8_t rank;
-		idx_n_rank(uint32_t index, uint8_t rank) : idx(idx), rank(rank) {}
+		idx_n_rank(uint32_t _idx, uint8_t _rank) : idx(_idx), rank(_rank) {}
 	};
 
 	//
@@ -541,7 +541,7 @@ private:
 	idx_n_rank decodeHash(uint32_t k)  {
 
 		// check if the last bit is 1
-		if (k&1 == 1) {
+		if ( (k & 1) == 1) {
 			// if yes: the hash was stored with higher precision, bits p to pPrime were 0
 			uint8_t pp = p + pPrime;
 			return(idx_n_rank((uint32_t)extractBits(k, 32, 32 - this->p), // first p bits are the index
