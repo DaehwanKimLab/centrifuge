@@ -23,6 +23,7 @@
 #include <string.h>
 #include <iostream>
 #include <stdlib.h>     /* exit, EXIT_FAILURE */
+#include <bitset>
 #include "assert_helpers.h"
 #include "alphabet.h"
 #include "random_source.h"
@@ -1822,6 +1823,14 @@ public:
 	}
 
 	/**
+	 * Retrieve constant version of element i.
+	 */
+	const T* get_ptr(size_t i) const {
+		assert_lt(i, len_);
+		return cs_+i;
+	}
+
+	/**
 	 * Copy 'sz' bytes from buffer 'b' into this string.
 	 */
 	virtual void install(const T* b, size_t sz) {
@@ -2856,9 +2865,9 @@ public:
 				installChars(str);
 			}
 		} else {
-			//FIXME FB: Commented install(str) as it does not conform with the function definition
+			//FIXME FB: Commented out install(str) as it does not conform with the function definition
 			//install(str);
-			exit(62);
+			throw std::invalid_argument("chars=false, colors=false not implemented");
 		}
 	}
 
@@ -3070,6 +3079,69 @@ public:
 		assert_range(0, 4, (int)this->cs_[idx]);
 		return "ACGTN"[(int)this->cs_[idx]];
 	}
+//
+//	// call with uint32_t or uint64_t
+//	template<typename T>
+//	T* uint_kmers (size_t begin, size_t end) {
+//		size_t t_size = sizeof(T) * 8;
+//		assert_lt(end, this->len_);
+//		end = min(end, this->len_-1);
+//
+//		// number of kmers: ceiling of len / t_size
+//		size_t n_kmers = ((end-begin) % t_size) ? 
+//			(end-begin) / t_size + 1 : 
+//			(end-begin) / t_size;
+//		T kmers [n_kmers];
+//
+//		// go through _cs in steps of t_size (16 or 32 for uint32_t and uint64_t, resp)
+//		for(size_t i = 0; i <= end; i += t_size) {
+//
+//			// each step gives one word / kmer
+//			T word = 0;
+//			int bp = (int)this->cs_[begin+i+j];
+//			assert_range(0, 3, (int)bp);
+//
+//			// create bitmask, and combine word with new bitmask
+//			T shift = (T)j << 1;
+//			word |= (bp << shift);
+//			if (i % t_size == 0) {
+//				kmers[i] = word;
+//				word
+//			}
+//		}
+//	}
+//
+	// update word to the next kmer
+	template<typename UINT>
+	UINT next_kmer(UINT word, size_t pos) {
+		// shift the first two bits off the word
+		word = word << 2;
+
+		//cerr << "ACGT"[this->cs_[pos]] << ": ";
+		// put the base-pair code from pos at that position
+		UINT bp = (UINT)this->cs_[pos];
+		return (word |= bp);
+	}
+
+	// get kmer of appropriate size from cs_
+	template<typename UINT>
+	UINT int_kmer(size_t begin,size_t end) {
+		const size_t k_size = sizeof(UINT) * 4;  // size of the kmer, two bits are used per nucleotide
+		assert_lt(end, this->len_);
+
+		UINT word = 0;
+		// go through _cs until end or kmer-size is reached
+		for (int j = 0; j < k_size && (size_t)(begin+j) < end; j++) {
+				int bp = (int)this->cs_[begin+j];
+				assert_range(0, 3, (int)bp);
+				UINT shift = (UINT)(k_size - j - 1) << 1;
+				UINT bp_shift = bp << shift;
+				//cerr << "ACGT"[ bp ] << ":" << bitset<k_size*2>(bp) << " " << shift << " " << bitset<k_size*2>(bp << shift) << endl ;
+				word |= (bp << shift);
+		}
+		//cerr << endl;
+		return (word);
+	}
 
 	/**
 	 * Retrieve constant version of element i.
@@ -3175,7 +3247,7 @@ public:
 		}
 	}
 
-	virtual ~SDnaMaskString() { } // C++ needs this
+	virtual ~SDnaMaskString() { }
 
 	/**
 	 * Copy 'sz' bytes from buffer 'b' into this string, reverse-
