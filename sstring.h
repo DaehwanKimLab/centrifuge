@@ -3113,7 +3113,7 @@ public:
 //
 	// update word to the next kmer
 	template<typename UINT>
-	UINT next_kmer(UINT word, size_t pos) {
+	UINT next_kmer(UINT word, size_t pos) const {
 		// shift the first two bits off the word
 		word = word << 2;
 
@@ -3125,7 +3125,7 @@ public:
 
 	// get kmer of appropriate size from cs_
 	template<typename UINT>
-	UINT int_kmer(size_t begin,size_t end) {
+	UINT int_kmer(size_t begin,size_t end) const {
 		const size_t k_size = sizeof(UINT) * 4;  // size of the kmer, two bits are used per nucleotide
 		assert_leq(end, this->len_);
 

@@ -1734,7 +1734,7 @@ struct PerfMetrics {
 		const OuterLoopMetrics *ol,
 		const WalkMetrics *wl,
 		const ReportingMetrics *rm,
-		SpeciesMetrics *sm,
+		const SpeciesMetrics *sm,
 		uint64_t nbtfiltst_,
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_,

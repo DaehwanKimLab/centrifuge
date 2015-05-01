@@ -123,7 +123,7 @@ public:
 #endif
 
             // TODO: Is it the best thing to use patFw, here?
-            BTDnaString btdna = this->_rds[rdi]->patFw;
+            BTDnaString* btdna = &(this->_rds[rdi]->patFw);
 
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
@@ -169,6 +169,7 @@ public:
                     // add hit to species map and get new score for the species
                     uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, addWeight);
 
+                    // add all kmers to the species map
 					sink.speciesMetricsPtr()->addAllKmers(speciesID, btdna, partialHit._bwoff,partialHit.len());
 
 #ifndef NDEBUG //FB

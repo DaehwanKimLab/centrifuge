@@ -52,15 +52,15 @@ struct SpeciesMetrics {
 
 	void reset() {
 		species_counts.clear();
-		for(map<uint32_t, HyperLogLogPlus<uint64_t> >::iterator it = this->species_kmers.begin(); it != this->species_kmers.end(); ++it) {
-			it->second.reset();
-		}
+		//for(map<uint32_t, HyperLogLogPlusMinus<uint64_t> >::iterator it = this->species_kmers.begin(); it != this->species_kmers.end(); ++it) {
+		//	it->second.reset();
+		//} //TODO: is this required?
 		species_kmers.clear();
 	}
 
 	void init(
 		map<uint32_t,uint32_t> species_counts_,
-		map<uint32_t,HyperLogLogPlus<uint64_t> > species_kmers_)
+		map<uint32_t,HyperLogLogPlusMinus<uint64_t> > species_kmers_)
 	{
 		species_counts = species_counts_;
 		species_kmers = species_kmers_;
@@ -71,7 +71,7 @@ struct SpeciesMetrics {
 	 * into this object.  This is the only safe way to update a
 	 * ReportingMetrics shared by multiple threads.
 	 */
-	void merge(SpeciesMetrics& met, bool getLock = false) {
+	void merge(const SpeciesMetrics& met, bool getLock = false) {
         ThreadSafe ts(&mutex_m, getLock);
 
         // update species read count
@@ -84,8 +84,7 @@ struct SpeciesMetrics {
         }
 
         // update species k-mers
-        for(map<uint32_t, HyperLogLogPlus<uint64_t> >::iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
-
+        for(map<uint32_t, HyperLogLogPlusMinus<uint64_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
         	species_kmers[it->first].merge(&(it->second));
         }
 
@@ -95,15 +94,15 @@ struct SpeciesMetrics {
 		++species_counts[species];
 	}
 
-	void addAllKmers(uint32_t species, BTDnaString btdna, size_t begin, size_t len) {
+	void addAllKmers(uint32_t species, const BTDnaString *btdna, size_t begin, size_t len) {
 #ifndef NDEBUG //FB
 		//cerr << "add all kmers for " << species << " from " << begin << " for " << len << endl;
 #endif
-		uint64_t kmer = btdna.int_kmer<uint64_t>(begin,begin+len);
+		uint64_t kmer = btdna->int_kmer<uint64_t>(begin,begin+len);
 		species_kmers[species].add(kmer);
 		size_t i = begin;
 		while (i+32 < len) {
-			kmer = btdna.next_kmer(kmer,i);
+			kmer = btdna->next_kmer(kmer,i);
 			species_kmers[species].add(kmer);
 			++i;
 		}
@@ -114,7 +113,7 @@ struct SpeciesMetrics {
 	}
 
 	map<uint32_t,uint32_t> species_counts;          // read count per species
-	map<uint32_t,HyperLogLogPlus<uint64_t> > species_kmers;    // unique k-mer count per species
+	map<uint32_t,HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
 
 	MUTEX_T mutex_m;
 };

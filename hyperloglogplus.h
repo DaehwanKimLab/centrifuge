@@ -11,7 +11,6 @@
 #define HYPERLOGLOGPLUS_H_
 
 #include<set>
-#include<list>
 #include<vector>
 #include<stdexcept>
 #include<iostream>
@@ -28,7 +27,7 @@ using namespace std;
 #define arr_len(a) (a + sizeof a / sizeof a[0])
 
 // experimentally determined threshold values for  p - 4
-const uint32_t threshold[] = {10, 20, 40, 80, 220, 400, 900, 1800, 3100,
+static const uint32_t threshold[] = {10, 20, 40, 80, 220, 400, 900, 1800, 3100,
 							  6500, 11500, 20000, 50000, 120000, 350000};
 
 
@@ -191,38 +190,56 @@ uint32_t clz_log2(const uint64_t w) {
 // Also, using sets might give a larger overhead as each insertion costs more
 //  consider using vector and sort/unique when merging.
 typedef set<uint32_t> SparseListType;
-typedef set<uint32_t> TmpSetType;
 typedef uint64_t HashSize;
 
 /**
- * HyperLogLogPlus class
+ * HyperLogLogPlusMinus class
  * typename T corresponds to the hash size - usually either uint32_t or uint64_t (implemented for uint64_t)
  */
+
+typedef uint64_t T_KEY;
 template <typename T_KEY>
-class HyperLogLogPlus {
+class HyperLogLogPlusMinus {
+
+private:
+
+	vector<uint8_t> M;  // registers (M) of size m
+	uint8_t p;            // precision
+	uint32_t m;           // number of registers
+	bool sparse;          // sparse representation of the data?
+	SparseListType sparseList; // TODO: use a compressed list instead
+
+	// vectors containing data for bias correction
+	vector<vector<double> > rawEstimateData; // TODO: make this static
+	vector<vector<double> > biasData;
+
+	// sparse versions of p and m
+	static const uint8_t  pPrime = 25; // precision when using a sparse representation
+	static const uint32_t mPrime = 1 << (pPrime -1); // 2^pPrime
+
+
 public:
 
-	~HyperLogLogPlus() {};
+	~HyperLogLogPlusMinus() {};
 
-	HyperLogLogPlus() : p(10), sparse(true) {
+	HyperLogLogPlusMinus() : p(10), sparse(true) {
 		this->m = 1 << this->p;
 	}
 
 	/**
-	 * Create new HyperLogLogPlus counter
+	 * Create new HyperLogLogPlusMinus counter
 	 * @param precision
 	 * @param sparse
 	 */
-	HyperLogLogPlus(uint8_t precision, bool sparse=true) {
+	HyperLogLogPlusMinus(uint8_t precision, bool sparse=true) {
 		if (precision > 18 || precision < 4) {
 	        throw std::invalid_argument("precision (number of register = 2^precision) must be between 4 and 18");
 		}
 
 		this->p = precision;
 		this->m = 1 << precision;
-		this->M = vector<uint8_t>(m);
+		//this->M = vector<uint8_t>(m);
 		this->sparse = sparse;
-		this->tmpSet = TmpSetType();
 		this->sparseList = SparseListType(); // TODO: if SparseListType is changed, initialize with appropriate size
 	}
 
@@ -242,71 +259,26 @@ public:
 	void add(T_KEY item, size_t size) {
 
 		// compute hash for item
-//	    HashSize out[2];
-//	    uint32_t seed = 0;
-//	    MurmurHash3_x86_128((void *)item, size, seed, &out);
-//	    //MurmurHash3_x64_128((void *)item, size, seed, &out);
-//	    HashSize x = out[0];
-		//HashSize x = ranhash(item);
-		HashSize x = item;
+		HashSize x = murmurhash3_finalizer(item);
 	
-#ifdef DEBUG2
-		uint32_t y = encodeHash(x);
-		idx_n_rank ir = decodeHash(y);
-		cerr << bitset<64>(x) << " ~> " << bitset<32>(y) << " --> ["<< uint32_t(ir.idx) << "]["<< uint32_t(ir.rank)<<":"<<bitset<8>(ir.rank)<<"]" << endl;
-#endif
-
 		if (sparse) {
-			// sparse mode: put the encoded hash into tmpSet
-			tmpSet.insert(encodeHash(x));
+			// sparse mode: put the encoded hash into sparse list
+			this->sparseList.insert(encodeHash(x));
 
-			// if the temporary set is too large, merge it with the sparseList
-			if (tmpSet.size()*100 > m) {
-				mergeSparse();
-
-				// if the sparseList is too large, switch to normal (register) representation
-				if (sparseList.size() > m) {
-					toNormal();
-				}
+			// if the sparseList is too large, switch to normal (register) representation
+			if (this->sparseList.size() > this->m) {
+				switchToNormalRepresentation();
 			}
 		} else {
 			// normal mode
-			uint32_t idx = (uint32_t)extractBits(x, 64, 64-p); // get index: {x63,...,x64-p}
-			uint8_t rank = (uint8_t)clz(extractBits(x, 64-p, 1)) - p;         // get rank of w:  {x63-p,...,x0}
+			uint32_t idx =    (uint32_t)extractBits(x, 64, 64 - this->p); // get index: {x63,...,x64-p}
+			uint8_t rank = (uint8_t)clz(extractBits(x, 64 - this->p, 1)) - this->p;  // get rank of w:  {x63-p,...,x0}
 
-#ifdef DEBUG2
-			 cerr << bitset<64>(x) << " --> ["<< uint32_t(idx) << "]["<< uint32_t(rank)<<"]";
-#endif
-
-			if (rank > M[idx]) {
-#ifdef DEBUG2
-				 cerr << "i" << endl;
-#endif
-				M[idx] = rank;
-			} else {
-#ifdef DEBUG2
-				 cerr << "N" << endl;
-#endif
+			// update the register if current rank is bigger
+			if (rank > this->M[idx]) {
+				this->M[idx] = rank;
 			}
 		}
-		//cerr << "Added item, new cardinality: " << cardinality() << endl;
-	}
-
-
-	/**
-	 *	Merge tmpSet and sparseList in the sparse representation.
-	 *	  sparseList is compressed using a variable length and difference encoding
-	 *	  tmpSet is a list
-	 *
-	 *	Updates sparseList to contain all the values of sparseList and tmpSet,
-	 *	 for entries that were both in sparseList and tmpSet, the
-	 *	 entry with the higher nlz is taken
-	 *
-	 */
-	void mergeSparse() {
-		sparseList.insert(tmpSet.begin(),tmpSet.end());
-		tmpSet = TmpSetType();
-
 	}
 
 	/**
@@ -314,7 +286,6 @@ public:
 	 */
 	void reset() {
 		this->sparse = true;
-		this->tmpSet.clear();      //  TODO: if these types are changes, initialize with appropriate size
 		this->sparseList.clear();  // 
 		this->M.clear();
 	}
@@ -322,58 +293,50 @@ public:
 	/**
 	 * Convert from sparse representation (using tmpSet and sparseList) to normal (using register)
 	 */
-	void toNormal() {
-		if (tmpSet.size() > 0) {
-			mergeSparse();
-		}
-
+	void switchToNormalRepresentation() {
 		this->M = vector<uint8_t>(this->m);
+		addToRegisters(this->sparseList);
+		this->sparse = false;
+		this->sparseList.clear();
+	}
+
+	void addToRegisters(const SparseListType &sparseList) {
 		for (SparseListType::const_iterator it = sparseList.begin(); it != sparseList.end(); ++it) {
 			idx_n_rank ir = decodeHash(*it);
 			if (this->M[ir.idx] < ir.rank) {
 				this->M[ir.idx] = ir.rank;
 			}
 		}
-
-		this->sparse = false;
-		this->tmpSet.clear();
-		this->sparseList.clear();
 	}
 
-
 	/**
-	 * Merge another HyperLogLogPlus into this. Converts to normal representation
+	 * Merge another HyperLogLogPlusMinus into this. Converts to normal representation
 	 * @param other
 	 */
-	void merge(const HyperLogLogPlus<T_KEY>* other) {
+	void merge(const HyperLogLogPlusMinus* other) {
 		if (this->p != other->p) {
 			throw std::invalid_argument("precisions must be equal");
 		}
 
-
-		if (sparse) {
-			toNormal();
-		}
-
-		if (other->sparse) {
-			for (TmpSetType::const_iterator k = other->tmpSet.begin(); k != other->tmpSet.end(); ++k) {
-				idx_n_rank ir = other->decodeHash(*k);
-				if (M[ir.idx] < ir.rank) {
-					M[ir.idx] = ir.rank;
-				}
+		if (this->sparse && other->sparse) {
+			if (this->sparseList.size()+other->sparseList.size() > this->m) {
+				switchToNormalRepresentation();
+				addToRegisters(other->sparseList);
+			} else {
+				this->sparseList.insert(other->sparseList.begin(),other->sparseList.end());
 			}
-
-			for (SparseListType::const_iterator iter = other->sparseList.begin();
-					iter != other->sparseList.end(); ++iter) {
-				idx_n_rank ir = other->decodeHash(*iter);
-				if (M[ir.idx] < ir.rank) {
-					M[ir.idx] = ir.rank;
-				}
-			}
+		} else if (other->sparse) {
+			// other is sparse, but this is not
+			addToRegisters(other->sparseList);
 		} else {
-			for (size_t i = 0; i <= other->M.size(); ++i) {
-				if (other->M[i] > M[i]) {
-					M[i] = other->M[i];
+			if (this->sparse) {
+				switchToNormalRepresentation();
+			}
+
+			// merge registers
+			for (size_t i = 0; i < other->M.size(); ++i) {
+				if (other->M[i] > this->M[i]) {
+					this->M[i] = other->M[i];
 				}
 			}
 		}
@@ -385,56 +348,40 @@ public:
 	 */
 	uint64_t cardinality() {
 		if (sparse) {
-			mergeSparse();
-
 			// if we are still 'sparse', then use linear counting, which is more
-			//  accurate for low cardinalities
+			//  accurate for low cardinalities, and use increased precision pPrime
 			return uint64_t(linearCounting(mPrime, mPrime-uint32_t(sparseList.size())));
 		}
 
-		if (rawEstimateData.empty()) {
-			initRawEstimateData();
-		}
-		if (biasData.empty()) {
-			initBiasData();
-		}
+		// initialize bias correction data
+		if (rawEstimateData.empty()) { initRawEstimateData(); }
+		if (biasData.empty())        { initBiasData(); }
 
-		// normal
+		// calculate raw estimate on registers
 		double est = calculateEstimate(M, m);
-#ifdef DEBUG1
-		cerr << "est is " << est << endl;
-#endif
+
+		// correct for biases if estimate is smaller than 5m
 		if (est <= double(m)*5.0) {
-#ifdef DEBUG1
-			cerr << "subtracting bias " << getEstimateBias(est) << endl;
-#endif
 			est -= getEstimateBias(est);
 		}
 
 		uint32_t v = countZeros(M);
-#ifdef DEBUG1
-		cerr << "m=" << m << "; v=" << v << "; M.size=" << M.size() << endl;
-#endif
 		if (v != 0) {
-			// calculate linear counting estimate
-			double lc = linearCounting(m, v);
-#ifdef DEBUG1
-			cerr << "lc=" << lc << endl;
-#endif
-			if (lc <= double(threshold[p-4])) {
-				if (lc < 0) {
-					cerr << "lc smaller then 0 - do something" << endl;
+			// calculate linear counting (lc) estimate if there are zeros in the matrix
+			double lc_estimate = linearCounting(m, v);
+
+			// check if the lc estimate is below the threshold
+			if (lc_estimate <= double(threshold[p-4])) {
+				assert_geq(lc_estimate,0);
+				if (lc_estimate < 0) {
+					throw;
 				}
-#ifdef DEBUG1
-				cerr << "returning lc " << lc << endl;
-#endif
-				// use it is it is smaller than the threshold
-				return uint64_t(lc);
+				// return lc estimate of cardinality
+				return lc_estimate;
 			}
 		}
-#ifdef DEBUG1
-		cerr << "returning est " << est << endl;
-#endif
+
+		// return bias-corrected hyperloglog estimate of cardinality
 		return uint64_t(est);
 	}
 
@@ -577,22 +524,6 @@ private:
 			));
 		}
 	}
-
-private:
-
-	vector<uint8_t> M;  // registers (M) of size m
-	uint8_t p;            // precision
-	uint32_t m;           // number of registers
-	bool sparse;          // sparse representation of the data?
-	TmpSetType tmpSet;
-	SparseListType sparseList; // TODO: use a compressed list instead
-
-	vector<vector<double> > rawEstimateData;
-	vector<vector<double> > biasData;
-
-	// sparse versions of p and m
-	static const uint8_t  pPrime = 25; // precision when using a sparse representation
-	static const uint32_t mPrime = 1 << (pPrime -1); // 2^pPrime
 
 	
 };
