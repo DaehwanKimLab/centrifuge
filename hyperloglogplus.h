@@ -202,6 +202,8 @@ template <typename T_KEY>
 class HyperLogLogPlus {
 public:
 
+	~HyperLogLogPlus() {};
+
 	HyperLogLogPlus() : p(10), sparse(true) {
 		this->m = 1 << this->p;
 	}

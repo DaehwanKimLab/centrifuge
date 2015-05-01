@@ -52,6 +52,9 @@ struct SpeciesMetrics {
 
 	void reset() {
 		species_counts.clear();
+		for(map<uint32_t, HyperLogLogPlus<uint64_t> >::iterator it = this->species_kmers.begin(); it != this->species_kmers.end(); ++it) {
+			it->second.reset();
+		}
 		species_kmers.clear();
 	}
 
@@ -68,7 +71,7 @@ struct SpeciesMetrics {
 	 * into this object.  This is the only safe way to update a
 	 * ReportingMetrics shared by multiple threads.
 	 */
-	void merge(const SpeciesMetrics& met, bool getLock = false) {
+	void merge(SpeciesMetrics& met, bool getLock = false) {
         ThreadSafe ts(&mutex_m, getLock);
 
         // update species read count
@@ -81,10 +84,9 @@ struct SpeciesMetrics {
         }
 
         // update species k-mers
-        for(map<uint32_t, HyperLogLogPlus<uint64_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
+        for(map<uint32_t, HyperLogLogPlus<uint64_t> >::iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
 
-        	const HyperLogLogPlus<uint64_t>* other = &(it->second);
-        	species_kmers[it->first].merge(other);
+        	species_kmers[it->first].merge(&(it->second));
         }
 
     }
@@ -492,7 +494,6 @@ public:
 				mixed,
 				hadoopOut);
 		}
-		// TODO: print species metrics!
 	}
 
 #ifndef NDEBUG
