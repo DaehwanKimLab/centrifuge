@@ -300,9 +300,16 @@ public:
 		this->sparseList.clear();
 	}
 
+	/**
+	 * add sparseList to the registers of M
+	 */
 	void addToRegisters(const SparseListType &sparseList) {
 		for (SparseListType::const_iterator it = sparseList.begin(); it != sparseList.end(); ++it) {
 			idx_n_rank ir = decodeHash(*it);
+			assert_lt(ir.idx,M.size());
+#ifndef NDEBUG
+			cerr << "ir.idx = " << ir.idx << endl;
+#endif
 			if (this->M[ir.idx] < ir.rank) {
 				this->M[ir.idx] = ir.rank;
 			}

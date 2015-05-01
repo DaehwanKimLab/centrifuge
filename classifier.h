@@ -169,12 +169,12 @@ public:
                     // add hit to species map and get new score for the species
                     uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, addWeight);
 
-                    // add all kmers to the species map
-					sink.speciesMetricsPtr()->addAllKmers(speciesID, btdna, partialHit._bwoff,partialHit.len());
-
 #ifndef NDEBUG //FB
                     std::cerr <<  genusID << '/' << speciesID << ';';
 #endif
+
+                    // add all kmers to the species map
+					sink.speciesMetricsPtr()->addAllKmers(speciesID, btdna, partialHit._bwoff,partialHit.len());
 
                     if(newScore > bestScore) {
                         secondBestScore = bestScore;

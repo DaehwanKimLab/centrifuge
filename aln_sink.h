@@ -96,7 +96,7 @@ struct SpeciesMetrics {
 
 	void addAllKmers(uint32_t species, const BTDnaString *btdna, size_t begin, size_t len) {
 #ifndef NDEBUG //FB
-		//cerr << "add all kmers for " << species << " from " << begin << " for " << len << endl;
+		cerr << "add all kmers for " << species << " from " << begin << " for " << len << endl;
 #endif
 		uint64_t kmer = btdna->int_kmer<uint64_t>(begin,begin+len);
 		species_kmers[species].add(kmer);
