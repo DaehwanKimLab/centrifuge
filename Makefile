@@ -165,7 +165,8 @@ RELEASE_FLAGS  = -O3 $(BITS_FLAG) $(SSE_FLAG) -funroll-loops -g3
 RELEASE_DEFS   = -DCOMPILER_OPTIONS="\"$(RELEASE_FLAGS) $(EXTRA_FLAGS)\""
 NOASSERT_FLAGS = -DNDEBUG
 FILE_FLAGS     = -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE
-CFLAGS         = -fdiagnostics-color=always
+CFLAGS         = 
+#CFLAGS         = -fdiagnostics-color=always
 
 ifeq (1,$(USE_SRA))
 	ifeq (1, $(MACOS))
