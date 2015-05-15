@@ -797,6 +797,7 @@ public:
            WalkMetrics&             wlm,
            PerReadMetrics&          prm,
            HIMetrics&               him,
+		   SpeciesMetrics&          spm,
            RandomSource&            rnd,
            AlnSinkWrap<index_t>&    sink) = 0;
     

@@ -27,10 +27,12 @@ struct SpeciesCount {
     uint32_t id;
     uint32_t count;
     uint32_t weightedCount;
+    float weightedRead;
     uint32_t timeStamp;
     
     void reset() {
         id = count = weightedCount = timeStamp = 0;
+        weightedRead = 0.0;
     }
 };
 
@@ -38,12 +40,14 @@ struct GenusCount {
     uint32_t id;
     uint32_t count;
     uint32_t weightedCount;
+    float weightedRead;
     uint32_t timeStamp;
     EList<SpeciesCount> speciesMap;
     
     void reset() {
         id = count = weightedCount = timeStamp = 0;
         speciesMap.clear();
+        weightedRead = 0.0;
     }
 };
 
@@ -87,6 +91,7 @@ public:
            WalkMetrics&             wlm,
            PerReadMetrics&          prm,
            HIMetrics&               him,
+		   SpeciesMetrics&          spm,
            RandomSource&            rnd,
            AlnSinkWrap<index_t>&    sink)
     {
@@ -119,7 +124,7 @@ public:
             hit._partialHits.sort(compareBWTHits());
             
 #ifndef NDEBUG //FB
-            std::cerr <<  this->_rds[rdi]->name << '\t';
+            std::cerr <<  this->_rds[rdi]->name << " [offset size:" << offsetSize << "]:";
 #endif
 
             // TODO: Is it the best thing to use patFw, here?
@@ -144,13 +149,12 @@ public:
 
                 // scoring function: calculate the weight of this partial hit
 				// TODO test divide by n_genomes
-                uint32_t addWeight = (uint32_t)((hit_len - 15) * (hit_len - 15));
+                uint32_t addWeight = (uint32_t)((hit_len - 15) * (hit_len - 15))/coords.size();
 
                 assert_gt(coords.size(), 0);
                 if(genomeHitCnt + coords.size() > maxGenomeHitSize) {
                     coords.shufflePortion(0, coords.size(), rnd);
                 }
-
                 
                 // go through all coordinates reported for partial hit
                 for(index_t k = 0; k < coords.size() && genomeHitCnt < maxGenomeHitSize; k++, genomeHitCnt++) {
@@ -170,11 +174,11 @@ public:
                     uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, addWeight);
 
 #ifndef NDEBUG //FB
-                    std::cerr <<  genusID << '/' << speciesID << ';';
+                    std::cerr << speciesID << ';';
 #endif
 
                     // add all kmers to the species map
-					sink.speciesMetricsPtr()->addAllKmers(speciesID, btdna, partialHit._bwoff,partialHit.len());
+					spm.addAllKmers(speciesID, btdna, partialHit._bwoff,partialHit.len());
 
                     if(newScore > bestScore) {
                         secondBestScore = bestScore;
@@ -189,25 +193,34 @@ public:
                 
                 // FIXME FB: Benchmark the effect of this statement
                 bool last_round = rdi == (this->_paired ? 1 : 0);
-                if (last_round && bestScore > secondBestScore + (totalHitLength[hit._fw == 0] - usedPortion - 15) * (totalHitLength[hit._fw == 0] - usedPortion - 15)) {
-                    break ;
-                }
-            } // offsetSize
+                //if (last_round && bestScore > secondBestScore + (totalHitLength[hit._fw == 0] - usedPortion - 15) * (totalHitLength[hit._fw == 0] - usedPortion - 15)) {
+                //    break ;
+                //}
+
 #ifndef NDEBUG //FB
-            std::cerr <<  std::endl;
+            std::cerr << "  partialHits-done";
+#endif
+            } // partialHits
+#ifndef NDEBUG //FB
+            std::cerr << "  rdi-done" << endl;
 #endif
         } // rdi
         
 #if 1
+        bool is_unique = false;
         for(size_t gi = 0; gi < _genusMap.size(); gi++) {
             assert_gt(_genusMap[gi].weightedCount, 0);
             GenusCount& genusCount = _genusMap[gi];
-            uint32_t speciesWeightedCount = 0;
             uint32_t speciesID = 0xffffffff;
             for(size_t mi = 0; mi < genusCount.speciesMap.size(); mi++) {
                 speciesID = genusCount.speciesMap[mi].id; assert_neq(speciesID, 0xffffffff);
-                speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
+                uint32_t speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
+                float speciesWeigthedRead = genusCount.speciesMap[mi].weightedRead;
                 
+                spm.addSpeciesCounts(speciesID,
+                		speciesWeightedCount,
+						speciesWeigthedRead,
+						is_unique);
                 // report
                 AlnScore asc(genusCount.weightedCount + speciesWeightedCount);
                 AlnRes rs;

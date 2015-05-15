@@ -222,24 +222,18 @@ public:
 
 	~HyperLogLogPlusMinus() {};
 
-	HyperLogLogPlusMinus() : p(10), sparse(true) {
-		this->m = 1 << this->p;
-	}
-
 	/**
 	 * Create new HyperLogLogPlusMinus counter
 	 * @param precision
 	 * @param sparse
 	 */
-	HyperLogLogPlusMinus(uint8_t precision, bool sparse=true) {
+	HyperLogLogPlusMinus(uint8_t precision=10, bool sparse=true):p(precision),sparse(sparse) {
 		if (precision > 18 || precision < 4) {
 	        throw std::invalid_argument("precision (number of register = 2^precision) must be between 4 and 18");
 		}
 
-		this->p = precision;
 		this->m = 1 << precision;
 		//this->M = vector<uint8_t>(m);
-		this->sparse = sparse;
 		this->sparseList = SparseListType(); // TODO: if SparseListType is changed, initialize with appropriate size
 	}
 

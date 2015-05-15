@@ -40,6 +40,13 @@ enum {
 };
 
 
+struct ReadCounts {
+	uint32_t n_reads;
+	uint32_t sum_score;
+	float weighted_reads;
+	uint32_t n_unique_reads;
+};
+
 
 /**
  * Metrics summarizing the species level information we have
@@ -59,7 +66,7 @@ struct SpeciesMetrics {
 	}
 
 	void init(
-		map<uint32_t,uint32_t> species_counts_,
+		map<uint32_t,ReadCounts> species_counts_,
 		map<uint32_t,HyperLogLogPlusMinus<uint64_t> > species_kmers_)
 	{
 		species_counts = species_counts_;
@@ -75,11 +82,14 @@ struct SpeciesMetrics {
         ThreadSafe ts(&mutex_m, getLock);
 
         // update species read count
-        for(map<uint32_t,uint32_t>::const_iterator it = met.species_counts.begin(); it != met.species_counts.end(); ++it) {
+        for(map<uint32_t,ReadCounts>::const_iterator it = met.species_counts.begin(); it != met.species_counts.end(); ++it) {
         	if (species_counts.find(it->first) == species_counts.end()) {
         		species_counts[it->first] = it->second;
         	} else {
-        		species_counts[it->first] += it->second;
+        		species_counts[it->first].n_reads += it->second.n_reads;
+        		species_counts[it->first].sum_score += it->second.sum_score;
+        		species_counts[it->first].weighted_reads += it->second.weighted_reads;
+        		species_counts[it->first].n_unique_reads += it->second.n_unique_reads;
         	}
         }
 
@@ -90,13 +100,18 @@ struct SpeciesMetrics {
 
     }
 
-	void addSpecies(uint32_t species) {
-		++species_counts[species];
+	void addSpeciesCounts(uint32_t species, uint32_t score, float weighted_read, bool is_unique) {
+		species_counts[species].n_reads += 1;
+		species_counts[species].sum_score += score;
+		species_counts[species].weighted_reads += weighted_read;
+		if (is_unique) {
+			species_counts[species].n_unique_reads += 1;
+		}
 	}
 
 	void addAllKmers(uint32_t species, const BTDnaString *btdna, size_t begin, size_t len) {
 #ifndef NDEBUG //FB
-		cerr << "add all kmers for " << species << " from " << begin << " for " << len << endl;
+		cerr << "add all kmers for " << species << " from " << begin << " for " << len << ": " << string(btdna->toZBuf()).substr(begin,len) << endl;
 #endif
 		uint64_t kmer = btdna->int_kmer<uint64_t>(begin,begin+len);
 		species_kmers[species].add(kmer);
@@ -112,7 +127,7 @@ struct SpeciesMetrics {
 		return(species_kmers[species].cardinality());
 	}
 
-	map<uint32_t,uint32_t> species_counts;          // read count per species
+	map<uint32_t,ReadCounts> species_counts;          // read count per species
 	map<uint32_t,HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
 
 	MUTEX_T mutex_m;
@@ -375,7 +390,8 @@ public:
 		oq_(oq),
 		refnames_(refnames),
 		quiet_(quiet)
-	{ }
+	{
+	}
 
 	/**
 	 * Destroy HitSinkobject;
@@ -555,9 +571,8 @@ public:
 	/**
 	 * Merge given metrics in with ours by summing all individual metrics.
 	 */
-	void mergeMetrics(const ReportingMetrics& met, SpeciesMetrics& smet, bool getLock = true) {
+	void mergeMetrics(const ReportingMetrics& met, bool getLock = true) {
 		met_.merge(met, getLock);
-		smet_.merge(smet, getLock);
 	}
 
 	/**
@@ -567,10 +582,6 @@ public:
 		return oq_;
 	}
 
-	SpeciesMetrics* speciesMetricsPtr() {
-		return &smet_;
-	}
-
 protected:
 
 	OutputQueue&       oq_;           // output queue
@@ -578,7 +589,6 @@ protected:
 	const StrList&     refnames_;     // reference names
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReportingMetrics   met_;          // global repository of reporting metrics
-	SpeciesMetrics     smet_;         // global repository of species metrics
 };
 
 /**
@@ -818,7 +828,7 @@ public:
     
     const ReportingParams& reportingParams() { return rp_;}
 	
-    SpeciesMetrics* speciesMetricsPtr() { return g_.speciesMetricsPtr(); }
+    SpeciesMetrics& speciesMetrics() { return g_.speciesMetrics(); }
 	
 	/**
 	 * Return true iff at least two alignments have been reported so far for an
@@ -1816,8 +1826,6 @@ void AlnSinkSam<index_t>::appendMate(
     }
     o.append('\t');
 
-    sm.addSpecies(rs->speciesID());
-//    map<uint32_t,uint32_t> sc = sm.species_counts;
 //    (sc[rs->speciesID_])++;
 
     // genus ID

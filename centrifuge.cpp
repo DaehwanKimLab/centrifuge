@@ -1990,7 +1990,7 @@ struct PerfMetrics {
 		if(o != NULL) { o->writeChars(buf); o->write('\t'); }
 
 		const ReportingMetrics& rp = total ? rpm : rpmu;
-		// const SpeciesMetrics& sp = total ? spm : spmu; // TODO: do something with sp
+		//const SpeciesMetrics& sp = total ? spm : spmu; // TODO: do something with sp
 
 		// 8. Paired reads
 		itoa10<uint64_t>(rp.npaired, buf);
@@ -2270,7 +2270,7 @@ static inline void printEEScoreMsg(
 
 
 #define MERGE_METRICS(met, sync) { \
-	msink.mergeMetrics(rpm,spm); \
+	msink.mergeMetrics(rpm); \
 	met.merge( \
 		&olm, \
 		&wlm, \
@@ -2339,7 +2339,9 @@ static void multiseedSearchWorker(void *vp) {
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
+	PerReadMetrics prm;
 	SpeciesMetrics spm;
+
 	RandomSource rnd, rndArb;
 	uint64_t nbtfiltst = 0; // TODO: find a new home for these
 	uint64_t nbtfiltsc = 0; // TODO: find a new home for these
@@ -2374,8 +2376,6 @@ static void multiseedSearchWorker(void *vp) {
   	PerfMetrics metricsPt; // per-thread metrics object; for read-level metrics
 	BTString nametmp;
 	
-	PerReadMetrics prm;
-    
 	// Used by thread with threadid == 1 to measure time elapsed
 	time_t iTime = time(0);
     
@@ -2636,7 +2636,7 @@ static void multiseedSearchWorker(void *vp) {
                     classifier.initRead(rds[0], nofw[0], norc[0], minsc[0], maxpen[0], filt[1]);
                 }
                 if(filt[0] || filt[1]) {
-                    classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, rnd, msinkwrap);
+                    classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, spm, rnd, msinkwrap);
                     size_t mate = 0;
                     if(!done[mate]) {
                         TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
@@ -3038,12 +3038,14 @@ static void driver(
 			cerr << "report file" << endl;
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
-			map<uint32_t,uint32_t> species_count = metrics.spmu.species_counts;
-			reportOfb << "name" << '\t' << "taxid" << '\t' << "length" << '\t' << "reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << endl;
-			for (map<uint32_t,uint32_t>::const_iterator it = species_count.begin(); it != species_count.end(); ++it) {
+			SpeciesMetrics spm = metrics.spmu;
+			reportOfb << "name" << '\t' << "taxid" << '\t' << "length" << '\t' << "n_reads" << '\t' << "n_unique_reads"
+					  << '\t' << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << endl;
+			for (map<uint32_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 				uint32_t taxid = it->first;
 				reportOfb << taxidToNameLen[taxid].first << '\t' << taxid << '\t' << taxidToNameLen[taxid].second << '\t'
-						  << it->second << '\t' << mssink->speciesMetricsPtr()->nDistinctKmers(taxid) << '\t' << "sum_score" << endl;
+						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t' << it->second.weighted_reads << '\t'
+						  << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << endl;
 				reportOfb << it->first;
 
 			}
