@@ -752,7 +752,7 @@ static void printUsage(ostream& out) {
 		<< "  --no-overlap       not concordant when mates overlap at all" << endl
 		<< endl
 		<< "Score:" << endl
-		<< "  --min-hit-length <int>  minimum length of hits (default "<<minHitLen<<", must be greater than 15)" << endl
+		<< "  --min-hitlen <int>  minimum length of hits (default "<<minHitLen<<", must be greater than 15)" << endl
 		<< endl
 	    << " Output:" << endl;
 	//if(wrapper == "basic-0") {
@@ -3039,14 +3039,22 @@ static void driver(
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics spm = metrics.spmu;
-			reportOfb << "name" << '\t' << "taxid" << '\t' << "length" << '\t' << "n_reads" << '\t' << "n_unique_reads"
-					  << '\t' << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << endl;
+			reportOfb << "name" << '\t' << "taxid" << '\t' << "n_genomes" << '\t'
+					  << "idx_size" << '\t'  << "avg_genome_size" << '\t'
+					  << "n_reads" << '\t' << "n_unique_reads" << '\t'
+					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << endl;
 			for (map<uint32_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 				uint32_t taxid = it->first;
-				reportOfb << taxidToNameLen[taxid].first << '\t' << taxid << '\t' << taxidToNameLen[taxid].second << '\t'
+
+				// extract name, average genome size, and number of genomes from istringstream
+				string name,avg_size,n_genomes;
+				istringstream name_size_n(taxidToNameLen[taxid].first);
+				name_size_n >> name >> avg_size >> n_genomes;
+
+				reportOfb << name << '\t' << taxid << '\t'  << n_genomes << '\t'
+						  << taxidToNameLen[taxid].second << '\t' << avg_size << '\t'
 						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t' << it->second.weighted_reads << '\t'
 						  << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << endl;
-				reportOfb << it->first;
 
 			}
 			reportOfb.close();
