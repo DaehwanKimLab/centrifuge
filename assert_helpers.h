@@ -276,4 +276,8 @@ inline static void assert_range_helper(const T& begin,
 #define assert_range(b, e, v)
 #endif
 
+// define a macro to indicate variables that are only required for asserts
+// used to make production build happy, i.e. disable "warning: variable ‘x’ set but not used [-Wunused-but-set-variable]"
+#define _unused(x) ((void)x)
+
 #endif /*ASSERT_HELPERS_H_*/

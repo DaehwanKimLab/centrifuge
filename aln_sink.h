@@ -1311,6 +1311,7 @@ void AlnSinkWrap<index_t>::finishRead(
 				off = selectAlnsToReport(rs_, nconcord, select_, rnd);
 			}
 			assert_lt(off, rs_.size());
+			_unused(off); // make production build happy
 			assert(!select_.empty());
 			g_.reportHits(
 						  obuf_,

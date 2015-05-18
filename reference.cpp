@@ -490,6 +490,7 @@ int BitPairReference::getStretch(
 		off += recs_[i].len;
 		assert(off == cumRefOff_[i+1] || cumRefOff_[i+1] == 0);
 		assert(!binarySearched || toff < off);
+		_unused(binarySearched); //make production build happy
 		if(toff < off) {
 			if(firstStretch) {
 				if(toff + 8 < off && count > 8) {
@@ -566,6 +567,7 @@ int BitPairReference::getStretch(
 		}
 		if(count == 0) break;
 		assert_eq(recs_[i].len, bufOff - origBufOff);
+		_unused(origBufOff); // make production build happy
 		assert_geq(toff, off);
 	} // end for loop over records
 	// In any chars are left after scanning all the records,
