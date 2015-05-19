@@ -109,19 +109,27 @@ struct SpeciesMetrics {
 		}
 	}
 
-	void addAllKmers(uint32_t species, const BTDnaString *btdna, size_t begin, size_t len) {
+	void addAllKmers(uint32_t species, const BTDnaString &btdna, size_t begin, size_t len) {
 #ifndef NDEBUG //FB
-		cerr << "add all kmers for " << species << " from " << begin << " for " << len << ": " << string(btdna->toZBuf()).substr(begin,len) << endl;
+		cerr << "add all kmers for " << species << " from " << begin << " for " << len << ": " << string(btdna.toZBuf()).substr(begin,len) << endl;
 #endif
-		uint64_t kmer = btdna->int_kmer<uint64_t>(begin,begin+len);
+		uint64_t kmer = btdna.int_kmer<uint64_t>(begin,begin+len);
 		species_kmers[species].add(kmer);
 		size_t i = begin;
 		while (i+32 < len) {
-			kmer = btdna->next_kmer(kmer,i);
+			kmer = btdna.next_kmer(kmer,i);
 			species_kmers[species].add(kmer);
 			++i;
 		}
 	}
+
+
+//	void addAllKmers(uint32_t species, const vector<uint64_t>& kmers) {
+//#ifndef NDEBUG //FB
+//		cerr << "add all kmers vec " << endl;
+//#endif
+//		species_kmers[species].add(kmers);
+//	}
 
 	size_t nDistinctKmers(uint32_t species) {
 		return(species_kmers[species].cardinality());
@@ -421,7 +429,8 @@ public:
 		const AlnSetSumm&     summ,
 		const PerReadMetrics& prm,
 		SpeciesMetrics& sm,
-		bool                  report2) = 0;
+		bool report2,
+		size_t n_results) = 0;
 
 	/**
 	 * Report a given batch of hits for the given read or read pair.
@@ -455,7 +464,7 @@ public:
         for(size_t i = 0; i < select1.size(); i++) {
             AlnRes* r1 = ((rs1 != NULL) ? &rs1->get(select1[i]) : NULL);
             AlnRes* r2 = ((rs2 != NULL) ? &rs2->get(select1[i]) : NULL);
-            append(o, threadId, rd1, rd2, rdid, r1, r2, summ, prm, sm, true);
+            append(o, threadId, rd1, rd2, rdid, r1, r2, summ, prm, sm, true, select1.size());
         }
 	}
 
@@ -1013,10 +1022,11 @@ public:
 		const AlnSetSumm& summ,    // summary
 		const PerReadMetrics& prm, // per-read metrics
 		SpeciesMetrics& sm,  // species metrics
-		bool report2)              // report alns for both mates
+		bool report2,              // report alns for both mates
+		size_t n_results)          // number of results for read
 	{
 		assert(rd1 != NULL || rd2 != NULL);
-        appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, prm, sm);
+        appendMate(o, *rd1, rd2, rdid, rs1, rs2, summ, prm, sm, n_results);
 	}
 
 protected:
@@ -1035,7 +1045,8 @@ protected:
 		AlnRes* rso,
 		const AlnSetSumm& summ,
         const PerReadMetrics& prm, // per-read metrics
-		SpeciesMetrics& sm   // species metrics
+		SpeciesMetrics& sm,   // species metrics
+		size_t n_results
 		);
 
 
@@ -1446,8 +1457,6 @@ bool AlnSinkWrap<index_t>::report(int stage,
     st_.foundConcordant();
     rs_.push_back(*rs);
 
-
-
 	// Tally overall alignment score
 	TAlScore score = rs->score().score();
 	// Update best score so far
@@ -1810,7 +1819,8 @@ void AlnSinkSam<index_t>::appendMate(
 									 AlnRes* rso,
 									 const AlnSetSumm& summ,
 									 const PerReadMetrics& prm,
-									 SpeciesMetrics& sm
+									 SpeciesMetrics& sm,
+									 size_t n_results
 									 )
 {
 	if(rs == NULL) {
@@ -1826,6 +1836,10 @@ void AlnSinkSam<index_t>::appendMate(
         o.append(rd.name[i]);
     }
     o.append('\t');
+
+	cerr << " read.sink:" << rd.patFw.toZBuf() << endl;
+
+	sm.addSpeciesCounts(rs->speciesID(),1,1.0/n_results,n_results==1);
 
 //    (sc[rs->speciesID_])++;
 
