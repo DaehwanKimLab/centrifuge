@@ -20,6 +20,7 @@
 #ifndef CLASSIFIER_H_
 #define CLASSIFIER_H_
 
+#include <algorithm>
 #include "hi_aligner.h"
 #include "util.h"
 
@@ -127,16 +128,19 @@ public:
             std::cerr <<  this->_rds[rdi]->name << " [offset size:" << offsetSize << "]:";
 #endif
 
-            // TODO: Is it the best thing to use patFw, here?
-            BTDnaString* btdna = &(this->_rds[rdi]->patFw);
-
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
 
-                size_t hit_len = hit.getPartialHit(hi).len();
+                size_t hitLen = hit.getPartialHit(hi).len();
+
+#ifndef NDEBUG //FB
+            	std::cerr << "[offset "<<hi<<",len "<<hitLen<<"]";
+#endif
+
                 // only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
-                if(hit_len < _minHitLen)
+				// TODO: consider not requiring minHitLen when we have already hits to the same genome
+                if(hitLen < _minHitLen)
                     continue;
 
                 // get all coordinates of the hit
@@ -144,41 +148,72 @@ public:
                         maxGenomeHitSize, wlm, prm, him);
                 if (coords.empty()) continue;
 
-                usedPortion += hit_len;
+                usedPortion += hitLen;
 				BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
 
-                // scoring function: calculate the weight of this partial hit
-				// TODO test divide by n_genomes
-                uint32_t addWeight = (uint32_t)((hit_len - 15) * (hit_len - 15))/coords.size();
-
                 assert_gt(coords.size(), 0);
-                if(genomeHitCnt + coords.size() > maxGenomeHitSize) {
+
+				// the maximum number of hits per read is maxGenomeHitSize (change with parameter -k)
+				size_t nHitsToConsider = coords.size();
+
+				if (genomeHitCnt + coords.size() > maxGenomeHitSize) {
                     coords.shufflePortion(0, coords.size(), rnd);
+					nHitsToConsider = maxGenomeHitSize - genomeHitCnt;
                 }
                 
-                // go through all coordinates reported for partial hit
-                for(index_t k = 0; k < coords.size() && genomeHitCnt < maxGenomeHitSize; k++, genomeHitCnt++) {
+                // find the genome id for all coordinates, and count the number of genomes
+                size_t n_genomes = nHitsToConsider;
+                vector<uint64_t> coord_ids(nHitsToConsider);
+                for (index_t k = 0; k < nHitsToConsider; ++k, ++genomeHitCnt) {
                     const Coord& coord = coords[k] ;
-                    assert_lt(coord.ref(), _refnames.size());
+
+                    assert_lt(coord.ref(), _refnames.size()); // gives a warning - coord.ref() is signed integer. why?
 
                     // extract numeric id from refName
                     const string& refName = _refnames[coord.ref()];
                     uint64_t id = extractIDFromRefName(refName);
+
+                    // count the genome if it is not in coord_ids, yet
+                    if (k > 0 && std::find(coord_ids.begin(), coord_ids.begin()+k+1, id)!=coord_ids.begin()+k+1) {
+                    	--n_genomes;
+                    }
+
+                    // add to coord_ids
+                    coord_ids[k] = id;
+                }
+
+                // scoring function: calculate the weight of this partial hit
+                assert_gt(hitLen,15);
+				assert_gt(n_genomes,0);
+
+
+                uint32_t hitScore = (uint32_t)((hitLen - 15) * (hitLen - 15))/n_genomes;
+                double hitReadFrac = double(hitLen)/double(n_genomes);
+
+#ifndef NDEBUG //FB
+                std::cerr <<  "[n-genomes:" << n_genomes << ",hit-score:"<<hitScore<<",read-frac:"<<hitReadFrac<<"]:";
+#endif
+
+                // go through all coordinates reported for partial hit
+                for(index_t k = 0; k < nHitsToConsider; ++k) {
+                    uint64_t id = coord_ids[k];
+
                     uint32_t speciesID = (uint32_t)(id >> 32);
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
 
                     // add hit to genus map and get new index in the map
-                    size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, addWeight);
+                    size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, hitScore);
 
                     // add hit to species map and get new score for the species
-                    uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, addWeight);
+                    uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, hitScore);
 
 #ifndef NDEBUG //FB
                     std::cerr << speciesID << ';';
 #endif
 
                     // add all kmers to the species map
-					spm.addAllKmers(speciesID, btdna, partialHit._bwoff,partialHit.len());
+                    const BTDnaString& seq = hit._fw ? this->_rds[rdi]->patFw : this->_rds[rdi]->patRc;
+                    spm.addAllKmers(speciesID, seq, partialHit._bwoff,partialHit.len());
 
                     if(newScore > bestScore) {
                         secondBestScore = bestScore;
@@ -206,6 +241,10 @@ public:
 #endif
         } // rdi
         
+#ifndef NDEBUG //FB
+            std::cerr << "looking at "<<_genusMap.size() << " genus hits" << endl;
+#endif
+
 #if 1
         bool is_unique = false;
         for(size_t gi = 0; gi < _genusMap.size(); gi++) {
@@ -217,10 +256,6 @@ public:
                 uint32_t speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
                 float speciesWeigthedRead = genusCount.speciesMap[mi].weightedRead;
                 
-                spm.addSpeciesCounts(speciesID,
-                		speciesWeightedCount,
-						speciesWeigthedRead,
-						is_unique);
                 // report
                 AlnScore asc(genusCount.weightedCount + speciesWeightedCount);
                 AlnRes rs;
