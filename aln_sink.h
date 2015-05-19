@@ -1837,9 +1837,11 @@ void AlnSinkSam<index_t>::appendMate(
     }
     o.append('\t');
 
-	cerr << " read.sink:" << rd.patFw.toZBuf() << endl;
-
 	sm.addSpeciesCounts(rs->speciesID(),1,1.0/n_results,n_results==1);
+
+	for (size_t i = 0; i< rs->nReadPositions(); ++i) {
+		sm.addAllKmers(rs->speciesID(), rs->isFw()? rd.patFw : rd.patRc, rs->readPositions(i).first, rs->readPositions(i).second);
+	}
 
 //    (sc[rs->speciesID_])++;
 

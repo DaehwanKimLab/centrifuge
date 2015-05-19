@@ -22,6 +22,7 @@
 
 #include <utility>
 #include <limits>
+#include <vector>
 #include "mem_ids.h"
 #include "ref_coord.h"
 #include "read.h"
@@ -215,6 +216,8 @@ public:
         score_ = other.score_;
         speciesID_ = other.speciesID_;
         genusID_ = other.genusID_;
+		readPositions_ = other.readPositions_;
+		isFw_ = other.isFw_;
     }
     
     AlnRes& operator=(const AlnRes& other) {
@@ -222,6 +225,8 @@ public:
         score_ = other.score_;
         speciesID_ = other.speciesID_;
         genusID_ = other.genusID_;
+		readPositions_ = other.readPositions_;
+		isFw_ = other.isFw_;
         return *this;
     }
     
@@ -233,6 +238,7 @@ public:
 	void reset() {
         score_.invalidate();
         speciesID_ = genusID_ = 0;
+		readPositions_.clear();
     }
     
 	/**
@@ -245,6 +251,13 @@ public:
 	AlnScore           score()          const { return score_;     }
     uint32_t           speciesID()      const { return speciesID_; }
     uint32_t           genusID()        const { return genusID_;   }
+
+	const vector<pair<uint32_t,uint32_t> >* readPositionsPtr() const { return &readPositions_; }
+
+	const pair<uint32_t,uint32_t> readPositions(size_t i) const { return readPositions_[i]; }
+	size_t nReadPositions() const { return readPositions_.size(); }
+
+	bool               isFw()           const { return isFw_;      }
     
     EList<Edit>&       ned()                  { return ned_;      }
 
@@ -297,18 +310,24 @@ public:
 	void init(
               AlnScore score,           // alignment score
               uint32_t speciesID,
-              uint32_t genusID)
+              uint32_t genusID,
+			  vector<pair<uint32_t, uint32_t> > readPositions,
+			  bool isFw)
     {
         score_  = score;
         speciesID_ = speciesID;
         genusID_ = genusID;
+		readPositions_ = readPositions;
+		isFw_ = isFw;
     }
 
 protected:
 	AlnScore     score_;        // best SW score found
     uint32_t     speciesID_;
     uint32_t     genusID_;
-    
+	bool         isFw_;
+  
+	vector<pair<uint32_t, uint32_t> > readPositions_;
     EList<Edit>  ned_;          // base edits
 };
 

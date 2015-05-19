@@ -21,6 +21,7 @@
 #define CLASSIFIER_H_
 
 #include <algorithm>
+#include <vector>
 #include "hi_aligner.h"
 #include "util.h"
 
@@ -30,10 +31,13 @@ struct SpeciesCount {
     uint32_t weightedCount;
     float weightedRead;
     uint32_t timeStamp;
+
+	vector<pair<uint32_t,uint32_t> > readPositions;
     
     void reset() {
         id = count = weightedCount = timeStamp = 0;
         weightedRead = 0.0;
+		readPositions.clear();
     }
 };
 
@@ -102,6 +106,7 @@ public:
         size_t bestScore = 0, secondBestScore = 0;
         const ReportingParams& rp = sink.reportingParams();
         const index_t maxGenomeHitSize = rp.khits;
+		bool isFw = false;
 
 
         // for each mate. only called once for unpaired data
@@ -116,6 +121,7 @@ public:
             index_t totalHitLength[2] = {0, 0};
             ReadBWTHit<index_t>& hit = getForwardOrReverseHit(rdi, totalHitLength);
             assert(hit.done());
+			isFw = hit._fw;  // TODO: Sync between mates!
 
             // choose candidate partial alignments for further alignment
             index_t offsetSize = hit.offsetSize();
@@ -205,15 +211,15 @@ public:
                     size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, hitScore);
 
                     // add hit to species map and get new score for the species
-                    uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, hitScore);
+                    uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, hitScore, partialHit._bwoff, partialHit.len());
 
 #ifndef NDEBUG //FB
                     std::cerr << speciesID << ';';
 #endif
 
                     // add all kmers to the species map
-                    const BTDnaString& seq = hit._fw ? this->_rds[rdi]->patFw : this->_rds[rdi]->patRc;
-                    spm.addAllKmers(speciesID, seq, partialHit._bwoff,partialHit.len());
+                    // const BTDnaString& seq = hit._fw ? this->_rds[rdi]->patFw : this->_rds[rdi]->patRc;
+                    // spm.addAllKmers(speciesID, seq, partialHit._bwoff,partialHit.len());
 
                     if(newScore > bestScore) {
                         secondBestScore = bestScore;
@@ -255,13 +261,15 @@ public:
                 speciesID = genusCount.speciesMap[mi].id; assert_neq(speciesID, 0xffffffff);
                 uint32_t speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
                 float speciesWeigthedRead = genusCount.speciesMap[mi].weightedRead;
-                
+               
                 // report
                 AlnScore asc(genusCount.weightedCount + speciesWeightedCount);
                 AlnRes rs;
                 rs.init(asc,
                         speciesID,
-                        genusCount.id);
+                        genusCount.id,
+						genusCount.speciesMap[mi].readPositions,
+						isFw);
                 sink.report(0, &rs);
             }
         }
@@ -500,7 +508,7 @@ std::cerr <<  partialHit.len() << ':';
     }
 
     // append a hit to species map or update entry
-    uint32_t addHitToSpeciesMap(GenusCount& genusCount, uint32_t speciesID, size_t hi, uint32_t addWeight) {
+    uint32_t addHitToSpeciesMap(GenusCount& genusCount, uint32_t speciesID, size_t hi, uint32_t addWeight, size_t offset, size_t length) {
 
         uint32_t newScore = 0;
         bool found = false;
@@ -512,6 +520,7 @@ std::cerr <<  partialHit.len() << ':';
                     genusCount.speciesMap[mi].count += 1;
                     genusCount.speciesMap[mi].weightedCount += addWeight;
                     genusCount.speciesMap[mi].timeStamp = hi;
+                    genusCount.speciesMap[mi].readPositions.push_back(make_pair(offset,length));
                     newScore = genusCount.weightedCount;
                 } else {
     #ifndef NDEBUG //FB
@@ -528,6 +537,8 @@ std::cerr <<  partialHit.len() << ':';
             genusCount.speciesMap.back().id = speciesID;
             genusCount.speciesMap.back().count = 1;
             newScore = genusCount.speciesMap.back().weightedCount = addWeight;
+            genusCount.speciesMap.back().readPositions = vector<pair<uint32_t,uint32_t> >(1);
+            genusCount.speciesMap.back().readPositions[0] = make_pair(offset,length);
             genusCount.speciesMap.back().timeStamp = hi;
         }
         return newScore;
