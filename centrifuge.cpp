@@ -3042,6 +3042,7 @@ static void driver(
 			reportOfb << "name" << '\t' << "taxid" << '\t' << "n_genomes" << '\t'
 					  << "idx_size" << '\t'  << "avg_genome_size" << '\t'
 					  << "n_reads" << '\t' << "n_unique_reads" << '\t'
+					  << "summed_hit_len" << '\t'
 					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << endl;
 			for (map<uint32_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 				uint32_t taxid = it->first;
@@ -3053,7 +3054,9 @@ static void driver(
 
 				reportOfb << name << '\t' << taxid << '\t'  << n_genomes << '\t'
 						  << taxidToNameLen[taxid].second << '\t' << avg_size << '\t'
-						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t' << it->second.weighted_reads << '\t'
+						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t'
+						  << it->second.summed_hit_len << '\t'
+						  << it->second.weighted_reads << '\t'
 						  << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << endl;
 
 			}
