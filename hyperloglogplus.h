@@ -275,6 +275,13 @@ public:
 		}
 	}
 
+
+	void add(vector<T_KEY> words) {
+		for(size_t i = 0; i < words.size(); ++i) {
+			this->add(words[i]);
+		}
+	}
+
 	/**
 	 * Reset to its initial state.
 	 */

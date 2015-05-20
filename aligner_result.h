@@ -216,6 +216,7 @@ public:
         score_ = other.score_;
         speciesID_ = other.speciesID_;
         genusID_ = other.genusID_;
+	summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
 		isFw_ = other.isFw_;
     }
@@ -225,6 +226,7 @@ public:
         score_ = other.score_;
         speciesID_ = other.speciesID_;
         genusID_ = other.genusID_;
+	summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
 		isFw_ = other.isFw_;
         return *this;
@@ -238,6 +240,7 @@ public:
 	void reset() {
         score_.invalidate();
         speciesID_ = genusID_ = 0;
+	summedHitLen_ = 0.0;
 		readPositions_.clear();
     }
     
@@ -251,6 +254,7 @@ public:
 	AlnScore           score()          const { return score_;     }
     uint32_t           speciesID()      const { return speciesID_; }
     uint32_t           genusID()        const { return genusID_;   }
+    double              summedHitLen()    const { return summedHitLen_; }
 
 	const vector<pair<uint32_t,uint32_t> >* readPositionsPtr() const { return &readPositions_; }
 
@@ -311,12 +315,14 @@ public:
               AlnScore score,           // alignment score
               uint32_t speciesID,
               uint32_t genusID,
+			  double summedHitLen,
 			  vector<pair<uint32_t, uint32_t> > readPositions,
 			  bool isFw)
     {
         score_  = score;
         speciesID_ = speciesID;
         genusID_ = genusID;
+        summedHitLen_ = summedHitLen;
 		readPositions_ = readPositions;
 		isFw_ = isFw;
     }
@@ -325,6 +331,7 @@ protected:
 	AlnScore     score_;        // best SW score found
     uint32_t     speciesID_;
     uint32_t     genusID_;
+    double       summedHitLen_; // sum of the length of all partial hits, divided by the number of genome matches
 	bool         isFw_;
   
 	vector<pair<uint32_t, uint32_t> > readPositions_;

@@ -28,31 +28,31 @@
 struct SpeciesCount {
     uint32_t id;
     uint32_t count;
-    uint32_t weightedCount;
-    float weightedRead;
+    uint32_t score;
+    double summedHitLen;  // sum of the length of all partial hits, divided by the number of genome matches
     uint32_t timeStamp;
 
 	vector<pair<uint32_t,uint32_t> > readPositions;
     
     void reset() {
-        id = count = weightedCount = timeStamp = 0;
-        weightedRead = 0.0;
-		readPositions.clear();
+        id = count = score = timeStamp = 0;
+        summedHitLen = 0.0;
+	readPositions.clear();
     }
 };
 
 struct GenusCount {
     uint32_t id;
     uint32_t count;
-    uint32_t weightedCount;
-    float weightedRead;
+    uint32_t score;
+    double summedHitLen;
     uint32_t timeStamp;
     EList<SpeciesCount> speciesMap;
     
     void reset() {
-        id = count = weightedCount = timeStamp = 0;
+        id = count = score = timeStamp = 0;
         speciesMap.clear();
-        weightedRead = 0.0;
+        summedHitLen = 0.0;
     }
 };
 
@@ -129,24 +129,16 @@ public:
             
             // sort partial hits by size (number of genome positions), ascending, and then length, descending
             hit._partialHits.sort(compareBWTHits());
-            
-#ifndef NDEBUG //FB
-            std::cerr <<  this->_rds[rdi]->name << " [offset size:" << offsetSize << "]:";
-#endif
 
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
-
-                size_t hitLen = hit.getPartialHit(hi).len();
-
-#ifndef NDEBUG //FB
-            	std::cerr << "[offset "<<hi<<",len "<<hitLen<<"]";
-#endif
+				const BWTHit<index_t> partialHit = hit.getPartialHit(hi);
+                size_t partialHitLen = partialHit.len();
 
                 // only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
-				// TODO: consider not requiring minHitLen when we have already hits to the same genome
-                if(hitLen < _minHitLen)
+		// TODO: consider not requiring minHitLen when we have already hits to the same genome
+                if(partialHitLen < _minHitLen)
                     continue;
 
                 // get all coordinates of the hit
@@ -154,8 +146,7 @@ public:
                         maxGenomeHitSize, wlm, prm, him);
                 if (coords.empty()) continue;
 
-                usedPortion += hitLen;
-				BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
+                usedPortion += partialHitLen;
 
                 assert_gt(coords.size(), 0);
 
@@ -168,9 +159,9 @@ public:
                 }
                 
                 // find the genome id for all coordinates, and count the number of genomes
-                size_t n_genomes = nHitsToConsider;
+                size_t n_genomes = coords.size();
                 vector<uint64_t> coord_ids(nHitsToConsider);
-                for (index_t k = 0; k < nHitsToConsider; ++k, ++genomeHitCnt) {
+                for(index_t k = 0; k < nHitsToConsider; k++, genomeHitCnt++) {
                     const Coord& coord = coords[k] ;
 
                     assert_lt(coord.ref(), _refnames.size()); // gives a warning - coord.ref() is signed integer. why?
@@ -189,16 +180,10 @@ public:
                 }
 
                 // scoring function: calculate the weight of this partial hit
-                assert_gt(hitLen,15);
-				assert_gt(n_genomes,0);
-
-
-                uint32_t hitScore = (uint32_t)((hitLen - 15) * (hitLen - 15))/n_genomes;
-                double hitReadFrac = double(hitLen)/double(n_genomes);
-
-#ifndef NDEBUG //FB
-                std::cerr <<  "[n-genomes:" << n_genomes << ",hit-score:"<<hitScore<<",read-frac:"<<hitReadFrac<<"]:";
-#endif
+                assert_gt(partialHitLen, 15);
+                assert_gt(n_genomes, 0);
+                uint32_t partialHitScore = (uint32_t)((partialHitLen - 15) * (partialHitLen - 15))/n_genomes;
+                double weightedHitLen = double(partialHitLen)/double(n_genomes);
 
                 // go through all coordinates reported for partial hit
                 for(index_t k = 0; k < nHitsToConsider; ++k) {
@@ -208,18 +193,15 @@ public:
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
 
                     // add hit to genus map and get new index in the map
-                    size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, hitScore);
+                    size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, partialHitScore, weightedHitLen);
 
                     // add hit to species map and get new score for the species
-                    uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID, hi, hitScore, partialHit._bwoff, partialHit.len());
+                    uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID,
+                    		hi, partialHitScore,weightedHitLen, partialHit._bwoff, partialHit.len());
 
 #ifndef NDEBUG //FB
                     std::cerr << speciesID << ';';
 #endif
-
-                    // add all kmers to the species map
-                    // const BTDnaString& seq = hit._fw ? this->_rds[rdi]->patFw : this->_rds[rdi]->patRc;
-                    // spm.addAllKmers(speciesID, seq, partialHit._bwoff,partialHit.len());
 
                     if(newScore > bestScore) {
                         secondBestScore = bestScore;
@@ -233,10 +215,12 @@ public:
                     break;
                 
                 // FIXME FB: Benchmark the effect of this statement
+#if 0
                 bool last_round = rdi == (this->_paired ? 1 : 0);
-                //if (last_round && bestScore > secondBestScore + (totalHitLength[hit._fw == 0] - usedPortion - 15) * (totalHitLength[hit._fw == 0] - usedPortion - 15)) {
-                //    break ;
-                //}
+                if (last_round && bestScore > secondBestScore + (totalHitLength[hit._fw == 0] - usedPortion - 15) * (totalHitLength[hit._fw == 0] - usedPortion - 15)) {
+                    break ;
+                }
+#endif
 
 #ifndef NDEBUG //FB
             std::cerr << "  partialHits-done";
@@ -247,27 +231,23 @@ public:
 #endif
         } // rdi
         
-#ifndef NDEBUG //FB
-            std::cerr << "looking at "<<_genusMap.size() << " genus hits" << endl;
-#endif
-
 #if 1
-        bool is_unique = false;
+
         for(size_t gi = 0; gi < _genusMap.size(); gi++) {
-            assert_gt(_genusMap[gi].weightedCount, 0);
+            assert_gt(_genusMap[gi].score, 0);
             GenusCount& genusCount = _genusMap[gi];
             uint32_t speciesID = 0xffffffff;
             for(size_t mi = 0; mi < genusCount.speciesMap.size(); mi++) {
                 speciesID = genusCount.speciesMap[mi].id; assert_neq(speciesID, 0xffffffff);
-                uint32_t speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
-                float speciesWeigthedRead = genusCount.speciesMap[mi].weightedRead;
-               
+                uint32_t speciesScore = genusCount.speciesMap[mi].score;
+                
                 // report
-                AlnScore asc(genusCount.weightedCount + speciesWeightedCount);
+                AlnScore asc(genusCount.score + speciesScore);
                 AlnRes rs;
                 rs.init(asc,
                         speciesID,
                         genusCount.id,
+						genusCount.speciesMap[mi].summedHitLen,
 						genusCount.speciesMap[mi].readPositions,
 						isFw);
                 sink.report(0, &rs);
@@ -275,14 +255,14 @@ public:
         }
 #else
         _tempTies.clear();
-        uint32_t genusWeightedCount = 0;
+        uint32_t genusScore = 0;
         for(size_t mi = 0; mi < _genusMap.size(); mi++) {
-            assert_gt(_genusMap[mi].weightedCount, 0);
-            if(_genusMap[mi].weightedCount > genusWeightedCount) {
-                genusWeightedCount = _genusMap[mi].weightedCount;
+            assert_gt(_genusMap[mi].score, 0);
+            if(_genusMap[mi].score > genusScore) {
+                genusScore = _genusMap[mi].score;
                 _tempTies.clear();
                 _tempTies.push_back((uint16_t)mi);
-            } else if(_genusMap[mi].weightedCount == genusWeightedCount) {
+            } else if(_genusMap[mi].score == genusScore) {
                 _tempTies.push_back((uint16_t)mi);
             }
         }
@@ -291,19 +271,19 @@ public:
             for(uint16_t gi = 0; gi < _tempTies.size(); gi++) {
                 assert_lt(_tempTies[gi], _genusMap.size());
                 GenusCount& genusCount = _genusMap[_tempTies[gi]];
-                uint32_t speciesWeightedCount = 0;
+                uint32_t speciesScore = 0;
                 uint32_t speciesID = 0xffffffff;
                 for(size_t mi = 0; mi < genusCount.speciesMap.size(); mi++) {
-                    if(genusCount.speciesMap[mi].weightedCount > speciesWeightedCount) {
+                    if(genusCount.speciesMap[mi].score > speciesScore) {
                         speciesID = genusCount.speciesMap[mi].id;
-                        speciesWeightedCount = genusCount.speciesMap[mi].weightedCount;
+                        speciesScore = genusCount.speciesMap[mi].score;
                     }
                 }
                 
                 assert_neq(speciesID, 0xffffffff);
                 
                 // report
-                AlnScore asc(genusCount.weightedCount + speciesWeightedCount);
+                AlnScore asc(genusCount.score + speciesScore);
                 AlnRes rs;
                 rs.init(asc,
                         speciesID,
@@ -480,14 +460,15 @@ std::cerr <<  partialHit.len() << ':';
 
 
     // append a hit to genus map or update entry
-    size_t addHitToGenusMap(EList<GenusCount> &genusMap, uint32_t genusID, size_t hi, uint32_t addWeight) {
+    size_t addHitToGenusMap(EList<GenusCount> &genusMap, uint32_t genusID, size_t hi, uint32_t partialHitScore, double weightedHitLen) {
         size_t genusIdx = 0;
 
         for(; genusIdx < genusMap.size(); ++genusIdx) {
             if(genusMap[genusIdx].id == genusID) {
                 if(genusMap[genusIdx].timeStamp != hi) {
                     genusMap[genusIdx].count += 1;
-                    genusMap[genusIdx].weightedCount += addWeight;
+                    genusMap[genusIdx].score += partialHitScore;
+                    genusMap[genusIdx].summedHitLen += weightedHitLen;
                     genusMap[genusIdx].timeStamp = hi;
                 }
                 break;
@@ -499,7 +480,8 @@ std::cerr <<  partialHit.len() << ':';
             genusMap.back().reset();
             genusMap.back().id = genusID;
             genusMap.back().count = 1;
-            genusMap.back().weightedCount = addWeight;
+            genusMap.back().score = partialHitScore;
+            genusMap[genusIdx].summedHitLen = weightedHitLen;
             genusMap.back().timeStamp = hi;
         }
 
@@ -508,7 +490,8 @@ std::cerr <<  partialHit.len() << ':';
     }
 
     // append a hit to species map or update entry
-    uint32_t addHitToSpeciesMap(GenusCount& genusCount, uint32_t speciesID, size_t hi, uint32_t addWeight, size_t offset, size_t length) {
+    uint32_t addHitToSpeciesMap(GenusCount& genusCount, uint32_t speciesID, size_t hi,
+    		uint32_t partialHitScore, double weightedHitLen, size_t offset, size_t length) {
 
         uint32_t newScore = 0;
         bool found = false;
@@ -518,10 +501,11 @@ std::cerr <<  partialHit.len() << ':';
                 found = true;
                 if(genusCount.speciesMap[mi].timeStamp != hi) {
                     genusCount.speciesMap[mi].count += 1;
-                    genusCount.speciesMap[mi].weightedCount += addWeight;
+                    genusCount.speciesMap[mi].score += partialHitScore;
+                    genusCount.speciesMap[mi].summedHitLen += weightedHitLen;
                     genusCount.speciesMap[mi].timeStamp = hi;
                     genusCount.speciesMap[mi].readPositions.push_back(make_pair(offset,length));
-                    newScore = genusCount.weightedCount;
+                    newScore = genusCount.speciesMap[mi].score;
                 } else {
     #ifndef NDEBUG //FB
                         std::cerr <<  "same hit!!";
@@ -536,11 +520,13 @@ std::cerr <<  partialHit.len() << ':';
             genusCount.speciesMap.back().reset();
             genusCount.speciesMap.back().id = speciesID;
             genusCount.speciesMap.back().count = 1;
-            newScore = genusCount.speciesMap.back().weightedCount = addWeight;
+            newScore = genusCount.speciesMap.back().score = partialHitScore;
+            genusCount.speciesMap.back().summedHitLen = weightedHitLen;
             genusCount.speciesMap.back().readPositions = vector<pair<uint32_t,uint32_t> >(1);
             genusCount.speciesMap.back().readPositions[0] = make_pair(offset,length);
             genusCount.speciesMap.back().timeStamp = hi;
-        }
+
+       }
         return newScore;
     }
 

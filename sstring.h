@@ -24,6 +24,7 @@
 #include <iostream>
 #include <stdlib.h>     /* exit, EXIT_FAILURE */
 #include <bitset>
+#include <vector>
 #include "assert_helpers.h"
 #include "alphabet.h"
 #include "random_source.h"
@@ -3111,7 +3112,12 @@ public:
 //		}
 //	}
 //
-	// update word to the next kmer
+	//
+	/**
+	 * update word to the next kmer by shifting off the first two bits, and shifting on the ones from pos
+	 * @param word
+	 * @param pos
+	 */
 	template<typename UINT>
 	UINT next_kmer(UINT word, size_t pos) const {
 		// shift the first two bits off the word
@@ -3123,7 +3129,11 @@ public:
 		return (word |= bp);
 	}
 
-	// get kmer of appropriate size from cs_
+	/**
+	 * get kmer of appropriate size from cs_
+	 * @param begin start position of kmrt
+	 * @param end end position of kmer
+	 */
 	template<typename UINT>
 	UINT int_kmer(size_t begin,size_t end) const {
 		const size_t k_size = sizeof(UINT) * 4;  // size of the kmer, two bits are used per nucleotide
@@ -3147,6 +3157,19 @@ public:
 		//cerr << endl;
 		return (word);
 	}
+
+	vector<uint64_t> get_all_kmers(size_t begin,size_t len,bool rev=false) const {
+		vector<uint64_t> kmers(max(1,31 - (int)len));
+		size_t i = begin;
+		size_t j = 1;
+		kmers[0] = this->int_kmer<uint64_t>(begin,begin+len, rev);
+		while (i+32 < len) {
+			kmers[j] = this->next_kmer(kmers[j-1],i, rev);
+			++i; ++j;
+		}
+		return kmers;
+	}
+
 
 	/**
 	 * Retrieve constant version of element i.

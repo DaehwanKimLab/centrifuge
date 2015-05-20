@@ -43,7 +43,8 @@ enum {
 struct ReadCounts {
 	uint32_t n_reads;
 	uint32_t sum_score;
-	float weighted_reads;
+	double summed_hit_len;
+	double weighted_reads;
 	uint32_t n_unique_reads;
 };
 
@@ -88,6 +89,7 @@ struct SpeciesMetrics {
         	} else {
         		species_counts[it->first].n_reads += it->second.n_reads;
         		species_counts[it->first].sum_score += it->second.sum_score;
+        		species_counts[it->first].summed_hit_len += it->second.summed_hit_len;
         		species_counts[it->first].weighted_reads += it->second.weighted_reads;
         		species_counts[it->first].n_unique_reads += it->second.n_unique_reads;
         	}
@@ -100,10 +102,11 @@ struct SpeciesMetrics {
 
     }
 
-	void addSpeciesCounts(uint32_t species, uint32_t score, float weighted_read, bool is_unique) {
+	void addSpeciesCounts(uint32_t species, uint32_t score, double summed_hit_len, double weighted_read, bool is_unique) {
 		species_counts[species].n_reads += 1;
 		species_counts[species].sum_score += score;
 		species_counts[species].weighted_reads += weighted_read;
+		species_counts[species].summed_hit_len += summed_hit_len;
 		if (is_unique) {
 			species_counts[species].n_unique_reads += 1;
 		}
@@ -122,14 +125,6 @@ struct SpeciesMetrics {
 			++i;
 		}
 	}
-
-
-//	void addAllKmers(uint32_t species, const vector<uint64_t>& kmers) {
-//#ifndef NDEBUG //FB
-//		cerr << "add all kmers vec " << endl;
-//#endif
-//		species_kmers[species].add(kmers);
-//	}
 
 	size_t nDistinctKmers(uint32_t species) {
 		return(species_kmers[species].cardinality());
@@ -1837,7 +1832,7 @@ void AlnSinkSam<index_t>::appendMate(
     }
     o.append('\t');
 
-	sm.addSpeciesCounts(rs->speciesID(),1,1.0/n_results,n_results==1);
+	sm.addSpeciesCounts(rs->speciesID(),1,rs->summedHitLen(),1.0/n_results,n_results==1);
 
 	for (size_t i = 0; i< rs->nReadPositions(); ++i) {
 		sm.addAllKmers(rs->speciesID(), rs->isFw()? rd.patFw : rd.patRc, rs->readPositions(i).first, rs->readPositions(i).second);
