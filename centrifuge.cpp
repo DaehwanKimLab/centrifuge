@@ -250,8 +250,9 @@ static EList<uint64_t> thread_rids;
 static MUTEX_T         thread_rids_mutex;
 static uint64_t        thread_rids_mindist;
 
-static uint32_t minHitLen;
-static string reportFile;
+static uint32_t minHitLen;   // minimum length of partial hits
+static string reportFile;    // file name of specices report file
+static uint32_t minTotalLen; // minimum summed length of partial hits per read
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -453,6 +454,7 @@ static void resetOptions() {
     no_spliced_alignment = false;
     rna_strandness = RNA_STRANDNESS_UNKNOWN;
     minHitLen = 22;
+    minTotalLen = 0;
     reportFile = "centrifuge-species_report.csv";
 }
 
@@ -648,6 +650,7 @@ static struct option long_options[] = {
     {(char*)"no-spliced-alignment",   no_argument, 0,        ARG_NO_SPLICED_ALIGNMENT},
     {(char*)"rna-strandness",   required_argument, 0,        ARG_RNA_STRANDNESS},
     {(char*)"min-hitlen",   required_argument, 0,        ARG_MIN_HITLEN},
+    {(char*)"min-totallen",   required_argument, 0,        ARG_MIN_TOTALLEN},
 	{(char*)"report-file",  required_argument, 0, ARG_REPORT_FILE},
 	{(char*)0, 0, 0, 0} // terminator
 };
@@ -752,7 +755,8 @@ static void printUsage(ostream& out) {
 		<< "  --no-overlap       not concordant when mates overlap at all" << endl
 		<< endl
 		<< "Score:" << endl
-		<< "  --min-hitlen <int>  minimum length of hits (default "<<minHitLen<<", must be greater than 15)" << endl
+		<< "  --min-hitlen <int>    minimum length of partial hits (default "<<minHitLen<<", must be greater than 15)" << endl
+		<< "  --min-totallen <int>  minimum summed length of partial hits per read (default "<<minTotalLen<<")" << endl
 		<< endl
 	    << " Output:" << endl;
 	//if(wrapper == "basic-0") {
@@ -1441,6 +1445,11 @@ static void parseOption(int next_option, const char *arg) {
         case ARG_MIN_HITLEN: {
             minHitLen = parseInt(15, "--min-hitlen arg must be at least 15", arg);
             break;
+        }
+        case ARG_MIN_TOTALLEN: {
+
+        	minTotalLen = parseInt(50, "--min-totallen arg must be at least 50", arg);
+        	break;
         }
         case ARG_REPORT_FILE: {
         	reportFile = arg;
@@ -2985,12 +2994,16 @@ static void driver(
 					BTString buf;
 					fout->writeString(buf);
 				}
+				// Write header for read-results file
+				fout->writeChars("ID\tgenusID\tspeciesID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
 				break;
 			}
 			default:
 				cerr << "Invalid output type: " << outType << endl;
 				throw 1;
 		}
+
+
 		if(gVerbose || startVerbose) {
 			cerr << "Dispatching to search driver: "; logTime(cerr, true);
 		}
@@ -3035,7 +3048,6 @@ static void driver(
 		// write the species report into the corresponding file
 		cerr << "report file " << reportFile << endl;
 		if (!reportFile.empty()) {
-			cerr << "report file" << endl;
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics spm = metrics.spmu;
