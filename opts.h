@@ -166,6 +166,7 @@ enum {
     ARG_SRA_ACC,
 #endif
     ARG_MIN_HITLEN,              //--min-hitlen
+    ARG_MIN_TOTALLEN,            //--min-totallen
 	ARG_REPORT_FILE,             //--report
 };
 
