@@ -1289,6 +1289,9 @@ void AlnSinkWrap<index_t>::finishRead(
 			g_.reportEmptySeedSummary(obuf_, *rd2_, rdid_, true);
 		}
 	}
+
+	// TODO FB: Cconsider counting species here, and allow to disable counting
+
 	if(!suppressAlignments) {
 		// Ask the ReportingState what to report
 		st_.finish();
@@ -1834,8 +1837,11 @@ void AlnSinkSam<index_t>::appendMate(
 
 	sm.addSpeciesCounts(rs->speciesID(),1,rs->summedHitLen(),1.0/n_results,n_results==1);
 
-	for (size_t i = 0; i< rs->nReadPositions(); ++i) {
-		sm.addAllKmers(rs->speciesID(), rs->isFw()? rd.patFw : rd.patRc, rs->readPositions(i).first, rs->readPositions(i).second);
+	// only count k-mers if the read is unique
+	if (n_results == 1) {
+		for (size_t i = 0; i< rs->nReadPositions(); ++i) {
+			sm.addAllKmers(rs->speciesID(), rs->isFw()? rd.patFw : rd.patRc, rs->readPositions(i).first, rs->readPositions(i).second);
+		}
 	}
 
 //    (sc[rs->speciesID_])++;
@@ -1865,9 +1871,15 @@ void AlnSinkSam<index_t>::appendMate(
     o.append('\t');
     
     // confidence
-    itoa10<int64_t>(0, buf);
+    sprintf(buf,"%.2f",rs->summedHitLen());
+    o.append(buf);
+    o.append('\t');
+
+    // number of results
+    itoa10<int64_t>(n_results, buf);
     o.append(buf);
     o.append('\n');
+
 }
 
 // #include <iomanip>
