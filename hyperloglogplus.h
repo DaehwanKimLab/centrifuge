@@ -41,11 +41,8 @@ static const uint32_t threshold[] = {10, 20, 40, 80, 220, 400, 900, 1800, 3100,
  * @return
  */
 double linearCounting(uint32_t m, uint32_t v) {
-#ifdef DEBUG1
-	cerr << "linear counting: m=" << m << ", v=" << v << endl;
-#endif
 	if (v > m) {
-		cerr << "v greater then m!!" << endl;
+	    throw std::invalid_argument("number of v should not be greater than m");
 	}
 	double fm = double(m);
 	return fm * log(fm/double(v));
@@ -233,8 +230,12 @@ public:
 		}
 
 		this->m = 1 << precision;
-		//this->M = vector<uint8_t>(m);
-		this->sparseList = SparseListType(); // TODO: if SparseListType is changed, initialize with appropriate size
+
+		if (sparse) {
+			this->sparseList = SparseListType(); // TODO: if SparseListType is changed, initialize with appropriate size
+		} else {
+			this->M = vector<uint8_t>(m);
+		}
 	}
 
 	/**
@@ -260,7 +261,7 @@ public:
 			this->sparseList.insert(encodeHash(x));
 
 			// if the sparseList is too large, switch to normal (register) representation
-			if (this->sparseList.size() > this->m) {
+			if (this->sparseList.size() > this->m) { // TODO: is the size of m correct?
 				switchToNormalRepresentation();
 			}
 		} else {
@@ -295,22 +296,24 @@ public:
 	 * Convert from sparse representation (using tmpSet and sparseList) to normal (using register)
 	 */
 	void switchToNormalRepresentation() {
-		this->M = vector<uint8_t>(this->m);
-		addToRegisters(this->sparseList);
 		this->sparse = false;
-		this->sparseList.clear();
+		this->M = vector<uint8_t>(this->m);
+		if (sparseList.size() > 0) { //TDOD: why do I need to ask this, here?
+			addToRegisters(this->sparseList);
+			this->sparseList.clear();
+		}
 	}
 
 	/**
 	 * add sparseList to the registers of M
 	 */
 	void addToRegisters(const SparseListType &sparseList) {
+		if (sparseList.size() == 0) {
+			return;
+		}
 		for (SparseListType::const_iterator it = sparseList.begin(); it != sparseList.end(); ++it) {
 			idx_n_rank ir = decodeHash(*it);
 			assert_lt(ir.idx,M.size());
-#ifndef NDEBUG
-			cerr << "ir.idx = " << ir.idx << endl;
-#endif
 			if (this->M[ir.idx] < ir.rank) {
 				this->M[ir.idx] = ir.rank;
 			}
