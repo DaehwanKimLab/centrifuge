@@ -137,9 +137,8 @@ public:
                 size_t partialHitLen = partialHit.len();
 
                 // only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
-		// TODO: consider not requiring minHitLen when we have already hits to the same genome
-                if(partialHitLen < _minHitLen)
-                    continue;
+                // TODO: consider not requiring minHitLen when we have already hits to the same genome
+                bool considerOnlyIfPreviouslyObserved = partialHitLen < _minHitLen;
 
                 // get all coordinates of the hit
                 EList<Coord>& coords = getCoords(hit, hi, ebwtFw, ref, rnd,
@@ -193,7 +192,12 @@ public:
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
 
                     // add hit to genus map and get new index in the map
-                    size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, partialHitScore, weightedHitLen);
+                    size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, partialHitScore, weightedHitLen, considerOnlyIfPreviouslyObserved);
+
+                    //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
+                    if (genusIdx >= _genusMap.size()) {
+                    	continue;
+                    }
 
                     // add hit to species map and get new score for the species
                     uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID,
@@ -460,7 +464,7 @@ std::cerr <<  partialHit.len() << ':';
 
 
     // append a hit to genus map or update entry
-    size_t addHitToGenusMap(EList<GenusCount> &genusMap, uint32_t genusID, size_t hi, uint32_t partialHitScore, double weightedHitLen) {
+    size_t addHitToGenusMap(EList<GenusCount> &genusMap, uint32_t genusID, size_t hi, uint32_t partialHitScore, double weightedHitLen, bool considerOnlyIfPreviouslyObserved) {
         size_t genusIdx = 0;
 
         for(; genusIdx < genusMap.size(); ++genusIdx) {
@@ -475,7 +479,7 @@ std::cerr <<  partialHit.len() << ':';
             }
         }
 
-        if(genusIdx >= genusMap.size()) {
+        if(genusIdx >= genusMap.size() && !considerOnlyIfPreviouslyObserved) {
             genusMap.expand();
             genusMap.back().reset();
             genusMap.back().id = genusID;
@@ -485,7 +489,8 @@ std::cerr <<  partialHit.len() << ':';
             genusMap.back().timeStamp = hi;
         }
 
-        assert_lt(genusIdx, genusMap.size());
+        //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
+        //assert_lt(genusIdx, genusMap.size());
         return genusIdx;
     }
 
