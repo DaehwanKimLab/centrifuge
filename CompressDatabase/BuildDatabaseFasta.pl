@@ -13,7 +13,7 @@ use File::Find;
 use Getopt::Long;
 use Cwd;
 
-my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-o compressed.fa -bss . -noCompress -t 1]\n" ;
+my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-o compressed.fa -bss . -noCompress -t 1 -maxG -1]\n" ;
 
 my $level = "species" ;
 my $output = "compressed.fa" ;
@@ -21,11 +21,13 @@ my $bssPath = $Bin; # take path of binary as script directory
 my $numOfThreads = 1 ;
 my $noCompress = 0 ;
 my $verbose = 0;
+my $maxGenomeSizeForCompression = -1 ;
 
 GetOptions ("level|l=s" => \$level,
 			"output|o=s" => \$output,
 			"bss=s" => \$bssPath,
 			"threads|t=i" => \$numOfThreads,
+			"maxG=i" => \$maxGenomeSizeForCompression, 
             "verbose|v" => \$verbose,
 			"noCompress" => \$noCompress)
 or die("Error in command line arguments. \n\n$usage");
@@ -60,8 +62,12 @@ my %speciesIdToName : shared ;
 print STDERR "Step 1: Collecting all .fna files in $path and getting gids\n";
 find ( sub {
     return unless -f;        # Must be a file
-    return unless /\.f[n]?a$/;  # Must end with `.fna` or `.fa` suffix
     return unless -s;        # Must be non-zero
+
+    if ( !( /\.f[nf]?a$/ || /\.ffn$/ || /\.fasta$/ ) )
+    {
+    	return ;
+    }
 
     my $fullfile = $File::Find::name; ## file with full path, but the CWD is actually the file's path
     my $file = $_; ## file name
@@ -70,23 +76,33 @@ find ( sub {
 	close FP2 ;
 	if ( $head =~ /^>gi\|([0-9]+)?\|/ ) {
 		my $gid = $1 ;
-		print "$gid $file\n" if $verbose;
+		print "gid=$gid $file\n" if $verbose;
+		if ( defined $gidUsed{ $gid } )
+		{
+			print "Repeated gid $gid\n" if $verbose ;
+			$fileUsed{ $fullfile } = 1 ;
+		}
+		else
+		{
+			$fileUsed{ $fullfile } = 0 ;
+			$gidToFile{ $gid } = $fullfile ;
+		}
+
 		$gidUsed{ $gid } = 1 ;
-		$gidToFile{ $gid } = $fullfile ;
-		$fileUsed{ $fullfile } = 0 ;
 	} elsif ( $head =~ /^>kraken:taxid\|([0-9]+)?\|/ ) {
 		my $tid = $1 ;
-		$gidUsed{ $tid } = 1 ;
-		$gidToFile{ $tid } = $fullfile ;
+		my $dummyGid = "centrifuge_gid_".$fullfile."_$1" ;
+		$gidUsed{ $dummyGid } = 1 ;
+		$gidToFile{ $dummyGid } = $fullfile ;
 		$fileUsed{ $fullfile } = 0 ;
-		push @{ $tidToGid{ $tid } }, $tid ;	
-
+		push @{ $tidToGid{ $tid } }, $dummyGid ;	
+		
+		print "tid=$tid $file\n" if $verbose;
 	} else {
 		print STDERR "Excluding $fullfile: Wrong header.\n";
 	}
 
 }, $path );
-
 
 # Extract the tid that are associated with the gids
 print STDERR "Step 2: Extract the taxonomy ids that are associated with the gids\n";
@@ -99,7 +115,7 @@ while ( <FP1> )
 	if ( defined( $gidUsed{ $cols[0] } ) )
 	{
 		push @{ $tidToGid{ $cols[1] } }, $cols[0] ;	
-		print $cols[0], " ", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" if $verbose;
+		print "gid=", $cols[0], " tid=", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" if $verbose;
 	}
 }
 close FP1 ;
@@ -273,7 +289,7 @@ sub solve
 #return ;
 # Build the sequence
 	my $seq = "" ;
-	if ( $noCompress == 0 && $genomeSize < 50000000 )
+	if ( $noCompress == 0 &&  ( $maxGenomeSizeForCompression < 0 || $genomeSize <= $maxGenomeSizeForCompression ) ) #$genomeSize < 50000000 )
 	{
 		system_call("perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id") ;
 
@@ -363,37 +379,16 @@ foreach (@threads)
 system_call("cat ${output}_* > tmp_output.fa");
 unlink glob("${output}_*");
 
-#Merge the unused files
-open FP2, ">>", "tmp_output.fa" ;
-my $seq = "" ;
-my $genomeSize = 0 ;
-my $k = 0 ;
+#print unused files
 foreach $i ( keys %fileUsed )
 {
 	if ( $fileUsed{ $i } == 0 )
 	{
 #print $i, "\n" ;
 #`cat $i >> tmp_output.fa` ;
-		my $speciesName ;
-		open FP1, $i ;
-
 		print "Unused file: $i\n" ;
-		while ( <FP1> )
-		{
-			chomp ;
-			next if ( /^>/ ) ;
-			$seq .= $_ ;
-		}
-		
-		close FP1 ;
-		$genomeSize += GetGenomeSize( $i ) ;
-		++$k ;
 	}
 }
-$genomeSize /= $k ;
-$genomeSize = int( $genomeSize ) ;
-print FP2 ">0 unknown_taxno_genomes $genomeSize $k\n$seq\n" ;
-close FP2 ;
 
 # Remove the Ns from the file
 system_call("$bssPath/RemoveN tmp_output.fa > $output") ;
