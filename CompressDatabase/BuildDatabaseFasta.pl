@@ -60,10 +60,9 @@ my %speciesIdToName : shared ;
 
 
 print STDERR "Step 1: Collecting all .fna files in $path and getting gids\n";
-find ( sub {
-    return unless -f;        # Must be a file
+find ( { wanted=>sub {
+    return unless -f  ;        # Must be a file
     return unless -s;        # Must be non-zero
-
     if ( !( /\.f[nf]?a$/ || /\.ffn$/ || /\.fasta$/ ) )
     {
     	return ;
@@ -102,7 +101,8 @@ find ( sub {
 		print STDERR "Excluding $fullfile: Wrong header.\n";
 	}
 
-}, $path );
+}, follow=>1 }, $path );
+
 
 # Extract the tid that are associated with the gids
 print STDERR "Step 2: Extract the taxonomy ids that are associated with the gids\n";
