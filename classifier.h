@@ -72,13 +72,15 @@ public:
      */
     Classifier(const Ebwt<index_t>& ebwt,
                const EList<string>& refnames,
+               const EList<uint32_t>& hostGenomes,
                index_t minHitLen = 22) :
     HI_Aligner<index_t, local_index_t>(
                                        ebwt,
                                        0,    // don't make use of splice sites found by earlier reads
                                        true), // no spliced alignment
     _refnames(refnames),
-    _minHitLen(minHitLen)
+    _minHitLen(minHitLen),
+    _hostGenomes(hostGenomes)
     {
     }
     
@@ -110,45 +112,48 @@ public:
         const ReportingParams& rp = sink.reportingParams();
         index_t maxGenomeHitSize = rp.khits;
 		bool isFw = false;
-
+        
+        //
+        uint32_t human_speciesID = 0, human_genusID = 0;
 
         // for each mate. only called once for unpaired data
         for(index_t rdi = 0; rdi < (this->_paired ? 2 : 1); rdi++) {
             assert(this->_rds[rdi] != NULL);
-
+            
             // search for partial hits on the forward and reverse strand (saved in this->_hits[rdi])
             searchForwardAndReverse(rdi, ebwtFw, sc, rnd, increment);
-
+            
             // get forward or reverse hits for this read from this->_hits[rdi]
             //  the strand is chosen based on higher average hit length in either direction
-	    int fwi = getForwardOrReverseHit( rdi ) ;
-	    if ( fwi == -1 )
-	    	return 0 ;
+            int fwi = getForwardOrReverseHit( rdi ) ;
+            if ( fwi == -1 )
+                return 0 ;
             ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi] ;
             assert(hit.done());
-	    isFw = hit._fw;  // TODO: Sync between mates!
-
+            isFw = hit._fw;  // TODO: Sync between mates!
+            
             // choose candidate partial alignments for further alignment
             index_t offsetSize = hit.offsetSize();
             this->_genomeHits.clear();
             
             // sort partial hits by size (number of genome positions), ascending, and then length, descending
-            for(size_t hi = 0; hi < offsetSize; hi++) 
-	    {
-		const BWTHit<index_t> partialHit = hit.getPartialHit(hi);
+            for(size_t hi = 0; hi < offsetSize; hi++)
+            {
+                const BWTHit<index_t> partialHit = hit.getPartialHit(hi);
 #ifdef LI_DEBUG
-		cout<<partialHit.len()<<" "<<partialHit.size()<<endl ;
+                cout<<partialHit.len()<<" "<<partialHit.size()<<endl ;
 #endif
-		if ( partialHit.len() >= _minHitLen && partialHit.size() > maxGenomeHitSize )
-		{
-			maxGenomeHitSize = partialHit.size() ;
-		}
-	    } 
+                if ( partialHit.len() >= _minHitLen && partialHit.size() > maxGenomeHitSize )
+                {
+                    maxGenomeHitSize = partialHit.size() ;
+                }
+            }
+            
 	    if ( maxGenomeHitSize > (index_t)rp.khits )
 	    	maxGenomeHitSize += rp.khits ;
 
             hit._partialHits.sort(compareBWTHits());
-
+            
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
@@ -206,9 +211,16 @@ public:
                 // go through all coordinates reported for partial hit
                 for(index_t k = 0; k < nHitsToConsider; ++k) {
                     uint64_t id = coord_ids[k];
-
+                    
                     uint32_t speciesID = (uint32_t)(id >> 32);
                     uint32_t genusID = (uint32_t)(id & 0xffffffff);
+                    
+                    if(_hostGenomes.size() > 0 &&
+                       _hostGenomes.back() == speciesID &&
+                       partialHit.len() >= 31) {
+                        human_speciesID = speciesID;
+                        human_genusID = genusID;
+                    }
 
                     // add hit to genus map and get new index in the map
                     size_t genusIdx = addHitToGenusMap(_genusMap, genusID, hi, partialHitScore, weightedHitLen, considerOnlyIfPreviouslyObserved);
@@ -220,17 +232,25 @@ public:
 
                     // add hit to species map and get new score for the species
                     uint32_t newScore = addHitToSpeciesMap(_genusMap[genusIdx],speciesID,
-                    		hi, partialHitScore,weightedHitLen, partialHit._bwoff, partialHit.len());
-
+                                                           hi, partialHitScore,weightedHitLen, partialHit._bwoff, partialHit.len());
+                    
 #ifndef NDEBUG //FB
                     std::cerr << speciesID << ';';
 #endif
-
-                    if(newScore > bestScore) {
-                        secondBestScore = bestScore;
-                        bestScore = newScore;
-                    } else if(newScore > secondBestScore) {
-                        secondBestScore = newScore;
+                    if(human_speciesID != 0) {
+                        if(human_speciesID == speciesID) {
+                            secondBestScore = bestScore;
+                            bestScore = newScore;
+                        } else if(newScore > secondBestScore) {
+                            secondBestScore = newScore;
+                        }
+                    } else {
+                        if(newScore > bestScore) {
+                            secondBestScore = bestScore;
+                            bestScore = newScore;
+                        } else if(newScore > secondBestScore) {
+                            secondBestScore = newScore;
+                        }
                     }
                 }
                 
@@ -259,6 +279,7 @@ public:
         for(size_t gi = 0; gi < _genusMap.size(); gi++) {
             assert_gt(_genusMap[gi].score, 0);
             GenusCount& genusCount = _genusMap[gi];
+            if(human_genusID != 0 && human_genusID != genusCount.id) continue;
             uint32_t speciesID = 0xffffffff;
             for(size_t mi = 0; mi < genusCount.speciesMap.size(); mi++) {
                 speciesID = genusCount.speciesMap[mi].id; assert_neq(speciesID, 0xffffffff);
@@ -369,6 +390,8 @@ private:
     index_t            _minHitLen;
     
     EList<uint16_t>    _tempTies;
+    
+    EList<uint32_t>    _hostGenomes;
 
     void searchForwardAndReverse(index_t rdi,
             const Ebwt<index_t>& ebwtFw, const Scoring& sc,
@@ -680,9 +703,6 @@ std::cerr <<  partialHit.len() << ':';
                         return false;
         }
     };
-
-
-
 };
 
 

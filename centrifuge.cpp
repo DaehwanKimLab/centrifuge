@@ -253,6 +253,7 @@ static uint64_t        thread_rids_mindist;
 static uint32_t minHitLen;   // minimum length of partial hits
 static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
+static EList<uint32_t> hostGenomes;
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -455,6 +456,7 @@ static void resetOptions() {
     rna_strandness = RNA_STRANDNESS_UNKNOWN;
     minHitLen = 22;
     minTotalLen = 0;
+    hostGenomes.clear();
     reportFile = "centrifuge-species_report.csv";
 }
 
@@ -640,17 +642,9 @@ static struct option long_options[] = {
 	{(char*)"desc-landing",     required_argument, 0,        ARG_DESC_LANDING},
 	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
-    {(char*)"no-temp-splicesite",  no_argument, 0,     ARG_NO_TEMPSPLICESITE},
-    {(char*)"pen-cansplice",  required_argument, 0,        ARG_PEN_CANSPLICE},
-    {(char*)"pen-noncansplice",  required_argument, 0,     ARG_PEN_NONCANSPLICE},
-    {(char*)"pen-intronlen",  required_argument, 0,     ARG_PEN_INTRONLEN},
-    {(char*)"known-splicesite-infile",       required_argument, 0,        ARG_KNOWN_SPLICESITE_INFILE},
-    {(char*)"novel-splicesite-infile",       required_argument, 0,        ARG_NOVEL_SPLICESITE_INFILE},
-    {(char*)"novel-splicesite-outfile",      required_argument, 0,        ARG_NOVEL_SPLICESITE_OUTFILE},
-    {(char*)"no-spliced-alignment",   no_argument, 0,        ARG_NO_SPLICED_ALIGNMENT},
-    {(char*)"rna-strandness",   required_argument, 0,        ARG_RNA_STRANDNESS},
     {(char*)"min-hitlen",   required_argument, 0,        ARG_MIN_HITLEN},
     {(char*)"min-totallen",   required_argument, 0,        ARG_MIN_TOTALLEN},
+    {(char*)"host-genomes",   required_argument, 0,        ARG_HOST_GENOMES},
 	{(char*)"report-file",  required_argument, 0, ARG_REPORT_FILE},
 	{(char*)0, 0, 0, 0} // terminator
 };
@@ -1447,9 +1441,12 @@ static void parseOption(int next_option, const char *arg) {
             break;
         }
         case ARG_MIN_TOTALLEN: {
-
         	minTotalLen = parseInt(50, "--min-totallen arg must be at least 50", arg);
         	break;
+        }
+        case ARG_HOST_GENOMES: {
+            hostGenomes.push_back(9606); // Homo Sapiens Species ID
+            break;
         }
         case ARG_REPORT_FILE: {
         	reportFile = arg;
@@ -2344,7 +2341,11 @@ static void multiseedSearchWorker(void *vp) {
                                    rp,            // reporting parameters
                                    (size_t)tid);  // thread id
     
-    Classifier<index_t, local_index_t> classifier(ebwtFw, multiseed_refnames, minHitLen);
+    Classifier<index_t, local_index_t> classifier(
+                                                  ebwtFw,
+                                                  multiseed_refnames,
+                                                  hostGenomes,
+                                                  minHitLen);
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
@@ -3171,7 +3172,7 @@ int centrifuge(int argc, const char **argv) {
 				outfile = argv[optind++];
 				cerr << "Warning: Output file '" << outfile.c_str()
 				     << "' was specified without -S.  This will not work in "
-					 << "future HISAT 2 versions.  Please use -S instead."
+					 << "future Centrifuge versions.  Please use -S instead."
 					 << endl;
 			}
 

@@ -165,9 +165,10 @@ enum {
 #ifdef USE_SRA
     ARG_SRA_ACC,
 #endif
-    ARG_MIN_HITLEN,              //--min-hitlen
-    ARG_MIN_TOTALLEN,            //--min-totallen
-	ARG_REPORT_FILE,             //--report
+    ARG_MIN_HITLEN,              // --min-hitlen
+    ARG_MIN_TOTALLEN,            // --min-totallen
+    ARG_HOST_GENOMES,            // --host-genomes
+	ARG_REPORT_FILE,             // --report
 };
 
 #endif
