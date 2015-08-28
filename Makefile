@@ -318,6 +318,11 @@ centrifuge-report-bin-debug: centrifuge_report.cpp $(SHARED_CPPS) $(CENTRIFUGE_R
 	$(SHARED_CPPS) $(CENTRIFUGE_REPORT_CPPS_MAIN) \
 	$(LIBS) $(BUILD_LIBS)
 
+RemoveN: CompressDatabase/RemoveN.cpp 
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
+	$(INC) \
+	-o $@ $< 
 
 
 #
