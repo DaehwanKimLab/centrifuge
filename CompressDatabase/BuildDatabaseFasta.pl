@@ -12,12 +12,16 @@ use File::Basename;
 use File::Find;
 use Getopt::Long;
 use Cwd;
+use Cwd 'cwd' ;
+use Cwd 'abs_path' ;
 
-my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-o compressed.fa -bss . -noCompress -t 1 -maxG -1]\n" ;
+my $CWD = dirname( abs_path( $0 ) ) ;
+
+my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-o compressed.fa -noCompress -t 1 -maxG -1]\n" ;
 
 my $level = "species" ;
 my $output = "compressed.fa" ;
-my $bssPath = $Bin; # take path of binary as script directory
+my $bssPath = $CWD ; # take path of binary as script directory
 my $numOfThreads = 1 ;
 my $noCompress = 0 ;
 my $verbose = 0;
