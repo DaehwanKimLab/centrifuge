@@ -38,20 +38,55 @@ GetOptions (
 	"nucmerIdy=s" => \$nucmerIdy,
 	"overlap=s" => \$overlap,
 	"fragment" => \$fragment,
-	"jellyfish=s" => \$jellyfish) 
+	"jellyfish=s" => \$jellyfish)
 or die("Error in command line arguments. \n\n$usage");
 
 die "$usage\n" if ( scalar( @ARGV ) == 0 ) ;
 open FP1, $ARGV[0] ; 
-# Read in the file names
+
+# Create the temporary files, while making sure the header id is unique within each file
+my $listSize = 0 ;
 while ( <FP1> )
 {
 	chomp ;
-	push @fileNames, $_ ;
-	push @used, 0 ;
+	open FP2, $_ ;
+	my $fileName = $prefix."_".$listSize.".fa" ;
+	open FPtmp, ">$fileName" ;
+	my $chromCnt = 0 ;
+	while ( <FP2> )
+	{
+		if ( /^>/ )
+		{
+			s/\s/\|$chromCnt / ;
+			print FPtmp ;
+			++$chromCnt ;
+		}
+		else
+		{
+			print FPtmp ;
+		}
+	}
+	++$listSize ;
+}
+
+# Read in the file names
+#while ( <FP1> )
+#{
+#	chomp ;
+#	push @fileNames, $_ ;
+#	push @used, 0 ;
+#	++$index ;
+#}
+#close( FP1 ) ;
+for ( my $i = 0 ; $i < $listSize ; ++$i )
+{
+	my $fileName = $prefix."_".$i.".fa" ;
+	push @fileNames, $fileName ;
+	push @used, 1 ;
 	++$index ;
 }
-close( FP1 ) ;
+
+
 
 # Count and select kmers
 print "Find the kmers for testing\n" ;
@@ -101,6 +136,7 @@ for ( $i = 0 ; $i < scalar( @fileNames )  ; ++$i )
 
 #for ( $i = 0 ; $i < scalar( @fileNames ) ; ++$i )
 print "Begin merge files\n" ;
+my $maxSharedKmerCnt = -1 ;
 while ( 1 ) 
 {
 	# Find the suitable files
@@ -141,7 +177,8 @@ while ( 1 )
 		}
 	}
 
-	last if ( $max == 0 ) ;
+	$maxSharedKmerCnt = $max if ( $maxSharedKmerCnt == -1 ) ;
+	last if ( $max == 0 || $max < $maxSharedKmerCnt * 0.03 ) ;
 
 	my @commonRegion ;
 	my $fileNameA ;
@@ -166,7 +203,7 @@ while ( 1 )
 	}
 	my $nucmerC = 3 * $overlap ;
 	print "nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB\n" ; 
-	system_call("nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; 
+	my $nucRet = system("nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; # if the call to nucmer failed, we just not compress at all. 
 
 	open FPCoords, "nucmer_$prefix.coords" ;
 	my $line ;
@@ -307,7 +344,8 @@ while ( 1 )
 				}
 			}
 		}
-	}
+	} # end if fragment. There might be bugs in the fragment mode
+
 	# Print the sequence from genome B, only including the non-shared part
 	open FP1, $fileNameB ;
 	$id = "" ;
@@ -393,12 +431,11 @@ while ( 1 )
 	delete $localKmer{ $maxPair[1] } ;
 
 	#print defined( $localKmer{ $maxPair[0] }) ;
-	unlink glob("$fileNameA") if ( $maxPair[0] >= scalar( @fileNames ) ) ;
-	unlink glob("$fileNameB") if ( $maxPair[1] >= scalar( @fileNames ) ) ;
+	unlink glob("$fileNameA") ; #if ( $maxPair[0] >= scalar( @fileNames ) ) ;
+	unlink glob("$fileNameB") ; #if ( $maxPair[1] >= scalar( @fileNames ) ) ;
 
 	# Count the kmer for the new genome
 	my $fileName = $prefix."_".$index.".fa" ;
-	
 	if ( $fragment == 0 )
 	{
 		open fpOut, ">$fileName" ;
@@ -428,15 +465,15 @@ while ( 1 )
 	++$index ;
 } # while 1
 
-foreach $i (keys %localKmer )
-{
-	if ( $i < scalar( @fileNames ) ) 
-	{
-		my $path = $fileNames[ $i ] ;
-		my $fileName = $prefix."_".$i.".fa" ;
-		system_call("cp $path $fileName") ;
-	}
-}
+#foreach $i (keys %localKmer )
+#{
+#	if ( $i < scalar( @fileNames ) ) 
+#	{
+#		my $path = $fileNames[ $i ] ;
+#		my $fileName = $prefix."_".$i.".fa" ;
+#		system_call("cp $path $fileName") ;
+#	}
+#}
 
 # clean up
 unlink glob("tmp_$prefix.jf tmp_$prefix.jf_dump tmp_$prefix.testingKmer") ;

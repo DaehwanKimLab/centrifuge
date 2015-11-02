@@ -33,7 +33,7 @@ GetOptions ("level|l=s" => \$level,
 			"threads|t=i" => \$numOfThreads,
 			"maxG=i" => \$maxGenomeSizeForCompression, 
             "verbose|v" => \$verbose,
-			"noCompress" => \$noCompress)
+			"noCompress" => \$noCompress )
 or die("Error in command line arguments. \n\n$usage");
 
 die $usage unless @ARGV == 2;
@@ -92,7 +92,7 @@ find ( { wanted=>sub {
 		}
 
 		$gidUsed{ $gid } = 1 ;
-	} elsif ( $head =~ /^>kraken:taxid\|([0-9]+)?\|/ ) {
+	} elsif ( $head =~ /taxid\|([0-9]+)?[\|\s]/ ) {
 		my $tid = $1 ;
 		my $dummyGid = "centrifuge_gid_".$fullfile."_$1" ;
 		$gidUsed{ $dummyGid } = 1 ;
@@ -116,6 +116,7 @@ while ( <FP1> )
 	chomp ;
 	my @cols = split ;		
 	#print $cols[0], "\n" ;	
+	next if ( @ARGV < 2 ) ;
 	if ( defined( $gidUsed{ $cols[0] } ) )
 	{
 		push @{ $tidToGid{ $cols[1] } }, $cols[0] ;	
@@ -295,7 +296,7 @@ sub solve
 	my $seq = "" ;
 	if ( $noCompress == 0 &&  ( $maxGenomeSizeForCompression < 0 || $genomeSize <= $maxGenomeSizeForCompression ) ) #$genomeSize < 50000000 )
 	{
-		system_call("perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id") ;
+		system_call("perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id" ) ;
 
 # Merge all the fragmented sequence into one big chunk.
 		system_call("cat tmp_${tid}_${id}_*.fa > tmp_${tid}_$id.fa");
