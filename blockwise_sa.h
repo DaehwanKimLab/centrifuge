@@ -431,6 +431,47 @@ inline void KarkkainenBlockwiseSA<S2bDnaString>::qsort(
 	}
 }
 
+template<typename TStr>
+struct BinarySortingParam {
+    const TStr*              t;
+    const EList<TIndexOffU>* sampleSuffs;
+    EList<TIndexOffU>        bucketSzs;
+    EList<TIndexOffU>        bucketReps;
+    size_t                   begin;
+    size_t                   end;
+};
+
+template<typename TStr>
+static void BinarySorting_worker(void *vp)
+{
+    BinarySortingParam<TStr>* param = (BinarySortingParam<TStr>*)vp;
+    const TStr& t = *(param->t);
+    size_t len = t.length();
+    const EList<TIndexOffU>& sampleSuffs = *(param->sampleSuffs);
+    EList<TIndexOffU>& bucketSzs = param->bucketSzs;
+    EList<TIndexOffU>& bucketReps = param->bucketReps;
+    ASSERT_ONLY(size_t numBuckets = bucketSzs.size());
+    size_t begin = param->begin;
+    size_t end = param->end;
+    // Iterate through every suffix in the text, determine which
+    // bucket it falls into by doing a binary search across the
+    // sorted list of samples, and increment a counter associated
+    // with that bucket.  Also, keep one representative for each
+    // bucket so that we can split it later.  We loop in ten
+    // stretches so that we can print out a helpful progress
+    // message.  (This step can take a long time.)
+    for(TIndexOffU i = begin; i < end && i < len; i++) {
+        TIndexOffU r = binarySASearch(t, i, sampleSuffs);
+        if(r == std::numeric_limits<TIndexOffU>::max()) continue; // r was one of the samples
+        assert_lt(r, numBuckets);
+        bucketSzs[r]++;
+        assert_lt(bucketSzs[r], len);
+        if(bucketReps[r] == OFF_MASK || (i & 100) == 0) {
+            bucketReps[r] = i; // clobbers previous one, but that's OK
+        }
+    }
+}
+
 /**
  * Select a set of bucket-delineating sample suffixes such that no
  * bucket is greater than the requested upper limit.  Some care is
@@ -440,7 +481,7 @@ inline void KarkkainenBlockwiseSA<S2bDnaString>::qsort(
 template<typename TStr>
 void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	const TStr& t = this->text();
-	TIndexOffU bsz = this->bucketSz()-1; // subtract 1 to leave room for sample
+    TIndexOffU bsz = this->bucketSz()-1; // subtract 1 to leave room for sample
 	size_t len = this->text().length();
 	// Prepare _sampleSuffs array
 	_sampleSuffs.clear();
@@ -509,57 +550,57 @@ void KarkkainenBlockwiseSA<TStr>::buildSamples() {
 	int limit = 5;
 	// Iterate until all buckets are less than
 	while(--limit >= 0) {
-		// Calculate bucket sizes by doing a binary search for each
-		// suffix and noting where it lands
-		TIndexOffU numBuckets = (TIndexOffU)_sampleSuffs.size()+1;
-		EList<TIndexOffU> bucketSzs(EBWTB_CAT); // holds computed bucket sizes
-		EList<TIndexOffU> bucketReps(EBWTB_CAT); // holds 1 member of each bucket (for splitting)
-		try {
-			// Allocate and initialize containers for holding bucket
-			// sizes and representatives.
-			bucketSzs.resizeExact(numBuckets);
-			bucketReps.resizeExact(numBuckets);
-			bucketSzs.fillZero();
-			bucketReps.fill(OFF_MASK);
-		} catch(bad_alloc &e) {
-			if(this->_passMemExc) {
-				throw e; // rethrow immediately
-			} else {
-				cerr << "Could not allocate sizes, representatives (" << ((numBuckets*8)>>10) << " KB) for blocks." << endl
-				     << "Please try using a smaller number of blocks by specifying a larger --bmax or a" << endl
-				     << "smaller --bmaxdivn." << endl;
-				throw 1;
-			}
-		}
-		// Iterate through every suffix in the text, determine which
-		// bucket it falls into by doing a binary search across the
-		// sorted list of samples, and increment a counter associated
-		// with that bucket.  Also, keep one representative for each
-		// bucket so that we can split it later.  We loop in ten
-		// stretches so that we can print out a helpful progress
-		// message.  (This step can take a long time.)
-		{
-			VMSG_NL("  Binary sorting into buckets");
-			Timer timer(cout, "  Binary sorting into buckets time: ", this->verbose());
-			TIndexOffU lenDiv10 = (TIndexOffU)((len + 9) / 10);
-			for(TIndexOffU iten = 0, ten = 0; iten < len; iten += lenDiv10, ten++) {
-				TIndexOffU itenNext = iten + lenDiv10;
-				if(ten > 0) VMSG_NL("  " << (ten * 10) << "%");
-				for(TIndexOffU i = iten; i < itenNext && i < len; i++) {
-					TIndexOffU r = binarySASearch(t, i, _sampleSuffs);
-					if(r == std::numeric_limits<TIndexOffU>::max()) continue; // r was one of the samples
-					assert_lt(r, numBuckets);
-					bucketSzs[r]++;
-					assert_lt(bucketSzs[r], len);
-					if(bucketReps[r] == OFF_MASK ||
-					   (_randomSrc.nextU32() & 100) == 0)
-					{
-						bucketReps[r] = i; // clobbers previous one, but that's OK
-					}
-				}
-			}
-			VMSG_NL("  100%");
-		}
+        TIndexOffU numBuckets = (TIndexOffU)_sampleSuffs.size()+1;
+        AutoArray<tthread::thread*> threads(this->_nthreads);
+        EList<BinarySortingParam<TStr> > tparams;
+        for(int tid = 0; tid < this->_nthreads; tid++) {
+            // Calculate bucket sizes by doing a binary search for each
+            // suffix and noting where it lands
+            tparams.expand();
+            try {
+                // Allocate and initialize containers for holding bucket
+                // sizes and representatives.
+                tparams.back().bucketSzs.resizeExact(numBuckets);
+                tparams.back().bucketReps.resizeExact(numBuckets);
+                tparams.back().bucketSzs.fillZero();
+                tparams.back().bucketReps.fill(OFF_MASK);
+            } catch(bad_alloc &e) {
+                if(this->_passMemExc) {
+                    throw e; // rethrow immediately
+                } else {
+                    cerr << "Could not allocate sizes, representatives (" << ((numBuckets*8)>>10) << " KB) for blocks." << endl
+                    << "Please try using a smaller number of blocks by specifying a larger --bmax or a" << endl
+                    << "smaller --bmaxdivn." << endl;
+                    throw 1;
+                }
+            }
+            tparams.back().t = &t;
+            tparams.back().sampleSuffs = &_sampleSuffs;
+            tparams.back().begin = (tid == 0 ? 0 : len / this->_nthreads * tid);
+            tparams.back().end = (tid + 1 == this->_nthreads ? len : len / this->_nthreads * (tid + 1));
+            if(this->_nthreads == 1) {
+                BinarySorting_worker<TStr>((void*)&tparams.back());
+            } else {
+                threads[tid] = new tthread::thread(BinarySorting_worker<TStr>, (void*)&tparams.back());
+            }
+        }
+        
+        if(this->_nthreads > 1) {
+            for (int tid = 0; tid < this->_nthreads; tid++) {
+                threads[tid]->join();
+            }
+        }
+        
+        EList<TIndexOffU>& bucketSzs = tparams[0].bucketSzs;
+        EList<TIndexOffU>& bucketReps = tparams[0].bucketReps;
+        for(int tid = 1; tid < this->_nthreads; tid++) {
+            for(size_t j = 0; j < numBuckets; j++) {
+                bucketSzs[j] += tparams[tid].bucketSzs[j];
+                if(bucketReps[j] == OFF_MASK) {
+                    bucketReps[j] = tparams[tid].bucketReps[j];
+                }
+            }
+        }
 		// Check for large buckets and mergeable pairs of small buckets
 		// and split/merge as necessary
 		TIndexOff added = 0;
