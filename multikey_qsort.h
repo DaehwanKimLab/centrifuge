@@ -805,9 +805,6 @@ void qsortSufDcU8(
 #define BUCKET_SORT_CUTOFF (4 * 1024 * 1024)
 #define SELECTION_SORT_CUTOFF 6
 
-// 5 64-element buckets for bucket-sorting A, C, G, T, $
-extern TIndexOffU bkts[4][4 * 1024 * 1024];
-
 /**
  * Straightforwardly obtain a uint8_t-ized version of t[off].  This
  * works fine as long as TStr is not packed.
@@ -978,70 +975,90 @@ static void bucketSortSufDcU8(
         size_t slen,
         const DifferenceCoverSample<T1>& dc,
         uint8_t hi,
-        size_t begin,
-        size_t end,
-        size_t depth,
+        size_t _begin,
+        size_t _end,
+        size_t _depth,
         bool sanityCheck = false)
 {
-	size_t cnts[] = { 0, 0, 0, 0, 0 };
-	#define BKT_RECURSE_SUF_DC_U8(nbegin, nend) { \
-		bucketSortSufDcU8<T1,T2>(host1, host, hlen, s, slen, dc, hi, \
-		                         (nbegin), (nend), depth+1, sanityCheck); \
-	}
-	assert_gt(end, begin);
-	assert_leq(end-begin, BUCKET_SORT_CUTOFF);
-	assert_eq(hi, 4);
-	if(end == begin+1) return; // 1-element list already sorted
-	if(depth > dc.v()) {
-		// Quicksort the remaining suffixes using difference cover
-		// for constant-time comparisons; this is O(k*log(k)) where
-		// k=(end-begin)
-		qsortSufDcU8<T1,T2>(host1, host, hlen, s, slen, dc, begin, end, sanityCheck);
-		return;
-	}
-	if(end-begin <= SELECTION_SORT_CUTOFF) {
-		// Bucket sort remaining items
-		selectionSortSufDcU8(host1, host, hlen, s, slen, dc, hi,
-		                     begin, end, depth, sanityCheck);
-		if(sanityCheck) {
-			sanityCheckOrderedSufs(host1, hlen, s, slen,
-			                       OFF_MASK, begin, end);
-		}
-		return;
-	}
-	for(size_t i = begin; i < end; i++) {
-		size_t off = depth + s[i];
-		uint8_t c = (off < hlen) ? get_uint8(host, off) : hi;
-		assert_leq(c, 4);
-		if(c == 0) {
-			s[begin + cnts[0]++] = s[i];
-		} else {
-			bkts[c-1][cnts[c]++] = s[i];
-		}
-	}
-	assert_eq(cnts[0] + cnts[1] + cnts[2] + cnts[3] + cnts[4], end - begin);
-	size_t cur = begin + cnts[0];
-	if(cnts[1] > 0) { memcpy(&s[cur], bkts[0], cnts[1] << (OFF_SIZE/4 + 1)); cur += cnts[1]; }
-	if(cnts[2] > 0) { memcpy(&s[cur], bkts[1], cnts[2] << (OFF_SIZE/4 + 1)); cur += cnts[2]; }
-	if(cnts[3] > 0) { memcpy(&s[cur], bkts[2], cnts[3] << (OFF_SIZE/4 + 1)); cur += cnts[3]; }
-	if(cnts[4] > 0) { memcpy(&s[cur], bkts[3], cnts[4] << (OFF_SIZE/4 + 1)); }
-	// This frame is now totally finished with bkts[][], so recursive
-	// callees can safely clobber it; we're not done with cnts[], but
-	// that's local to the stack frame.
-	cur = begin;
-	if(cnts[0] > 0) {
-		BKT_RECURSE_SUF_DC_U8(cur, cur + cnts[0]); cur += cnts[0];
-	}
-	if(cnts[1] > 0) {
-		BKT_RECURSE_SUF_DC_U8(cur, cur + cnts[1]); cur += cnts[1];
-	}
-	if(cnts[2] > 0) {
-		BKT_RECURSE_SUF_DC_U8(cur, cur + cnts[2]); cur += cnts[2];
-	}
-	if(cnts[3] > 0) {
-		BKT_RECURSE_SUF_DC_U8(cur, cur + cnts[3]);
-	}
-	// Done
+    // 5 64-element buckets for bucket-sorting A, C, G, T, $
+    TIndexOffU* bkts[4];
+    for(size_t i = 0; i < 4; i++) {
+        bkts[i] = new TIndexOffU[4 * 1024 * 1024];
+    }
+    ELList<size_t, 5, 1024> block_list;
+    while(true) {
+        size_t begin = 0, end = 0;
+        if(block_list.size() == 0) {
+            begin = _begin;
+            end = _end;
+        } else {
+            if(block_list.back().size() > 1) {
+                end = block_list.back().back(); block_list.back().pop_back();
+                begin = block_list.back().back();
+            } else {
+                block_list.resize(block_list.size() - 1);
+                if(block_list.size() == 0) {
+                    break;
+                }
+            }
+        }
+        size_t depth = block_list.size() + _depth;
+        assert_leq(end-begin, BUCKET_SORT_CUTOFF);
+        assert_eq(hi, 4);
+        if(end <= begin + 1) { // 1-element list already sorted
+            continue;
+        }
+        if(depth > dc.v()) {
+            // Quicksort the remaining suffixes using difference cover
+            // for constant-time comparisons; this is O(k*log(k)) where
+            // k=(end-begin)
+            qsortSufDcU8<T1,T2>(host1, host, hlen, s, slen, dc, begin, end, sanityCheck);
+            continue;
+        }
+        if(end-begin <= SELECTION_SORT_CUTOFF) {
+            // Bucket sort remaining items
+            selectionSortSufDcU8(host1, host, hlen, s, slen, dc, hi,
+                                 begin, end, depth, sanityCheck);
+            if(sanityCheck) {
+                sanityCheckOrderedSufs(host1, hlen, s, slen,
+                                       OFF_MASK, begin, end);
+            }
+            continue;
+        }
+        size_t cnts[] = { 0, 0, 0, 0, 0 };
+        for(size_t i = begin; i < end; i++) {
+            size_t off = depth + s[i];
+            uint8_t c = (off < hlen) ? get_uint8(host, off) : hi;
+            assert_leq(c, 4);
+            if(c == 0) {
+                s[begin + cnts[0]++] = s[i];
+            } else {
+                bkts[c-1][cnts[c]++] = s[i];
+            }
+        }
+        assert_eq(cnts[0] + cnts[1] + cnts[2] + cnts[3] + cnts[4], end - begin);
+        size_t cur = begin + cnts[0];
+        if(cnts[1] > 0) { memcpy(&s[cur], bkts[0], cnts[1] << (OFF_SIZE/4 + 1)); cur += cnts[1]; }
+        if(cnts[2] > 0) { memcpy(&s[cur], bkts[1], cnts[2] << (OFF_SIZE/4 + 1)); cur += cnts[2]; }
+        if(cnts[3] > 0) { memcpy(&s[cur], bkts[2], cnts[3] << (OFF_SIZE/4 + 1)); cur += cnts[3]; }
+        if(cnts[4] > 0) { memcpy(&s[cur], bkts[3], cnts[4] << (OFF_SIZE/4 + 1)); }
+        // This frame is now totally finished with bkts[][], so recursive
+        // callees can safely clobber it; we're not done with cnts[], but
+        // that's local to the stack frame.
+        block_list.expand();
+        block_list.back().clear();
+        block_list.back().push_back(begin);
+        for(size_t i = 0; i < 4; i++) {
+            if(cnts[i] > 0) {
+                block_list.back().push_back(block_list.back().back() + cnts[i]);
+            }
+        }
+    }
+    // Done
+    
+    for(size_t i = 0; i < 4; i++) {
+        delete [] bkts[i];
+    }
 }
 
 /**

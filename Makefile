@@ -105,7 +105,7 @@ LIBS = $(PTHREAD_LIB) $(SRA_LIB)
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
 	edit.cpp bt2_idx.cpp \
-	reference.cpp ds.cpp multikey_qsort.cpp limit.cpp \
+	reference.cpp ds.cpp limit.cpp \
 	random_source.cpp tinythread.cpp
 SEARCH_CPPS = qual.cpp pat.cpp \
 	read_qseq.cpp ref_coord.cpp mask.cpp \

@@ -52,6 +52,7 @@ static int noDc;
 static int entireSA;
 static int seed;
 static int showVersion;
+static int nthreads;      // number of pthreads operating concurrently
 //   Ebwt parameters
 static int32_t lineRate;
 static int32_t linesPerSide;
@@ -82,6 +83,7 @@ static void resetOptions() {
 	entireSA       = 0;     // 1 = disable blockwise SA
 	seed           = 0;     // srandom seed
 	showVersion    = 0;     // just print version and quit?
+    nthreads       = 1;
 	//   Ebwt parameters
 	lineRate       = Ebwt<TIndexOffU>::default_lineRate;
 	linesPerSide   = 1;  // 1 64-byte line on a side
@@ -145,7 +147,6 @@ static void printUsage(ostream& out) {
 		<< "                            has fewer than 4 billion nucleotides" << endl;
 	}
     out << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
-	    << "    -p/--packed             use packed strings internally; slower, uses less mem" << endl
 	    << "    --bmax <int>            max bucket sz for blockwise suffix-array builder" << endl
 	    << "    --bmaxdivn <int>        max bucket sz as divisor of ref len (default: 4)" << endl
 	    << "    --dcv <int>             diff-cover period for blockwise (default: 1024)" << endl
@@ -158,6 +159,7 @@ static void printUsage(ostream& out) {
         << "    --localftabchars <int>  # of chars consumed in initial lookup in a local index (default: 6)" << endl
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
+        << "    -p <int>                number of alignment threads to launch (1)" << endl
 	    << "    -h/--help               print detailed description of tool and its options" << endl
 	    << "    --usage                 print this usage message" << endl
 	    << "    --version               print version information and quit" << endl
@@ -172,7 +174,7 @@ static void printUsage(ostream& out) {
 	}
 }
 
-static const char *short_options = "qraph?nscfl:i:o:t:h:3C";
+static const char *short_options = "qrap:h?nscfl:i:o:t:h:3C";
 
 static struct option long_options[] = {
 	{(char*)"quiet",          no_argument,       0,            'q'},
@@ -247,7 +249,8 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			case 'f': format = FASTA; break;
 			case 'c': format = CMDLINE; break;
-			case 'p': packed = true; break;
+			case 'p': nthreads = parseNumber<int>(1, "-p arg must be at least 1");
+                break;
 			case 'C':
 				cerr << "Error: -C specified but Bowtie 2 does not support colorspace input." << endl;
 				throw 1;
@@ -447,6 +450,7 @@ static void driver(
                           bmaxMultSqrt, // block size as multiplier of sqrt(len)
                           bmaxDivN,     // block size as divisor of len
                           noDc? 0 : dcv,// difference-cover period
+                          nthreads,
                           is,           // list of input streams
                           szs,          // list of reference sizes
                           (TIndexOffU)sztot.first,  // total size of all unambiguous ref chars

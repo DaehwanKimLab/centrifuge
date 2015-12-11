@@ -101,7 +101,6 @@
 		E8B0DC501934F7AA005ED9FA /* limit.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = limit.cpp; sourceTree = "<group>"; };
 		E8B0DC511934F7AA005ED9FA /* ls.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ls.cpp; sourceTree = "<group>"; };
 		E8B0DC521934F7AA005ED9FA /* mask.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = mask.cpp; sourceTree = "<group>"; };
-		E8B0DC531934F7AA005ED9FA /* multikey_qsort.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = multikey_qsort.cpp; sourceTree = "<group>"; };
 		E8B0DC541934F7AA005ED9FA /* outq.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = outq.cpp; sourceTree = "<group>"; };
 		E8B0DC551934F7AA005ED9FA /* pat.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = pat.cpp; sourceTree = "<group>"; };
 		E8B0DC561934F7AA005ED9FA /* pe.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = pe.cpp; sourceTree = "<group>"; };
@@ -254,7 +253,6 @@
 				E8B0DC501934F7AA005ED9FA /* limit.cpp */,
 				E8B0DC511934F7AA005ED9FA /* ls.cpp */,
 				E8B0DC521934F7AA005ED9FA /* mask.cpp */,
-				E8B0DC531934F7AA005ED9FA /* multikey_qsort.cpp */,
 				E8B0DC541934F7AA005ED9FA /* outq.cpp */,
 				E8B0DC551934F7AA005ED9FA /* pat.cpp */,
 				E8B0DC561934F7AA005ED9FA /* pe.cpp */,
@@ -437,7 +435,7 @@
 				);
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-build-l-debug copy";
+				PRODUCT_NAME = "centrifuge-build-bin";
 			};
 			name = Debug;
 		};
@@ -446,7 +444,7 @@
 			buildSettings = {
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-build-l-debug copy";
+				PRODUCT_NAME = "centrifuge-build-bin";
 			};
 			name = Release;
 		};
@@ -462,7 +460,7 @@
 				);
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-class-bin-debug copy";
+				PRODUCT_NAME = "centrifuge-class";
 			};
 			name = Debug;
 		};
@@ -471,7 +469,7 @@
 			buildSettings = {
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-class-bin-debug copy";
+				PRODUCT_NAME = "centrifuge-class";
 			};
 			name = Release;
 		};
@@ -583,7 +581,7 @@
 				);
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-align-l-debug copy";
+				PRODUCT_NAME = "centrifuge-class-debug";
 			};
 			name = Debug;
 		};
@@ -592,7 +590,7 @@
 			buildSettings = {
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-align-l-debug copy";
+				PRODUCT_NAME = "centrifuge-class-debug";
 			};
 			name = Release;
 		};
@@ -608,7 +606,7 @@
 				);
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-build-debug copy";
+				PRODUCT_NAME = "centrifuge-build-bin-debug";
 			};
 			name = Debug;
 		};
@@ -617,7 +615,7 @@
 			buildSettings = {
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = "centrifuge-build-debug copy";
+				PRODUCT_NAME = "centrifuge-build-bin-debug";
 			};
 			name = Release;
 		};

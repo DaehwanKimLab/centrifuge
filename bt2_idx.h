@@ -672,6 +672,7 @@ public:
 		index_t bmaxSqrtMult,
 		index_t bmaxDivN,
 		int dcv,
+        int nthreads,
 		EList<FileBuf*>& is,
 		EList<RefRecord>& szs,
 		index_t sztot,
@@ -751,6 +752,7 @@ public:
 							 bmaxSqrtMult,
 							 bmaxDivN,
 							 dcv,
+                             nthreads,
 							 seed,
 							 verbose);
 		// Close output files
@@ -1006,6 +1008,7 @@ public:
 	                    index_t bmaxSqrtMult,
 	                    index_t bmaxDivN,
 	                    int dcv,
+                        int nthreads,
 	                    uint32_t seed,
 						bool verbose)
 	{
@@ -1134,6 +1137,7 @@ public:
 					dcv >>= 1;
 					// Likewise with the KarkkainenBlockwiseSA
 					sz = (index_t)KarkkainenBlockwiseSA<TStr>::simulateAllocs(s, bmax);
+                    sz *= nthreads;
 					AutoArray<uint8_t> tmp2(sz, EBWT_CAT);
 					// Now throw in the 'ftab' and 'isaSample' structures
 					// that we'll eventually allocate in buildToDisk
@@ -1150,7 +1154,7 @@ public:
 					VMSG_NL("");
 				}
 				VMSG_NL("Constructing suffix-array element generator");
-				KarkkainenBlockwiseSA<TStr> bsa(s, bmax, dcv, seed, _sanity, _passMemExc, _verbose);
+				KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, dcv, seed, _sanity, _passMemExc, _verbose);
 				assert(bsa.suffixItrIsReset());
 				assert_eq(bsa.size(), s.length()+1);
 				VMSG_NL("Converting suffix-array elements to index image");
