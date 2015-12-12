@@ -993,6 +993,7 @@ void Ebwt<index_t>::szsToDisk(const EList<RefRecord>& szs, ostream& os, int reve
 	size_t seq = 0;
 	index_t off = 0;
 	index_t totlen = 0;
+    index_t rstarts_idx = 0;
 	for(size_t i = 0; i < szs.size(); i++) {
 		if(szs[i].len == 0) continue;
 		if(szs[i].first) off = 0;
@@ -1011,13 +1012,12 @@ void Ebwt<index_t>::szsToDisk(const EList<RefRecord>& szs, ostream& os, int reve
 		writeIndex<index_t>(os, totlen, this->toBe()); // offset from beginning of joined string
 		writeIndex<index_t>(os, (index_t)seqm1,  this->toBe()); // sequence id
 		writeIndex<index_t>(os, (index_t)fwoff,  this->toBe()); // offset into sequence
-        
 #ifdef CENTRIFUGE
-        this->rstarts()[i*3]   = totlen;
-        this->rstarts()[i*3+1] = (index_t)seqm1;
-        this->rstarts()[i*3+2] = (index_t)fwoff;
+        this->rstarts()[rstarts_idx*3]   = totlen;
+        this->rstarts()[rstarts_idx*3+1] = (index_t)seqm1;
+        this->rstarts()[rstarts_idx*3+2] = (index_t)fwoff;
+        rstarts_idx++;
 #endif
-        
 		totlen += szs[i].len;
 		off += szs[i].len;
 	}
