@@ -217,7 +217,7 @@ public:
 	~KarkkainenBlockwiseSA()
     {
         if(_threads.size() > 0) {
-            for (int tid = 0; tid < _threads.size(); tid++) {
+            for (size_t tid = 0; tid < _threads.size(); tid++) {
                 _threads[tid]->join();
                 delete _threads[tid];
             }
@@ -995,9 +995,9 @@ void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
 		// for both.  Be careful about first/last buckets.
 		EList<TIndexOffU> zLo(EBWTB_CAT), zHi(EBWTB_CAT);
 		assert_geq(cur_block, 0);
-		assert_leq(cur_block, _sampleSuffs.size());
+		assert_leq((size_t)cur_block, _sampleSuffs.size());
 		bool first = (cur_block == 0);
-		bool last  = (cur_block == _sampleSuffs.size());
+		bool last  = ((size_t)cur_block == _sampleSuffs.size());
 		try {
 			// Timer timer(cout, "  Calculating Z arrays time: ", this->verbose());
             {
