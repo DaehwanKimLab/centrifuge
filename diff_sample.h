@@ -589,7 +589,7 @@ void DifferenceCoverSample<TStr>::doBuiltSanityCheck() const {
  * described in Burkhardt.
  *
  * Also builds _doffs map.
- */
+ */n
 template <typename TStr>
 void DifferenceCoverSample<TStr>::buildSPrime(
 	EList<TIndexOffU>& sPrime,

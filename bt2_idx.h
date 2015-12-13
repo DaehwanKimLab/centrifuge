@@ -747,6 +747,7 @@ public:
 							 fout2,
                              saOut,
                              bwtOut,
+                             file,
 							 useBlockwise,
 							 bmax,
 							 bmaxSqrtMult,
@@ -1003,6 +1004,7 @@ public:
 	                    ofstream& out2,
                         ofstream* saOut,
                         ofstream* bwtOut,
+                        const string& base_fname,
 	                    bool useBlockwise,
 	                    index_t bmax,
 	                    index_t bmaxSqrtMult,
@@ -1154,7 +1156,7 @@ public:
 					VMSG_NL("");
 				}
 				VMSG_NL("Constructing suffix-array element generator");
-				KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, dcv, seed, _sanity, _passMemExc, _verbose);
+				KarkkainenBlockwiseSA<TStr> bsa(s, bmax, nthreads, dcv, seed, _sanity, _passMemExc, _verbose, base_fname);
 				assert(bsa.suffixItrIsReset());
 				assert_eq(bsa.size(), s.length()+1);
 				VMSG_NL("Converting suffix-array elements to index image");

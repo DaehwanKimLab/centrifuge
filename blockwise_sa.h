@@ -35,6 +35,7 @@
 #include "timer.h"
 #include "ds.h"
 #include "mem_ids.h"
+#include "word_io.h"
 
 using namespace std;
 
@@ -83,8 +84,6 @@ public:
 	_itrPushedBackSuffix(OFF_MASK),
 	_logger(__logger)
 	{
-        assert_geq(_nthreads, 1);
-        _itrBucket.resize(_nthreads);
     }
 
 	virtual ~BlockwiseSA() { }
@@ -127,7 +126,7 @@ public:
 	 */
 	bool suffixItrIsReset() {
 		return _itrBucketIdx                       == 0 &&
-               _itrBucket[_itrBucketIdx].size()    == 0 &&
+               _itrBucket.size()                   == 0 &&
 		       _itrBucketPos                       == OFF_MASK &&
 		       _itrPushedBackSuffix                == OFF_MASK &&
 		       isReset();
@@ -167,7 +166,7 @@ protected:
 	const bool         _sanityCheck; /// whether to perform sanity checks
 	const bool         _passMemExc;  /// true -> pass on memory exceptions
 	const bool         _verbose;     /// be talkative
-	ELList<TIndexOffU> _itrBucket;   /// current bucket
+	EList<TIndexOffU>  _itrBucket;   /// current bucket
     TIndexOffU         _itrBucketIdx;
 	TIndexOffU         _itrBucketPos;/// offset into current bucket
 	TIndexOffU         _itrPushedBackSuffix; /// temporary slot for lookahead
@@ -209,12 +208,21 @@ public:
 	      	              bool __sanityCheck = false,
 	   	                  bool __passMemExc = false,
 	      	              bool __verbose = false,
+                          string base_fname = "",
 	      	              ostream& __logger = cout) :
 	InorderBlockwiseSA<TStr>(__text, __bucketSz, __nthreads, __sanityCheck, __passMemExc, __verbose, __logger),
-	_sampleSuffs(EBWTB_CAT), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false)
+	_sampleSuffs(EBWTB_CAT), _cur(0), _dcV(__dcV), _dc(EBWTB_CAT), _built(false), _base_fname(base_fname), _bigEndian(currentlyBigEndian())
 	{ _randomSrc.init(__seed); reset(); }
 
-	~KarkkainenBlockwiseSA() { }
+	~KarkkainenBlockwiseSA()
+    {
+        if(_threads.size() > 0) {
+            for (int tid = 0; tid < _threads.size(); tid++) {
+                _threads[tid]->join();
+                delete _threads[tid];
+            }
+        }
+    }
 
 	/**
 	 * Allocate an amount of memory that simulates the peak memory
@@ -232,27 +240,64 @@ public:
 	}
     
     static void nextBlock_Worker(void *vp) {
-        pair<KarkkainenBlockwiseSA*, int>& param = *(pair<KarkkainenBlockwiseSA*, int>*)vp;
-        param.first->nextBlock(param.first->_cur + param.second, param.second);
+        pair<KarkkainenBlockwiseSA*, int> param = *(pair<KarkkainenBlockwiseSA*, int>*)vp;
+        KarkkainenBlockwiseSA* sa = param.first;
+        int tid = param.second;
+        while(true) {
+            size_t cur = 0;
+            {
+                ThreadSafe ts(&sa->_mutex, sa->_nthreads > 1);
+                cur = sa->_cur;
+                if(cur > sa->_sampleSuffs.size()) break;
+                sa->_cur++;
+            }
+            sa->nextBlock(cur, tid);
+            // Write suffixes into a file
+            std::ostringstream number; number << cur;
+            const string fname = sa->_base_fname + "." + number.str() + ".sa";
+            ofstream sa_file(fname.c_str(), ios::binary);
+            if(!sa_file.good()) {
+                cerr << "Could not open file for writing a reference graph: \"" << fname << "\"" << endl;
+                throw 1;
+            }
+            const EList<TIndexOffU>& bucket = sa->_itrBuckets[tid];
+            writeIndex<TIndexOffU>(sa_file, bucket.size(), sa->_bigEndian);
+            for(size_t i = 0; i < bucket.size(); i++) {
+                writeIndex<TIndexOffU>(sa_file, bucket[i], sa->_bigEndian);
+            }
+            sa_file.close();
+            sa->_itrBuckets[tid].clear();
+            sa->_done[cur] = true;
+        }
     }
     
     /**
      * Get the next suffix; compute the next bucket if necessary.
      */
     virtual TIndexOffU nextSuffix() {
+        // Launch threads if not
+        if(this->_nthreads > 1) {
+            if(_threads.size() == 0) {
+                _done.resize(_sampleSuffs.size() + 1);
+                _done.fill(false);
+                _itrBuckets.resize(this->_nthreads);
+                for(int tid = 0; tid < this->_nthreads; tid++) {
+                    _tparams.expand();
+                    _tparams.back().first = this;
+                    _tparams.back().second = tid;
+                    _threads.push_back(new tthread::thread(nextBlock_Worker, (void*)&_tparams.back()));
+                }
+                assert_eq(_threads.size(), (size_t)this->_nthreads);
+            }
+        }
         if(this->_itrPushedBackSuffix != OFF_MASK) {
             TIndexOffU tmp = this->_itrPushedBackSuffix;
             this->_itrPushedBackSuffix = OFF_MASK;
             return tmp;
         }
-        while(this->_itrBucketPos >= this->_itrBucket[this->_itrBucketIdx].size() ||
-              this->_itrBucket[this->_itrBucketIdx].size() == 0)
+        while(this->_itrBucketPos >= this->_itrBucket.size() ||
+              this->_itrBucket.size() == 0)
         {
-            if(this->_itrBucketIdx + 1 < this->_itrBucket.size()) {
-                this->_itrBucketIdx++;
-                this->_itrBucketPos = 0;
-                continue;
-            }
             if(!hasMoreBlocks()) {
                 throw out_of_range("No more suffixes");
             }
@@ -260,25 +305,34 @@ public:
                 nextBlock(_cur);
                 _cur++;
             } else {
-                int nthreads = min<int>(this->_nthreads, _sampleSuffs.size() - _cur + 1);
-                AutoArray<tthread::thread*> threads(nthreads);
-                EList<pair<KarkkainenBlockwiseSA*, int> > tparams;
-                for(int tid = 0; tid < nthreads; tid++) {
-                    tparams.expand();
-                    tparams.back().first = this;
-                    tparams.back().second = tid;
-                    threads[tid] = new tthread::thread(nextBlock_Worker, (void*)&tparams.back());
+                while(!_done[this->_itrBucketIdx]) {
+#if defined(_TTHREAD_WIN32_)
+                    Sleep(1);
+#elif defined(_TTHREAD_POSIX_)
+                    const static timespec ts = {0, 1000000};  // 1 millisecond
+                    nanosleep(&ts, NULL);
+#endif
                 }
-                
-                for (int tid = 0; tid < nthreads; tid++) {
-                    threads[tid]->join();
+                // Read suffixes from a file
+                std::ostringstream number; number << this->_itrBucketIdx;
+                const string fname = _base_fname + "." + number.str() + ".sa";
+                ifstream sa_file(fname.c_str(), ios::binary);
+                if(!sa_file.good()) {
+                    cerr << "Could not open file for reading a reference graph: \"" << fname << "\"" << endl;
+                    throw 1;
                 }
-                _cur += nthreads;
+                size_t numSAs = readIndex<TIndexOffU>(sa_file, _bigEndian);
+                this->_itrBucket.resizeExact(numSAs);
+                for(size_t i = 0; i < numSAs; i++) {
+                    this->_itrBucket[i] = readIndex<TIndexOffU>(sa_file, _bigEndian);
+                }
+                sa_file.close();
+                std::remove(fname.c_str());
             }
-            this->_itrBucketIdx = 0;
+            this->_itrBucketIdx++;
             this->_itrBucketPos = 0;
         }
-        return this->_itrBucket[this->_itrBucketIdx][this->_itrBucketPos++];
+        return this->_itrBucket[this->_itrBucketPos++];
     }
 
 	/// Defined in blockwise_sa.cpp
@@ -289,7 +343,7 @@ public:
 
 	/// Return true iff more blocks are available
 	virtual bool hasMoreBlocks() const {
-		return _cur <= _sampleSuffs.size();
+        return this->_itrBucketIdx <= _sampleSuffs.size();
 	}
 
 	/// Return the difference-cover period
@@ -371,7 +425,14 @@ private:
 	bool               _built;       /// whether samples/DC have been built
 	RandomSource       _randomSrc;   /// source of pseudo-randoms
     
-    MUTEX_T            _mutex;       /// synchronization of output message
+
+    MUTEX_T                 _mutex;       /// synchronization of output message
+    string                  _base_fname;  /// base file name for storing SA blocks
+    bool                    _bigEndian;   /// bigEndian?
+    EList<tthread::thread*> _threads;     /// thread list
+    EList<pair<KarkkainenBlockwiseSA*, int> > _tparams;
+    ELList<TIndexOffU>      _itrBuckets;  /// buckets
+    EList<bool>             _done;        /// is a block processed?
 };
 
 /**
@@ -864,8 +925,12 @@ bool KarkkainenBlockwiseSA<TStr>::suffixCmp(
  */
 template<typename TStr>
 void KarkkainenBlockwiseSA<TStr>::nextBlock(int cur_block, int tid) {
-    assert_lt(tid, this->_itrBucket.size());
-	EList<TIndexOffU>& bucket = this->_itrBucket[tid];
+#ifndef NDEBUG
+    if(this->_nthreads > 1) {
+        assert_lt(tid, this->_itrBuckets.size());
+    }
+#endif
+    EList<TIndexOffU>& bucket = (this->_nthreads > 1 ? this->_itrBuckets[tid] : this->_itrBucket);
     {
         ThreadSafe ts(&_mutex, this->_nthreads > 1);
         VMSG_NL("Getting block " << (cur_block+1) << " of " << _sampleSuffs.size()+1);
