@@ -424,7 +424,41 @@ static void driver(
                 cout << uid_to_tid[i].first << "\t" << uid_to_tid[i].second << endl;
             }
         } else if(taxonomy_tree) {
-            
+            const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+            for(map<uint64_t, TaxonomyNode>::const_iterator itr = tree.begin(); itr != tree.end(); itr++) {
+                string rank;
+                switch(itr->second.rank) {
+                    case RANK_STRAIN:        rank = "strain";       break;
+                    case RANK_SPECIES:       rank = "species";      break;
+                    case RANK_GENUS:         rank = "genus";        break;
+                    case RANK_FAMILY:        rank = "family";       break;
+                    case RANK_ORDER:         rank = "order";        break;
+                    case RANK_CLASS:         rank = "class";        break;
+                    case RANK_PHYLUM:        rank = "phylum";       break;
+                    case RANK_KINGDOM:       rank = "kingdom";      break;
+                    case RANK_FORMA:         rank = "forma";        break;
+                    case RANK_INFRA_CLASS:   rank = "infraclass";   break;
+                    case RANK_INFRA_ORDER:   rank = "infraorder";   break;
+                    case RANK_PARV_ORDER:    rank = "parvorder";    break;
+                    case RANK_SUB_CLASS:     rank = "subclass";     break;
+                    case RANK_SUB_FAMILY:    rank = "subfamily";    break;
+                    case RANK_SUB_GENUS:     rank = "subgenus";     break;
+                    case RANK_SUB_KINGDOM:   rank = "subkingdom";   break;
+                    case RANK_SUB_ORDER:     rank = "suborder";     break;
+                    case RANK_SUB_PHYLUM:    rank = "subphylum";    break;
+                    case RANK_SUB_SPECIES:   rank = "subspecies";   break;
+                    case RANK_SUB_TRIBE:     rank = "subtribe";     break;
+                    case RANK_SUPER_CLASS:   rank = "superclass";   break;
+                    case RANK_SUPER_FAMILY:  rank = "superfamily";  break;
+                    case RANK_SUPER_KINGDOM: rank = "superkingdom"; break;
+                    case RANK_SUPER_ORDER:   rank = "superorder";   break;
+                    case RANK_SUPER_PHYLUM:  rank = "superphylum";  break;
+                    case RANK_TRIBE:         rank = "tribe";        break;
+                    case RANK_VARIETAS:      rank = "varietas";     break;
+                    default:                 rank = "no rank";      break;
+                };
+                cout << itr->first << "\t|\t" << itr->second.parent_tid << "\t|\t" << rank << endl;
+            }
         } else {
             ebwt.loadIntoMemory(
                                 -1,     // color

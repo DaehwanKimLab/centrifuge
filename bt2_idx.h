@@ -32,6 +32,7 @@
 #include <stdexcept>
 #include <sys/stat.h>
 #include <map>
+#include <set>
 #ifdef BOWTIE_MM
 #include <sys/mman.h>
 #include <sys/shm.h>
@@ -517,6 +518,43 @@ inline static int countInU64(int c, uint64_t dw) {
 // Forward declarations for Ebwt class
 class EbwtSearchParams;
 
+enum {
+    RANK_UNKNOWN = 0,
+    RANK_STRAIN,
+    RANK_SPECIES,
+    RANK_GENUS,
+    RANK_FAMILY,
+    RANK_ORDER,
+    RANK_CLASS,
+    RANK_PHYLUM,
+    RANK_KINGDOM,
+    RANK_DOMAIN,
+    RANK_FORMA,
+    RANK_INFRA_CLASS,
+    RANK_INFRA_ORDER,
+    RANK_PARV_ORDER,
+    RANK_SUB_CLASS,
+    RANK_SUB_FAMILY,
+    RANK_SUB_GENUS,
+    RANK_SUB_KINGDOM,
+    RANK_SUB_ORDER,
+    RANK_SUB_PHYLUM,
+    RANK_SUB_SPECIES,
+    RANK_SUB_TRIBE,
+    RANK_SUPER_CLASS,
+    RANK_SUPER_FAMILY,
+    RANK_SUPER_KINGDOM,
+    RANK_SUPER_ORDER,
+    RANK_SUPER_PHYLUM,
+    RANK_TRIBE,
+    RANK_VARIETAS,
+};
+
+struct TaxonomyNode {
+    uint64_t parent_tid;
+    uint8_t  rank;
+};
+
 /**
  * Extended Burrows-Wheeler transform data.
  *
@@ -624,8 +662,8 @@ public:
         
         _uid_to_tid.clear();
         readU32(in3, this->toBe());
-        uint64_t nrefs = readIndex<uint64_t>(in3, this->toBe());
-        if(nrefs > 0) {
+        uint64_t nref = readIndex<uint64_t>(in3, this->toBe());
+        if(nref > 0) {
             while(!in3.eof()) {
                 string uid;
                 uint64_t tid;
@@ -636,13 +674,26 @@ public:
                     if(c == '\0' || c == '\n') break;
                     uid.push_back(c);
                 }
-                if(uid.length() == 0) break;
                 tid = readIndex<uint64_t>(in3, this->toBe());
                 _uid_to_tid.expand();
                 _uid_to_tid.back().first = uid;
                 _uid_to_tid.back().second = tid;
+                if(nref == _uid_to_tid.size()) break;
             }
-            assert_eq(nrefs, _uid_to_tid.size());
+            assert_eq(nref, _uid_to_tid.size());
+        }
+        _tree.clear();
+        uint64_t ntid = readIndex<uint64_t>(in3, this->toBe());
+        if(ntid > 0) {
+            while(!in3.eof()) {
+                TaxonomyNode node;
+                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
+                node.parent_tid = readIndex<uint64_t>(in3, this->toBe());
+                node.rank = readIndex<uint16_t>(in3, this->toBe());
+                _tree[tid] = node;
+                if(ntid == _tree.size()) break;
+            }
+            assert_eq(ntid, _tree.size());
         }
         in3.close();
 	}
@@ -1111,6 +1162,18 @@ public:
 			throw 1;
 		}
         
+        std::set<string> uids;
+        for(size_t i = 0; i < _refnames.size(); i++) {
+            const string& refname = _refnames[i];
+            size_t ndelim = 0;
+            size_t j = 0;
+            for(; j < refname.length(); j++) {
+                if(refname[j] == '|') ndelim++;
+                if(ndelim == 2) break;
+            }
+            string uid = refname.substr(0, j);
+            uids.insert(uid);
+        }
         std::map<string, uint64_t> uid_to_tid; // map from unique id to taxonomy id
         {
             ifstream table_file(table_fname.c_str(), ios::in);
@@ -1121,6 +1184,7 @@ public:
                     if(uid.length() == 0 || uid[0] == '#') continue;
                     uint64_t tid = 0;
                     table_file >> tid;
+                    if(uids.find(uid) == uids.end()) continue;
                     if(uid_to_tid.find(uid) != uid_to_tid.end()) {
                         cerr << "Warning: " << uid << " already exists!" << endl;
                         continue;
@@ -1141,6 +1205,7 @@ public:
             << "Please make sure the directory exists and that permissions allow writing by Centrifuge" << endl;
             throw 1;
         }
+        std::set<uint64_t> tids;
         writeIndex<int32_t>(fout3, 1, this->toBe()); // endianness sentinel
         writeIndex<uint64_t>(fout3, _refnames.size(), this->toBe());
         for(size_t i = 0; i < _refnames.size(); i++) {
@@ -1157,43 +1222,123 @@ public:
             }
             fout3 << '\0';
             if(uid_to_tid.find(uid) != uid_to_tid.end()) {
-                writeIndex<uint64_t>(fout3, uid_to_tid[uid], this->toBe());
+                uint64_t tid = uid_to_tid[uid];
+                writeIndex<uint64_t>(fout3, tid, this->toBe());
+                tids.insert(tid);
             } else {
                 cerr << "Warning: taxomony id doesn't exists for " << uid << "!" << endl;
                 writeIndex<uint64_t>(fout3, 0, this->toBe());
             }
         }
-        
-        EList<pair<uint64_t, string> > taxonomy_elts;
-        std::map<uint64_t, uint64_t> tid_to_elt;
+
         {
-            ifstream taxonomy_file(taxonomy_fname.c_str(), ios::in);
-            if(taxonomy_file.is_open()) {
-                char line[1024];
-                while(!taxonomy_file.eof()) {
-                    line[0] = 0;
-                    taxonomy_file.getline(line, sizeof(line));
-                    if(line[0] == 0 || line[0] == '#') continue;
-                    istringstream cline(line);
-                    uint64_t tid, parent_tid;
-                    char dummy; string rank;
-                    cline >> tid >> dummy >> parent_tid >> dummy >> rank;
-                    if(tid_to_elt.find(tid) != tid_to_elt.end()) {
-                        cerr << "Warning: " << tid << " already has a parent!" << endl;
-                        continue;
+            std::map<uint64_t, TaxonomyNode> tree;
+            std::set<uint64_t> tree_color;
+            {
+                ifstream taxonomy_file(taxonomy_fname.c_str(), ios::in);
+                if(taxonomy_file.is_open()) {
+                    char line[1024];
+                    while(!taxonomy_file.eof()) {
+                        line[0] = 0;
+                        taxonomy_file.getline(line, sizeof(line));
+                        if(line[0] == 0 || line[0] == '#') continue;
+                        istringstream cline(line);
+                        uint64_t tid, parent_tid;
+                        char dummy; string rank;
+                        cline >> tid >> dummy >> parent_tid >> dummy >> rank;
+                        if(tree.find(tid) != tree.end()) {
+                            cerr << "Warning: " << tid << " already has a parent!" << endl;
+                            continue;
+                        }
+                        TaxonomyNode node;
+                        node.parent_tid = parent_tid;
+                        if(rank == "strain") {
+                            node.rank = RANK_STRAIN;
+                        } else if(rank == "species") {
+                            node.rank = RANK_SPECIES;
+                        } else if(rank == "genus") {
+                            node.rank = RANK_GENUS;
+                        } else if(rank == "family") {
+                            node.rank = RANK_FAMILY;
+                        } else if(rank == "order") {
+                            node.rank = RANK_ORDER;
+                        } else if(rank == "class") {
+                            node.rank = RANK_CLASS;
+                        } else if(rank == "phylum") {
+                            node.rank = RANK_PHYLUM;
+                        } else if(rank == "kingdom") {
+                            node.rank = RANK_KINGDOM;
+                        } else if(rank == "forma") {
+                            node.rank = RANK_FORMA;
+                        } else if(rank == "infraclass") {
+                            node.rank = RANK_INFRA_CLASS;
+                        } else if(rank == "infraorder") {
+                            node.rank = RANK_INFRA_ORDER;
+                        } else if(rank == "parvorder") {
+                            node.rank = RANK_PARV_ORDER;
+                        } else if(rank == "subclass") {
+                            node.rank = RANK_SUB_CLASS;
+                        } else if(rank == "subfamily") {
+                            node.rank = RANK_SUB_FAMILY;
+                        } else if(rank == "subgenus") {
+                            node.rank = RANK_SUB_GENUS;
+                        } else if(rank == "subkingdom") {
+                            node.rank = RANK_SUB_KINGDOM;
+                        } else if(rank == "suborder") {
+                            node.rank = RANK_SUB_ORDER;
+                        } else if(rank == "subphylum") {
+                            node.rank = RANK_SUB_PHYLUM;
+                        } else if(rank == "subspecies") {
+                            node.rank = RANK_SUB_SPECIES;
+                        } else if(rank == "subtribe") {
+                            node.rank = RANK_SUB_TRIBE;
+                        } else if(rank == "superclass") {
+                            node.rank = RANK_SUPER_CLASS;
+                        } else if(rank == "superfamily") {
+                            node.rank = RANK_SUPER_FAMILY;
+                        } else if(rank == "superkingdom") {
+                            node.rank = RANK_SUPER_KINGDOM;
+                        } else if(rank == "superorder") {
+                            node.rank = RANK_SUPER_ORDER;
+                        } else if(rank == "superphylum") {
+                            node.rank = RANK_SUPER_PHYLUM;
+                        } else if(rank == "tribe") {
+                            node.rank = RANK_TRIBE;
+                        } else if(rank == "varietas") {
+                            node.rank = RANK_VARIETAS;
+                        } else {
+                            node.rank = RANK_UNKNOWN;
+                        }
+                        tree[tid] = node;
                     }
-                    tid_to_elt[tid] = taxonomy_elts.size();
-                    taxonomy_elts.expand();
-                    taxonomy_elts.back().first = parent_tid;
-                    taxonomy_elts.back().second = rank;
+                    taxonomy_file.close();
+                } else {
+                    cerr << "Error: " << taxonomy_file << " doesn't exist!" << endl;
+                    throw 1;
                 }
-                taxonomy_file.close();
-            } else {
-                cerr << "Error: " << taxonomy_file << " doesn't exist!" << endl;
-                throw 1;
+            }
+            for(std::set<uint64_t>::iterator itr = tids.begin(); itr != tids.end(); itr++) {
+                uint64_t tid = *itr;
+                if(tree.find(tid) == tree.end()) {
+                    cerr << "Warning: " << tid << " is not included in your provided taxonomy tree!" << endl;
+                }
+                while(tree.find(tid) != tree.end()) {
+                    uint64_t parent_tid = tree[tid].parent_tid;
+                    tree_color.insert(tid);
+                    if(parent_tid == tid) break;
+                    tid = parent_tid;
+                }
+            }
+            writeIndex<uint64_t>(fout3, tree_color.size(), this->toBe());
+            for(std::set<uint64_t>::iterator itr = tree_color.begin(); itr != tree_color.end(); itr++) {
+                uint64_t tid = *itr;
+                writeIndex<uint64_t>(fout3, tid, this->toBe());
+                assert(tree.find(tid) != tree.end());
+                const TaxonomyNode& node = tree[tid];
+                writeIndex<uint64_t>(fout3, node.parent_tid, this->toBe());
+                writeIndex<uint16_t>(fout3, node.rank, this->toBe());
             }
         }
-        assert_eq(taxonomy_elts.size(), tid_to_elt.size());
         
         fout3.close();
     
@@ -1392,7 +1537,8 @@ public:
 	EList<string>& refnames()        { return _refnames; }
 	bool        fw() const           { return fw_; }
     
-    const EList<pair<string, uint64_t> >& uid_to_tid() { return _uid_to_tid; }
+    const EList<pair<string, uint64_t> >&   uid_to_tid() { return _uid_to_tid; }
+    const std::map<uint64_t, TaxonomyNode>& tree()       { return _tree; }
     
 #ifdef POPCNT_CAPABILITY
     bool _usePOPCNTinstruction;
@@ -2695,7 +2841,8 @@ public:
 	EbwtParams<index_t> _eh;
 	bool packed_;
     
-    EList<pair<string, uint64_t> > _uid_to_tid;
+    EList<pair<string, uint64_t> >   _uid_to_tid; // table that converts uid to tid
+    std::map<uint64_t, TaxonomyNode> _tree;
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;
