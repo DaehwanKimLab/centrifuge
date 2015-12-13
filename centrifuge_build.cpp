@@ -60,6 +60,8 @@ static int32_t offRate;
 static int32_t ftabChars;
 static int32_t localOffRate;
 static int32_t localFtabChars;
+static string table_fname; // conversion table file name
+static string taxonomy_fname; // taxonomy tree file name
 static int  bigEndian;
 static bool nsToAs;
 static bool doSaFile;  // make a file with just the suffix array in it
@@ -91,6 +93,8 @@ static void resetOptions() {
 	ftabChars      = 10; // 10 chars in initial lookup table
     localOffRate   = 3;
     localFtabChars = 6;
+    table_fname    = "";
+    taxonomy_fname = "";
 	bigEndian      = 0;  // little endian
 	nsToAs         = false; // convert reference Ns to As prior to indexing
     doSaFile       = false; // make a file with just the suffix array in it
@@ -118,7 +122,9 @@ enum {
     ARG_SA,
 	ARG_WRAPPER,
     ARG_LOCAL_OFFRATE,
-    ARG_LOCAL_FTABCHARS
+    ARG_LOCAL_FTABCHARS,
+    ARG_CONVERSION_TABLE,
+    ARG_TAXONOMY_TREE,
 };
 
 /**
@@ -126,19 +132,14 @@ enum {
  */
 static void printUsage(ostream& out) {
 	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
-    
-#ifdef BOWTIE_64BIT_INDEX
-	string tool_name = "hisat-build-l";
-#else
-	string tool_name = "hisat-build-s";
-#endif
+	string tool_name = "centrifuge-build-bin";
 	if(wrapper == "basic-0") {
-		tool_name = "hisat-build";
+		tool_name = "centrifuge-build";
 	}
     
-	out << "Usage: hisat2-build [options]* <reference_in> <bt2_index_base>" << endl
+	out << "Usage: centrifuge-build [options]* --conversion-table <table file> --taxonomy-tree <taxonomy tree file> <reference_in> <cf_index_base>" << endl
 	    << "    reference_in            comma-separated list of files with ref sequences" << endl
-	    << "    hisat_index_base          write " << gEbwt_ext << " data to files with this dir/basename" << endl
+	    << "    centrifuge_index_base          write " << gEbwt_ext << " data to files with this dir/basename" << endl
         << "Options:" << endl
         << "    -c                      reference sequences given on cmd line (as" << endl
         << "                            <reference_in>)" << endl;
@@ -155,8 +156,10 @@ static void printUsage(ostream& out) {
 	    << "    -3/--justref            just build .3/.4.bt2 (packed reference) portion" << endl
 	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 5)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
-        << "    --localoffrate <int>    SA (local) is sampled every 2^offRate BWT chars (default: 3)" << endl
-        << "    --localftabchars <int>  # of chars consumed in initial lookup in a local index (default: 6)" << endl
+        // << "    --localoffrate <int>    SA (local) is sampled every 2^offRate BWT chars (default: 3)" << endl
+        // << "    --localftabchars <int>  # of chars consumed in initial lookup in a local index (default: 6)" << endl
+        << "    --conversion-table <file name>  a table that converts any id to a taxonomy id" << endl
+        << "    --taxonomy-tree    <file name>  taxonomy tree" << endl
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
         << "    -p <int>                number of alignment threads to launch (1)" << endl
@@ -198,6 +201,8 @@ static struct option long_options[] = {
 	{(char*)"ftabchars",      required_argument, 0,            't'},
     {(char*)"localoffrate",   required_argument, 0,            ARG_LOCAL_OFFRATE},
 	{(char*)"localftabchars", required_argument, 0,            ARG_LOCAL_FTABCHARS},
+    {(char*)"conversion-table", required_argument, 0,          ARG_CONVERSION_TABLE},
+    {(char*)"taxonomy-tree",    required_argument, 0,          ARG_TAXONOMY_TREE},
 	{(char*)"help",           no_argument,       0,            'h'},
 	{(char*)"ntoa",           no_argument,       0,            ARG_NTOA},
 	{(char*)"justref",        no_argument,       0,            '3'},
@@ -313,6 +318,12 @@ static void parseOptions(int argc, const char **argv) {
                 doSaFile = true;
                 break;
 			case ARG_NTOA: nsToAs = true; break;
+            case ARG_CONVERSION_TABLE:
+                table_fname = optarg;
+                break;
+            case ARG_TAXONOMY_TREE:
+                taxonomy_fname = optarg;
+                break;
 			case 'a': autoMem = false; break;
 			case 'q': verbose = false; break;
 			case 's': sanityCheck = true; break;
@@ -362,11 +373,13 @@ extern void initializeCntLut();
  */
 template<typename TStr>
 static void driver(
-	const string& infile,
-	EList<string>& infiles,
-	const string& outfile,
-	bool packed,
-	int reverse)
+                   const string& infile,
+                   EList<string>& infiles,
+                   const string& table_fname,
+                   const string& taxonomy_fname,
+                   const string& outfile,
+                   bool packed,
+                   int reverse)
 {
     initializeCntLut();
 	EList<FileBuf*> is(MISC_CAT);
@@ -419,13 +432,7 @@ static void driver(
 	{
 		if(verbose) cout << "Reading reference sizes" << endl;
 		Timer _t(cout, "  Time reading reference sizes: ", verbose);
-		if(!reverse && (writeRef || justRef) && false) {
-			filesWritten.push_back(outfile + ".3." + gEbwt_ext);
-			filesWritten.push_back(outfile + ".4." + gEbwt_ext);
-			sztot = BitPairReference::szsFromFasta(is, outfile, bigEndian, refparams, szs, sanityCheck);
-		} else {
-			sztot = BitPairReference::szsFromFasta(is, string(), bigEndian, refparams, szs, sanityCheck);
-		}
+        sztot = BitPairReference::szsFromFasta(is, string(), bigEndian, refparams, szs, sanityCheck);
 	}
 	if(justRef) return;
 	assert_gt(sztot.first, 0);
@@ -434,6 +441,7 @@ static void driver(
 	// Construct index from input strings and parameters
 	filesWritten.push_back(outfile + ".1." + gEbwt_ext);
 	filesWritten.push_back(outfile + ".2." + gEbwt_ext);
+    filesWritten.push_back(outfile + ".3." + gEbwt_ext);
 	TStr s;
 	Ebwt<TIndexOffU> ebwt(
                           s,
@@ -454,6 +462,8 @@ static void driver(
                           is,           // list of input streams
                           szs,          // list of reference sizes
                           (TIndexOffU)sztot.first,  // total size of all unambiguous ref chars
+                          table_fname,
+                          taxonomy_fname,
                           refparams,    // reference read-in parameters
                           seed,         // pseudo-random number generator seed
                           -1,           // override offRate
@@ -567,6 +577,18 @@ int centrifuge_build(int argc, const char **argv) {
 			printUsage(cerr);
 			return 1;
 		}
+        
+        if(table_fname == "") {
+            cerr << "Please specify --conversion-table!" << endl;
+            printUsage(cerr);
+            return 1;
+        }
+        
+        if(taxonomy_fname == "") {
+            cerr << "Please specify --taxonomy-tree!" << endl;
+            printUsage(cerr);
+            return 1;
+        }
 
 		// Optionally summarize
 		if(verbose) {
@@ -617,7 +639,14 @@ int centrifuge_build(int argc, const char **argv) {
 			Timer timer(cout, "Total time for call to driver() for forward index: ", verbose);
 			if(!packed) {
 				try {
-					driver<SString<char> >(infile, infiles, outfile, false, REF_READ_FORWARD);
+					driver<SString<char> >(
+                                           infile,
+                                           infiles,
+                                           table_fname,
+                                           taxonomy_fname,
+                                           outfile,
+                                           false,
+                                           REF_READ_FORWARD);
 				} catch(bad_alloc& e) {
 					if(autoMem) {
 						cerr << "Switching to a packed string representation." << endl;
@@ -628,7 +657,14 @@ int centrifuge_build(int argc, const char **argv) {
 				}
 			}
 			if(packed) {
-				driver<S2bDnaString>(infile, infiles, outfile, true, REF_READ_FORWARD);
+				driver<S2bDnaString>(
+                                     infile,
+                                     infiles,
+                                     table_fname,
+                                     taxonomy_fname,
+                                     outfile,
+                                     true,
+                                     REF_READ_FORWARD);
 			}
 		}
 #if 0

@@ -17,7 +17,7 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HISAT_INSPECT_MAIN
+#ifdef CENTRIFUGE_INSPECT_MAIN
 
 #include <string>
 #include <iostream>
@@ -40,11 +40,15 @@ static int across       = 60; // number of characters across in FASTA output
 static bool refFromEbwt = false; // true -> when printing reference, decode it from Ebwt instead of reading it from BitPairReference
 static string wrapper;
 static const char *short_options = "vhnsea:";
+static int conversion_table = 0;
+static int taxonomy_tree = 0;
 
 enum {
 	ARG_VERSION = 256,
     ARG_WRAPPER,
 	ARG_USAGE,
+    ARG_CONVERSION_TABLE,
+    ARG_TAXONOMY_TREE,
 };
 
 static struct option long_options[] = {
@@ -57,6 +61,8 @@ static struct option long_options[] = {
 	{(char*)"across",   required_argument,  0, 'a'},
 	{(char*)"ebwt-ref", no_argument,        0, 'e'},
     {(char*)"wrapper",  required_argument,  0, ARG_WRAPPER},
+    {(char*)"conversion-table", no_argument,  0, ARG_CONVERSION_TABLE},
+    {(char*)"taxonomy-tree",    no_argument,  0, ARG_TAXONOMY_TREE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -66,8 +72,8 @@ static struct option long_options[] = {
 static void printUsage(ostream& out) {
 	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
 	out
-	<< "Usage: hisat-inspect [options]* <bt2_base>" << endl
-	<< "  <bt2_base>         bt2 filename minus trailing .1." << gEbwt_ext << "/.2." << gEbwt_ext << endl
+	<< "Usage: centrifuge-inspect [options]* <bt2_base>" << endl
+	<< "  <cf_base>         cf filename minus trailing .1." << gEbwt_ext << "/.2." << gEbwt_ext << endl
 	<< endl
 	<< "  By default, prints FASTA records of the indexed nucleotide sequences to" << endl
 	<< "  standard out.  With -n, just prints names.  With -s, just prints a summary of" << endl
@@ -81,7 +87,9 @@ static void printUsage(ostream& out) {
 	out << "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
 	<< "  -n/--names         Print reference sequence names only" << endl
 	<< "  -s/--summary       Print summary incl. ref names, lengths, index properties" << endl
-	<< "  -e/--bt2-ref      Reconstruct reference from ." << gEbwt_ext << " (slow, preserves colors)" << endl
+	<< "  -e/--bt2-ref       Reconstruct reference from ." << gEbwt_ext << " (slow, preserves colors)" << endl
+    << "  --conversion-table Print conversion table" << endl
+    << "  --taxonomy-tree    Print taxonomy tree" << endl
 	<< "  -v/--verbose       Verbose output (for debugging)" << endl
 	<< "  -h/--help          print detailed description of tool and its options" << endl
 	<< "  --help             print this usage message" << endl
@@ -89,7 +97,7 @@ static void printUsage(ostream& out) {
     if(wrapper.empty()) {
 		cerr << endl
         << "*** Warning ***" << endl
-        << "'hisat-inspect' was run directly.  It is recommended "
+        << "'centrifuge-inspect-bin' was run directly.  It is recommended "
         << "to use the wrapper script instead."
         << endl << endl;
 	}
@@ -137,6 +145,12 @@ static void parseOptions(int argc, char **argv) {
 				break;
 			case 'v': verbose = true; break;
 			case ARG_VERSION: showVersion = true; break;
+            case ARG_CONVERSION_TABLE:
+                conversion_table = true;
+                break;
+            case ARG_TAXONOMY_TREE:
+                taxonomy_tree = true;
+                break;
 			case 'e': refFromEbwt = true; break;
 			case 'n': names_only = true; break;
 			case 's': summarize_only = true; break;
@@ -378,54 +392,63 @@ static void driver(
 	// Adjust
 	string adjustedEbwtFileBase = adjustEbwtBase(argv0, ebwtFileBase, verbose);
 
-	if (names_only) {
+	if(names_only) {
 		print_index_sequence_names<TIndexOffU>(adjustedEbwtFileBase, cout);
 	} else if(summarize_only) {
 		print_index_summary<TIndexOffU>(adjustedEbwtFileBase, cout);
-	} else {
+    } else {
         // Initialize Ebwt object
 		bool color = readEbwtColor(adjustedEbwtFileBase);
 		HierEbwt<TIndexOffU, uint16_t> ebwt(
-					  adjustedEbwtFileBase, 
-					  color,                // index is colorspace
-					  -1,                   // don't care about entire-reverse
-					  true,                 // index is for the forward direction
-					  -1,                   // offrate (-1 = index default)
-					  0,                    // offrate-plus (0 = index default)
-					  false,                // use memory-mapped IO
-					  false,                // use shared memory
-					  false,                // sweep memory-mapped memory
-					  true,                 // load names?
-					  true,                 // load SA sample?
-					  true,                 // load ftab?
-					  true,                 // load rstarts?
-					  false,                // be talkative?
-					  false,                // be talkative at startup?
-					  false,                // pass up memory exceptions?
-					  false);               // sanity check?
+                                            adjustedEbwtFileBase,
+                                            color,                // index is colorspace
+                                            -1,                   // don't care about entire-reverse
+                                            true,                 // index is for the forward direction
+                                            -1,                   // offrate (-1 = index default)
+                                            0,                    // offrate-plus (0 = index default)
+                                            false,                // use memory-mapped IO
+                                            false,                // use shared memory
+                                            false,                // sweep memory-mapped memory
+                                            true,                 // load names?
+                                            true,                 // load SA sample?
+                                            true,                 // load ftab?
+                                            true,                 // load rstarts?
+                                            false,                // be talkative?
+                                            false,                // be talkative at startup?
+                                            false,                // pass up memory exceptions?
+                                            false);               // sanity check?        
         
-        ebwt.loadIntoMemory(
-                            -1,     // color
-                            -1,     // need entire reverse
-                            true,   // load SA sample
-                            true,   // load ftab
-                            true,   // load rstarts
-                            true,   // load names
-                            verbose);  // verbose
-        
-		// Load whole index into memory
-		if(refFromEbwt) {        	
-			print_index_sequences<TIndexOffU, SString<char> >(cout, ebwt);
-		} else {
-			EList<string> refnames;
-			readEbwtRefnames<TIndexOffU>(adjustedEbwtFileBase, refnames);
-			print_ref_sequences(
-				cout,
-				readEbwtColor(ebwtFileBase),
-				refnames,
-				ebwt.plen(),
-				adjustedEbwtFileBase);
-		}
+        if(conversion_table) {
+            const EList<pair<string, uint64_t> >& uid_to_tid = ebwt.uid_to_tid();
+            for(size_t i = 0; i < uid_to_tid.size(); i++) {
+                cout << uid_to_tid[i].first << "\t" << uid_to_tid[i].second << endl;
+            }
+        } else if(taxonomy_tree) {
+            
+        } else {
+            ebwt.loadIntoMemory(
+                                -1,     // color
+                                -1,     // need entire reverse
+                                true,   // load SA sample
+                                true,   // load ftab
+                                true,   // load rstarts
+                                true,   // load names
+                                verbose);  // verbose
+            
+            // Load whole index into memory
+            if(refFromEbwt || true) {
+                print_index_sequences<TIndexOffU, SString<char> >(cout, ebwt);
+            } else {
+                EList<string> refnames;
+                readEbwtRefnames<TIndexOffU>(adjustedEbwtFileBase, refnames);
+                print_ref_sequences(
+                                    cout,
+                                    readEbwtColor(ebwtFileBase),
+                                    refnames,
+                                    ebwt.plen(),
+                                    adjustedEbwtFileBase);
+            }
+        }
 		// Evict any loaded indexes from memory
 		if(ebwt.isInMemory()) {
 			ebwt.evictFromMemory();
@@ -503,4 +526,4 @@ int main(int argc, char **argv) {
 	}
 }
 
-#endif /*def HISAT_INSPECT_MAIN*/
+#endif /*def CENTRIFUGE_INSPECT_MAIN*/

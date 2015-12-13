@@ -517,6 +517,9 @@ void Ebwt<index_t>::readIntoMemory(
 				this->_refnames.back().push_back(c);
 			}
 		}
+        if(this->_refnames.back().empty()) {
+            this->_refnames.pop_back();
+        }
 	}
 	
 	_offs.reset();

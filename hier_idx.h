@@ -1695,6 +1695,8 @@ void HierEbwt<index_t, local_index_t>::readIntoMemory(
                                  mmSweep,
                                  loadNames,
                                  startVerbose);
+    
+    return;
 
 	bool switchEndian; // dummy; caller doesn't care
 #ifdef BOWTIE_MM

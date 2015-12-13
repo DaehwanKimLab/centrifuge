@@ -31,6 +31,7 @@
 #include <errno.h>
 #include <stdexcept>
 #include <sys/stat.h>
+#include <map>
 #ifdef BOWTIE_MM
 #include <sys/mman.h>
 #include <sys/shm.h>
@@ -612,6 +613,38 @@ public:
 			}
 			assert(repOk());
 		}
+        
+        // Read ALTs
+        string in3Str = in + ".3." + gEbwt_ext;
+        if(verbose || startVerbose) cerr << "Opening \"" << in3Str.c_str() << "\"" << endl;
+        ifstream in3(in3Str.c_str(), ios::binary);
+        if(!in3.good()) {
+            cerr << "Could not open index file " << in3Str.c_str() << endl;
+        }
+        
+        _uid_to_tid.clear();
+        readU32(in3, this->toBe());
+        uint64_t nrefs = readIndex<uint64_t>(in3, this->toBe());
+        if(nrefs > 0) {
+            while(!in3.eof()) {
+                string uid;
+                uint64_t tid;
+                while(true) {
+                    char c = '\0';
+                    in3 >> c;
+                    // if(MM_READ(in3, (void *)(&c), (size_t)1) != (size_t)1) break;
+                    if(c == '\0' || c == '\n') break;
+                    uid.push_back(c);
+                }
+                if(uid.length() == 0) break;
+                tid = readIndex<uint64_t>(in3, this->toBe());
+                _uid_to_tid.expand();
+                _uid_to_tid.back().first = uid;
+                _uid_to_tid.back().second = tid;
+            }
+            assert_eq(nrefs, _uid_to_tid.size());
+        }
+        in3.close();
 	}
 	
 	/// Construct an Ebwt from the given header parameters and string
@@ -658,40 +691,42 @@ public:
 	/// ultimately joined and the joined string is passed to buildToDisk().
 	template<typename TStr>
 	Ebwt(
-		TStr& s,
-		bool packed,
-		int color,
-		int needEntireReverse,
-		int32_t lineRate,
-		int32_t offRate,
-		int32_t ftabChars,
-		const string& file,   // base filename for EBWT files
-		bool fw,
-		bool useBlockwise,
-		index_t bmax,
-		index_t bmaxSqrtMult,
-		index_t bmaxDivN,
-		int dcv,
-        int nthreads,
-		EList<FileBuf*>& is,
-		EList<RefRecord>& szs,
-		index_t sztot,
-		const RefReadInParams& refparams,
-		uint32_t seed,
-		int32_t overrideOffRate = -1,
-        bool doSaFile = false,
-        bool doBwtFile = false,
-		bool verbose = false,
-		bool passMemExc = false,
-		bool sanityCheck = false) :
-		Ebwt_INITS,
-		_eh(
-			joinedLen(szs),
-			lineRate,
-			offRate,
-			ftabChars,
-			color,
-			refparams.reverse == REF_READ_REVERSE)
+         TStr& s,
+         bool packed,
+         int color,
+         int needEntireReverse,
+         int32_t lineRate,
+         int32_t offRate,
+         int32_t ftabChars,
+         const string& file,   // base filename for EBWT files
+         bool fw,
+         bool useBlockwise,
+         index_t bmax,
+         index_t bmaxSqrtMult,
+         index_t bmaxDivN,
+         int dcv,
+         int nthreads,
+         EList<FileBuf*>& is,
+         EList<RefRecord>& szs,
+         index_t sztot,
+         const string& table_fname,
+         const string& taxonomy_fname,
+         const RefReadInParams& refparams,
+         uint32_t seed,
+         int32_t overrideOffRate = -1,
+         bool doSaFile = false,
+         bool doBwtFile = false,
+         bool verbose = false,
+         bool passMemExc = false,
+         bool sanityCheck = false) :
+    Ebwt_INITS,
+    _eh(
+        joinedLen(szs),
+        lineRate,
+        offRate,
+        ftabChars,
+        color,
+        refparams.reverse == REF_READ_REVERSE)
 	{
 #ifdef POPCNT_CAPABILITY
         ProcessorSupport ps;
@@ -748,6 +783,8 @@ public:
                              saOut,
                              bwtOut,
                              file,
+                             table_fname,
+                             taxonomy_fname,
 							 useBlockwise,
 							 bmax,
 							 bmaxSqrtMult,
@@ -1005,6 +1042,8 @@ public:
                         ofstream* saOut,
                         ofstream* bwtOut,
                         const string& base_fname,
+                        const string& table_fname,
+                        const string& taxonomy_fname,
 	                    bool useBlockwise,
 	                    index_t bmax,
 	                    index_t bmaxSqrtMult,
@@ -1071,6 +1110,93 @@ public:
 			}
 			throw 1;
 		}
+        
+        std::map<string, uint64_t> uid_to_tid; // map from unique id to taxonomy id
+        {
+            ifstream table_file(table_fname.c_str(), ios::in);
+            if(table_file.is_open()) {
+                while(!table_file.eof()) {
+                    string uid;
+                    table_file >> uid;
+                    if(uid.length() == 0 || uid[0] == '#') continue;
+                    uint64_t tid = 0;
+                    table_file >> tid;
+                    if(uid_to_tid.find(uid) != uid_to_tid.end()) {
+                        cerr << "Warning: " << uid << " already exists!" << endl;
+                        continue;
+                    }
+                    uid_to_tid[uid] = tid;
+                }
+                table_file.close();
+            } else {
+                cerr << "Error: " << table_fname << " doesn't exist!" << endl;
+                throw 1;
+            }
+        }
+        // Open output stream for the '.3.cf' file which will hold conversion table and taxonomy tree
+        string fname3 = base_fname + ".3." + gEbwt_ext;
+        ofstream fout3(fname3.c_str(), ios::binary);
+        if(!fout3.good()) {
+            cerr << "Could not open index file for writing: \"" << fname3 << "\"" << endl
+            << "Please make sure the directory exists and that permissions allow writing by Centrifuge" << endl;
+            throw 1;
+        }
+        writeIndex<int32_t>(fout3, 1, this->toBe()); // endianness sentinel
+        writeIndex<uint64_t>(fout3, _refnames.size(), this->toBe());
+        for(size_t i = 0; i < _refnames.size(); i++) {
+            const string& refname = _refnames[i];
+            size_t ndelim = 0;
+            size_t j = 0;
+            for(; j < refname.length(); j++) {
+                if(refname[j] == '|') ndelim++;
+                if(ndelim == 2) break;
+            }
+            string uid = refname.substr(0, j);
+            for(size_t c = 0; c < uid.length(); c++) {
+                fout3 << uid[c];
+            }
+            fout3 << '\0';
+            if(uid_to_tid.find(uid) != uid_to_tid.end()) {
+                writeIndex<uint64_t>(fout3, uid_to_tid[uid], this->toBe());
+            } else {
+                cerr << "Warning: taxomony id doesn't exists for " << uid << "!" << endl;
+                writeIndex<uint64_t>(fout3, 0, this->toBe());
+            }
+        }
+        
+        EList<pair<uint64_t, string> > taxonomy_elts;
+        std::map<uint64_t, uint64_t> tid_to_elt;
+        {
+            ifstream taxonomy_file(taxonomy_fname.c_str(), ios::in);
+            if(taxonomy_file.is_open()) {
+                char line[1024];
+                while(!taxonomy_file.eof()) {
+                    line[0] = 0;
+                    taxonomy_file.getline(line, sizeof(line));
+                    if(line[0] == 0 || line[0] == '#') continue;
+                    istringstream cline(line);
+                    uint64_t tid, parent_tid;
+                    char dummy; string rank;
+                    cline >> tid >> dummy >> parent_tid >> dummy >> rank;
+                    if(tid_to_elt.find(tid) != tid_to_elt.end()) {
+                        cerr << "Warning: " << tid << " already has a parent!" << endl;
+                        continue;
+                    }
+                    tid_to_elt[tid] = taxonomy_elts.size();
+                    taxonomy_elts.expand();
+                    taxonomy_elts.back().first = parent_tid;
+                    taxonomy_elts.back().second = rank;
+                }
+                taxonomy_file.close();
+            } else {
+                cerr << "Error: " << taxonomy_file << " doesn't exist!" << endl;
+                throw 1;
+            }
+        }
+        assert_eq(taxonomy_elts.size(), tid_to_elt.size());
+        
+        fout3.close();
+    
 		// Succesfully obtained joined reference string
 		assert_geq(s.length(), jlen);
 		if(bmax != (index_t)OFF_MASK) {
@@ -1139,7 +1265,7 @@ public:
 					dcv >>= 1;
 					// Likewise with the KarkkainenBlockwiseSA
 					sz = (index_t)KarkkainenBlockwiseSA<TStr>::simulateAllocs(s, bmax);
-                    sz *= nthreads;
+                    if(nthreads > 1) sz *= (nthreads + 1);
 					AutoArray<uint8_t> tmp2(sz, EBWT_CAT);
 					// Now throw in the 'ftab' and 'isaSample' structures
 					// that we'll eventually allocate in buildToDisk
@@ -1265,6 +1391,8 @@ public:
 	bool        sanityCheck() const  { return _sanity; }
 	EList<string>& refnames()        { return _refnames; }
 	bool        fw() const           { return fw_; }
+    
+    const EList<pair<string, uint64_t> >& uid_to_tid() { return _uid_to_tid; }
     
 #ifdef POPCNT_CAPABILITY
     bool _usePOPCNTinstruction;
@@ -2566,6 +2694,8 @@ public:
 	char *mmFile2_;
 	EbwtParams<index_t> _eh;
 	bool packed_;
+    
+    EList<pair<string, uint64_t> > _uid_to_tid;
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;

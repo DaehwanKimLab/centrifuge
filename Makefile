@@ -332,7 +332,7 @@ RemoveN: CompressDatabase/RemoveN.cpp
 centrifuge-inspect-bin: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 	$(RELEASE_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DHISAT_INSPECT_MAIN -Wall \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DCENTRIFUGE_INSPECT_MAIN -Wall \
 	$(INC) -I . \
 	-o $@ $< \
 	$(SHARED_CPPS) \
@@ -341,7 +341,7 @@ centrifuge-inspect-bin: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 centrifuge-inspect-bin-debug: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
 	$(CXX) $(DEBUG_FLAGS) \
 	$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DHISAT_INSPECT_MAIN -Wall \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DCENTRIFUGE_INSPECT_MAIN -Wall \
 	$(INC) -I . \
 	-o $@ $< \
 	$(SHARED_CPPS) \
@@ -376,15 +376,15 @@ centrifuge-src: $(SRC_PKG_LIST)
 	rm -rf .src.tmp
 
 .PHONY: centrifuge-bin
-centrifuge-bin: $(BIN_PKG_LIST) $(HISAT_BIN_LIST) $(HISAT_BIN_LIST_AUX) 
+centrifuge-bin: $(BIN_PKG_LIST) $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX) 
 	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
 	mkdir .bin.tmp/centrifuge-$(VERSION)
 	if [ -f centrifuge.exe ] ; then \
-		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(HISAT_BIN_LIST) $(HISAT_BIN_LIST_AUX)) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(addsuffix .exe,$(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX)) ; \
 	else \
-		zip tmp.zip $(BIN_PKG_LIST) $(HISAT_BIN_LIST) $(HISAT_BIN_LIST_AUX) ; \
+		zip tmp.zip $(BIN_PKG_LIST) $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX) ; \
 	fi
 	mv tmp.zip .bin.tmp/centrifuge-$(VERSION)
 	cd .bin.tmp/centrifuge-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
@@ -396,7 +396,7 @@ centrifuge-bin: $(BIN_PKG_LIST) $(HISAT_BIN_LIST) $(HISAT_BIN_LIST_AUX)
 doc: doc/manual.inc.html MANUAL
 
 doc/manual.inc.html: MANUAL.markdown
-	pandoc -T "HISAT Manual" -o $@ \
+	pandoc -T "Centrifuge Manual" -o $@ \
 	 --from markdown --to HTML --toc $^
 	perl -i -ne \
 	 '$$w=0 if m|^</body>|;print if $$w;$$w=1 if m|^<body>|;' $@
