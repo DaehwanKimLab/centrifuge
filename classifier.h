@@ -157,7 +157,7 @@ public:
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
-				const BWTHit<index_t> partialHit = hit.getPartialHit(hi);
+				const BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
                 size_t partialHitLen = partialHit.len();
 
                 // only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
@@ -190,16 +190,17 @@ public:
                     assert_lt(coord.ref(), _refnames.size()); // gives a warning - coord.ref() is signed integer. why?
 
                     // extract numeric id from refName
-                    const string& refName = _refnames[coord.ref()];
-                    uint64_t id = extractIDFromRefName(refName);
+                    const EList<pair<string, uint64_t> >& uid_to_tid = ebwtFw.uid_to_tid();
+                    assert_lt(coord.ref(), uid_to_tid.size());
+                    uint64_t tid = uid_to_tid[coord.ref()].second;
 
                     // count the genome if it is not in coord_ids, yet
-                    if (k > 0 && std::find(coord_ids.begin(), coord_ids.begin()+k+1, id)!=coord_ids.begin()+k+1) {
+                    if (k > 0 && std::find(coord_ids.begin(), coord_ids.begin()+k+1, tid)!=coord_ids.begin()+k+1) {
                     	--n_genomes;
                     }
 
                     // add to coord_ids
-                    coord_ids[k] = id;
+                    coord_ids[k] = tid;
                 }
 
                 // scoring function: calculate the weight of this partial hit
@@ -210,11 +211,21 @@ public:
 
                 // go through all coordinates reported for partial hit
                 for(index_t k = 0; k < nHitsToConsider; ++k) {
-                    uint64_t id = coord_ids[k];
-                    
-                    uint32_t speciesID = (uint32_t)(id >> 32);
-                    uint32_t genusID = (uint32_t)(id & 0xffffffff);
-                    
+                    uint64_t tid = coord_ids[k];
+                    uint32_t speciesID = (uint32_t)tid, genusID = (uint32_t)tid;                    
+                    const map<uint64_t, TaxonomyNode>& tree = ebwtFw.tree();
+                    while(tree.find(tid) != tree.end()) {
+                        const TaxonomyNode& node = tree.find(tid)->second;
+                        if(node.rank == RANK_SPECIES) {
+                            speciesID = (uint32_t)tid;
+                        } else if(node.rank == RANK_GENUS) {
+                            genusID = (uint32_t)tid;
+                            break;
+                        }
+                        if(tid == node.parent_tid) break;
+                        tid = node.parent_tid;
+                    }
+
                     if(_hostGenomes.size() > 0 &&
                        _hostGenomes.back() == speciesID &&
                        partialHit.len() >= 31) {

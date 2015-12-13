@@ -1537,8 +1537,8 @@ public:
 	EList<string>& refnames()        { return _refnames; }
 	bool        fw() const           { return fw_; }
     
-    const EList<pair<string, uint64_t> >&   uid_to_tid() { return _uid_to_tid; }
-    const std::map<uint64_t, TaxonomyNode>& tree()       { return _tree; }
+    const EList<pair<string, uint64_t> >&   uid_to_tid() const { return _uid_to_tid; }
+    const std::map<uint64_t, TaxonomyNode>& tree() const { return _tree; }
     
 #ifdef POPCNT_CAPABILITY
     bool _usePOPCNTinstruction;
