@@ -1168,6 +1168,7 @@ public:
             size_t ndelim = 0;
             size_t j = 0;
             for(; j < refname.length(); j++) {
+                if(refname[j] == ' ') break;
                 if(refname[j] == '|') ndelim++;
                 if(ndelim == 2) break;
             }
