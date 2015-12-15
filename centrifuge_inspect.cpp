@@ -17,8 +17,6 @@
  * along with Bowtie 2.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef CENTRIFUGE_INSPECT_MAIN
-
 #include <string>
 #include <iostream>
 #include <getopt.h>
@@ -559,5 +557,3 @@ int main(int argc, char **argv) {
 		return e;
 	}
 }
-
-#endif /*def CENTRIFUGE_INSPECT_MAIN*/

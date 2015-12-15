@@ -67,8 +67,8 @@ struct SpeciesMetrics {
 	}
 
 	void init(
-		map<uint32_t,ReadCounts> species_counts_,
-		map<uint32_t,HyperLogLogPlusMinus<uint64_t> > species_kmers_)
+              const map<uint32_t,ReadCounts>& species_counts_,
+              const map<uint32_t,HyperLogLogPlusMinus<uint64_t> >& species_kmers_)
 	{
 		species_counts = species_counts_;
 		species_kmers = species_kmers_;
@@ -134,6 +134,46 @@ struct SpeciesMetrics {
 	map<uint32_t,HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
 
 	MUTEX_T mutex_m;
+};
+
+/**
+ * Abundance analysis based on EM methods
+ */
+struct AbundanceMetrics {
+    
+    AbundanceMetrics():mutex_m() {
+        reset();
+    }
+    
+    void reset() {
+    }
+    
+    void init() {
+        reset();
+    }
+    
+    /**
+     * Merge (add) the counters in the given ReportingMetrics object
+     * into this object.  This is the only safe way to update a
+     * ReportingMetrics shared by multiple threads.
+     */
+    void merge(const AbundanceMetrics& met, bool getLock = false) {
+        ThreadSafe ts(&mutex_m, getLock);
+    }
+    
+#if 0
+    void addSpeciesCounts(uint32_t species, uint32_t score, double summed_hit_len, double weighted_read, bool is_unique) {
+        species_counts[species].n_reads += 1;
+        species_counts[species].sum_score += score;
+        species_counts[species].weighted_reads += weighted_read;
+        species_counts[species].summed_hit_len += summed_hit_len;
+        if (is_unique) {
+            species_counts[species].n_unique_reads += 1;
+        }
+    }
+#endif
+    
+    MUTEX_T mutex_m;
 };
 
 /**

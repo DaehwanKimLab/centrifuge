@@ -106,7 +106,7 @@ double calculateEstimate(vector<uint8_t> M, uint32_t m) {
 }
 
 uint32_t countZeros(vector<uint8_t> s) {
-	return count(s.begin(), s.end(), 0);
+	return (uint32_t)count(s.begin(), s.end(), 0);
 }
 
 /**

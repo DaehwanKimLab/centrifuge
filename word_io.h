@@ -362,7 +362,7 @@ static inline index_t readIndex(FILE* in, bool swap) {
 			assert(false);
 			return 0;
 		} else if(sizeof(index_t) == 4) {
-			return endianSwapU32(x);
+			return endianSwapU32((uint32_t)x);
 		} else {
 			assert_eq(sizeof(index_t), 2);
 			return endianSwapU16(x);

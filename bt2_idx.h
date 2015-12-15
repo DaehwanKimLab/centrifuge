@@ -339,7 +339,7 @@ struct SideLocus {
 			lbot._charOff = ltop._charOff + spread;
 			lbot._sideNum = ltop._sideNum;
 			lbot._sideByteOff = ltop._sideByteOff;
-			lbot._by = lbot._charOff >> 2;
+			lbot._by = (int)(lbot._charOff >> 2);
 			assert_lt(lbot._by, (int)ep._sideBwtSz);
 			lbot._bp = lbot._charOff & 3;
 		} else {
@@ -362,7 +362,7 @@ struct SideLocus {
 		assert_leq(row, ep._len);
 		assert_leq(_sideByteOff + sideSz, ep._ebwtTotSz);
 		// Tons of cache misses on the next line
-		_by = _charOff >> 2; // byte within side
+		_by = (int)(_charOff >> 2); // byte within side
 		assert_lt(_by, (int)ep._sideBwtSz);
 		_bp = _charOff & 3;  // bit-pair within byte
 	}
@@ -489,7 +489,7 @@ struct USE_POPCNT_INSTRUCTION {
     inline static int pop64(uint64_t x) {
         int64_t count;
         asm ("popcntq %[x],%[count]\n": [count] "=&r" (count): [x] "r" (x));
-        return count;
+        return (int)count;
     }
 };
 #endif
@@ -1314,7 +1314,7 @@ public:
                     }
                     taxonomy_file.close();
                 } else {
-                    cerr << "Error: " << taxonomy_file << " doesn't exist!" << endl;
+                    cerr << "Error: " << taxonomy_fname << " doesn't exist!" << endl;
                     throw 1;
                 }
             }
@@ -1353,7 +1353,7 @@ public:
 			VMSG_NL("bmax according to bmaxSqrtMult setting: " << bmax);
 		}
 		else if(bmaxDivN != (index_t)OFF_MASK) {
-			bmax = max<uint32_t>(jlen / bmaxDivN, 1);
+			bmax = max<uint32_t>((uint32_t)(jlen / bmaxDivN), 1);
 			VMSG_NL("bmax according to bmaxDivN setting: " << bmax);
 		}
 		else {

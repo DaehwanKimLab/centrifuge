@@ -251,7 +251,7 @@ public:
                 if(cur > sa->_sampleSuffs.size()) break;
                 sa->_cur++;
             }
-            sa->nextBlock(cur, tid);
+            sa->nextBlock((int)cur, tid);
             // Write suffixes into a file
             std::ostringstream number; number << cur;
             const string fname = sa->_base_fname + "." + number.str() + ".sa";
@@ -302,7 +302,7 @@ public:
                 throw out_of_range("No more suffixes");
             }
             if(this->_nthreads == 1) {
-                nextBlock(_cur);
+                nextBlock((int)_cur);
                 _cur++;
             } else {
                 while(!_done[this->_itrBucketIdx]) {

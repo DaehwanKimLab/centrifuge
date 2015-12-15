@@ -230,7 +230,7 @@ static int parseNumber(T lower, const char *errmsg) {
 			printUsage(cerr);
 			throw 1;
 		}
-		return t;
+		return (int)t;
 	}
 	cerr << errmsg << endl;
 	printUsage(cerr);

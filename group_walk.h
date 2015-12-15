@@ -453,7 +453,7 @@ public:
 		assert_lt(range, sts.size());
 		top = tp;
 		bot = bt;
-		step = st;
+		step = (int)st;
 		assert(!inited_);
 		ASSERT_ONLY(inited_ = true);
 		ASSERT_ONLY(lastStep_ = step-1);

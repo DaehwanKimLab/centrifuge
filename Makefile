@@ -181,7 +181,7 @@ CENTRIFUGE_BIN_LIST = centrifuge-build-bin \
 	centrifuge-inspect-bin \
 	centrifuge-compress-bin \
 	centrifuge-report-bin
-	
+
 CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 	centrifuge-class-debug \
 	centrifuge-inspect-bin-debug \
@@ -332,7 +332,7 @@ RemoveN: CompressDatabase/RemoveN.cpp
 centrifuge-inspect-bin: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 	$(RELEASE_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DCENTRIFUGE_INSPECT_MAIN -Wall \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
 	$(INC) -I . \
 	-o $@ $< \
 	$(SHARED_CPPS) \
@@ -341,7 +341,7 @@ centrifuge-inspect-bin: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 centrifuge-inspect-bin-debug: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS) 
 	$(CXX) $(DEBUG_FLAGS) \
 	$(DEBUG_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -DCENTRIFUGE_INSPECT_MAIN -Wall \
+	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
 	$(INC) -I . \
 	-o $@ $< \
 	$(SHARED_CPPS) \
@@ -356,11 +356,11 @@ centrifuge.bat:
 
 centrifuge-build.bat:
 	echo "@echo off" > centrifuge-build.bat
-	echo "python %~dp0/hisat-build %*" >> hisat-build.bat
+	echo "python %~dp0/centrifuge-build %*" >> hisat-build.bat
 
 centrifuge-inspect.bat:
 	echo "@echo off" > centrifuge-inspect.bat
-	echo "python %~dp0/hisat-inspect %*" >> hisat-inspect.bat
+	echo "python %~dp0/centrifuge-inspect %*" >> hisat-inspect.bat
 
 
 .PHONY: centrifuge-src

@@ -942,8 +942,8 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
         partialHits.back().init((index_t)OFF_MASK,
                                 (index_t)OFF_MASK,
                                 fw,
-                                (index_t)offset,
-                                (index_t)(cur - offset));
+                                (uint32_t)offset,
+                                (uint32_t)(cur - offset));
         hit.done(true);
 		return 0;
     }
@@ -956,8 +956,8 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
             partialHits.back().init((index_t)OFF_MASK,
                                     (index_t)OFF_MASK,
                                     fw,
-                                    (index_t)offset,
-                                    (index_t)(cur - offset));
+                                    (uint32_t)offset,
+                                    (uint32_t)(cur - offset));
             if(cur >= hit._len) {
                 hit.done(true);
             }
@@ -974,8 +974,8 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
         partialHits.back().init((index_t)OFF_MASK,
                                 (index_t)OFF_MASK,
                                 fw,
-                                (index_t)offset,
-                                (index_t)(cur - offset));
+                                (uint32_t)offset,
+                                (uint32_t)(cur - offset));
         if(cur >= hit._len) {
             hit.done(true);
         }
@@ -1066,8 +1066,8 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
         partialHits.back().init(top,
                                 bot,
                                 fw,
-                                (index_t)offset,
-                                (index_t)(dep - offset),
+                                (uint32_t)offset,
+                                (uint32_t)(dep - offset),
                                 hit_type);
         
         nelt += (bot - top);

@@ -560,10 +560,10 @@ private:
 	else if ( hitSize[0] != hitSize[1] )
 		fwi = (hitSize[0] > hitSize[1])? 1 : 0;
 	else
-		return 0 ;//just randomly pick one
+		return 0;//just randomly pick one
 		
         //return this->_hits[rdi][fwi];
-	return fwi ;
+        return (int)fwi;
     }
 
     EList<Coord>& getCoords(ReadBWTHit<index_t>& hit, size_t hi,
@@ -613,7 +613,7 @@ std::cerr <<  partialHit.len() << ':';
                     genusMap[genusIdx].count += 1;
                     genusMap[genusIdx].score += partialHitScore;
                     //genusMap[genusIdx].summedHitLen += weightedHitLen;
-                    genusMap[genusIdx].timeStamp = hi;
+                    genusMap[genusIdx].timeStamp = (uint32_t)hi;
                 }
                 break;
             }
@@ -626,7 +626,7 @@ std::cerr <<  partialHit.len() << ':';
             genusMap.back().count = 1;
             genusMap.back().score = partialHitScore;
             genusMap[genusIdx].summedHitLen = 0 ; //weightedHitLen;
-            genusMap.back().timeStamp = hi;
+            genusMap.back().timeStamp = (uint32_t)hi;
         }
 
         //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
@@ -648,7 +648,7 @@ std::cerr <<  partialHit.len() << ':';
                     genusCount.speciesMap[mi].count += 1;
                     genusCount.speciesMap[mi].score += partialHitScore;
                     genusCount.speciesMap[mi].summedHitLen += weightedHitLen;
-                    genusCount.speciesMap[mi].timeStamp = hi;
+                    genusCount.speciesMap[mi].timeStamp = (uint32_t)hi;
                     genusCount.speciesMap[mi].readPositions.push_back(make_pair(offset,length));
                     newScore = genusCount.speciesMap[mi].score;
 
@@ -671,7 +671,7 @@ std::cerr <<  partialHit.len() << ':';
             genusCount.speciesMap.back().summedHitLen = weightedHitLen;
             genusCount.speciesMap.back().readPositions = vector<pair<uint32_t,uint32_t> >(1);
             genusCount.speciesMap.back().readPositions[0] = make_pair(offset,length);
-            genusCount.speciesMap.back().timeStamp = hi;
+            genusCount.speciesMap.back().timeStamp = (uint32_t)hi;
 
 	    genusCount.summedHitLen += weightedHitLen ;
        }
