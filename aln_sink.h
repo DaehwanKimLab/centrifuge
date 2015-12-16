@@ -48,11 +48,24 @@ struct ReadCounts {
 	uint32_t n_unique_reads;
 };
 
-
 /**
  * Metrics summarizing the species level information we have
  */
 struct SpeciesMetrics {
+    
+    //
+    struct IDs {
+        EList<uint32_t, 5> ids;
+        bool operator<(const IDs& o) const {
+            if(ids.size() != o.ids.size()) return ids.size() < o.ids.size();
+            for(size_t i = 0; i < ids.size(); i++) {
+                assert_lt(i, o.ids.size());
+                if(ids[i] != o.ids[i]) return ids[i] < o.ids[i];
+            }
+            return false;
+        }
+    };
+
 
 	SpeciesMetrics():mutex_m() {
 	    reset();
@@ -67,11 +80,13 @@ struct SpeciesMetrics {
 	}
 
 	void init(
-              const map<uint32_t,ReadCounts>& species_counts_,
-              const map<uint32_t,HyperLogLogPlusMinus<uint64_t> >& species_kmers_)
+              const map<uint32_t, ReadCounts>& species_counts_,
+              const map<uint32_t, HyperLogLogPlusMinus<uint64_t> >& species_kmers_,
+              const map<IDs, uint64_t>& observed_)
 	{
 		species_counts = species_counts_;
 		species_kmers = species_kmers_;
+        observed = observed_;
     }
 
 	/**
@@ -100,19 +115,49 @@ struct SpeciesMetrics {
         	species_kmers[it->first].merge(&(it->second));
         }
 
+        for(map<IDs, uint64_t>::const_iterator itr = met.observed.begin(); itr != met.observed.end(); itr++) {
+            const IDs& ids = itr->first;
+            uint64_t count = itr->second;
+            
+            if(observed.find(ids) == observed.end()) {
+                observed[ids] = count;
+            } else {
+                observed[ids] += count;
+            }
+        }
     }
 
-	void addSpeciesCounts(uint32_t species, uint32_t score, double summed_hit_len, double weighted_read, bool is_unique) {
+	void addSpeciesCounts(
+                          uint32_t species,
+                          uint32_t score,
+                          double summed_hit_len,
+                          double weighted_read,
+                          uint32_t nresult) {
 		species_counts[species].n_reads += 1;
 		species_counts[species].sum_score += score;
 		species_counts[species].weighted_reads += weighted_read;
 		species_counts[species].summed_hit_len += summed_hit_len;
-		if (is_unique) {
+		if(nresult == 1) {
 			species_counts[species].n_unique_reads += 1;
 		}
+        
+        cur_ids.ids.push_back(species);
+        if(cur_ids.ids.size() == nresult) {
+            cur_ids.ids.sort();
+            if(observed.find(cur_ids) == observed.end()) {
+                observed[cur_ids] = 1;
+            } else {
+                observed[cur_ids] += 1;
+            }
+            cur_ids.ids.clear();
+        }
 	}
 
-	void addAllKmers(uint32_t species, const BTDnaString &btdna, size_t begin, size_t len) {
+	void addAllKmers(
+                     uint32_t species,
+                     const BTDnaString &btdna,
+                     size_t begin,
+                     size_t len) {
 #ifndef NDEBUG //FB
 		cerr << "add all kmers for " << species << " from " << begin << " for " << len << ": " << string(btdna.toZBuf()).substr(begin,len) << endl;
 #endif
@@ -129,52 +174,134 @@ struct SpeciesMetrics {
 	size_t nDistinctKmers(uint32_t species) {
 		return(species_kmers[species].cardinality());
 	}
+    
+    void calculateAbundance(const Ebwt<uint64_t>& ebwt) {
+        // Lengths of genomes (or contigs
+        map<uint32_t, uint64_t> id_to_length;
+        const EList<pair<string, uint64_t> >& table = ebwt.uid_to_tid();
+        for(size_t i = 0; i < table.size(); i++) {
+            uint32_t id = (uint32_t)table[i].second;
+            if(id_to_length.find(id) == id_to_length.end()) {
+                id_to_length[id] = ebwt.plen()[i];
+            } else {
+                id_to_length[id] += ebwt.plen()[i];
+            }
+        }
+        
+        map<uint32_t, uint32_t> id_to_num; // species id to corresponding element of a list
+        EList<double> p;
+        for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
+            const IDs& ids = itr->first;
+            uint64_t count = itr->second;
+            for(size_t i = 0; i < ids.ids.size(); i++) {
+                uint32_t id = ids.ids[i];
+                if(id_to_num.find(id) == id_to_num.end()) {
+                    id_to_num[id] = (uint32_t)id_to_num.size();
+                    p.push_back(1.0 / ids.ids.size() * count);
+                } else {
+                    uint32_t num = id_to_num[id];
+                    assert_lt(num, p.size());
+                    p[num] += (1.0 / ids.ids.size() * count);
+                }
+            }
+        }
+        
+        {
+            double sum = 0.0;
+            for(size_t i = 0; i < p.size(); i++) {
+                sum += p[i];
+            }
+            for(size_t i = 0; i < p.size(); i++) {
+                p[i] /= sum;
+            }
+        }
 
-	map<uint32_t,ReadCounts> species_counts;          // read count per species
-	map<uint32_t,HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
+        EList<double> p_next;
+        p_next.resizeExact(p.size());
+        size_t num_iteration = 0;
+        while(true) {
+            // E step
+            for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
+                const EList<uint32_t, 5>& ids = itr->first.ids;
+                uint64_t count = itr->second;
+                double psum = 0.0;
+                for(size_t i = 0; i < ids.size(); i++) {
+                    uint32_t id = ids[i];
+                    assert(id_to_num.find(id) != id_to_num.end());
+                    uint32_t num = id_to_num[id];
+                    assert_lt(num, p.size());
+                    psum += p[num];
+                }
+                
+                for(size_t i = 0; i < ids.size(); i++) {
+                    uint32_t num = id_to_num[ids[i]];
+                    assert_leq(p[num], psum);
+                    p_next[num] += (count * p[num] / psum);
+                }
+            }
+
+            // M step
+            double sum = 0.0;
+            for(size_t i = 0; i < p_next.size(); i++) {
+                sum += p_next[i];
+            }
+            for(size_t i = 0; i < p_next.size(); i++) {
+                p_next[i] /= sum;
+            }
+            
+            double diff = 0.0;
+            for(size_t i = 0; i < p.size(); i++) {
+                diff += (p[i] > p_next[i] ? p[i] - p_next[i] : p_next[i] - p[i]);
+            }
+            if(diff < 0.00001) break;
+            if(++num_iteration > 1000) break;
+            p = p_next;
+        }
+        
+        EList<double>& p_len = p_next;
+        // Calculate abundance without genome size taken into account
+        {
+            abundance.clear();
+            for(map<uint32_t, uint32_t>::iterator itr = id_to_num.begin(); itr != id_to_num.end(); itr++) {
+                uint32_t id = itr->first;
+                uint32_t num = itr->second;
+                assert_lt(num, p.size());
+                abundance[id] = p[num];
+                p_len[num] = p[num] / id_to_length[id];
+            }
+        }
+        
+        // Calculate abundance normalized by genome size
+        {
+            double sum = 0.0;
+            for(size_t i = 0; i < p_next.size(); i++) {
+                sum += p_len[i];
+            }
+            for(size_t i = 0; i < p_next.size(); i++) {
+                p_len[i] /= sum;
+            }
+            abundance_len.clear();
+            for(map<uint32_t, uint32_t>::iterator itr = id_to_num.begin(); itr != id_to_num.end(); itr++) {
+                uint32_t id = itr->first;
+                uint32_t num = itr->second;
+                assert_lt(num, p.size());
+                abundance_len[id] = p_len[num];                
+                // cerr << "Species " << id << ": " << p[num] << " \t(" << p_len[num] << ")" << endl;
+            }
+        }
+    }
+
+	map<uint32_t, ReadCounts> species_counts;                        // read count per species
+	map<uint32_t, HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
+    
+    map<IDs, uint64_t>     observed;
+    IDs                    cur_ids;
+    map<uint32_t, double>  abundance;      // abundance without genome size taken into consideration
+    map<uint32_t, double>  abundance_len;  // abundance normalized by genome size
 
 	MUTEX_T mutex_m;
 };
 
-/**
- * Abundance analysis based on EM methods
- */
-struct AbundanceMetrics {
-    
-    AbundanceMetrics():mutex_m() {
-        reset();
-    }
-    
-    void reset() {
-    }
-    
-    void init() {
-        reset();
-    }
-    
-    /**
-     * Merge (add) the counters in the given ReportingMetrics object
-     * into this object.  This is the only safe way to update a
-     * ReportingMetrics shared by multiple threads.
-     */
-    void merge(const AbundanceMetrics& met, bool getLock = false) {
-        ThreadSafe ts(&mutex_m, getLock);
-    }
-    
-#if 0
-    void addSpeciesCounts(uint32_t species, uint32_t score, double summed_hit_len, double weighted_read, bool is_unique) {
-        species_counts[species].n_reads += 1;
-        species_counts[species].sum_score += score;
-        species_counts[species].weighted_reads += weighted_read;
-        species_counts[species].summed_hit_len += summed_hit_len;
-        if (is_unique) {
-            species_counts[species].n_unique_reads += 1;
-        }
-    }
-#endif
-    
-    MUTEX_T mutex_m;
-};
 
 /**
  * Metrics summarizing the work done by the reporter and summarizing
@@ -1875,12 +2002,20 @@ void AlnSinkSam<index_t>::appendMate(
     }
     o.append('\t');
 
-	sm.addSpeciesCounts(rs->speciesID(),1,rs->summedHitLen(),1.0/n_results,n_results==1);
+	sm.addSpeciesCounts(
+                        rs->speciesID(),
+                        1,
+                        rs->summedHitLen(),
+                        1.0 / n_results,
+                        (uint32_t)n_results);
 
 	// only count k-mers if the read is unique
-	if (n_results == 1) {
+    if (n_results == 1) {
 		for (size_t i = 0; i< rs->nReadPositions(); ++i) {
-			sm.addAllKmers(rs->speciesID(), rs->isFw()? rd.patFw : rd.patRc, rs->readPositions(i).first, rs->readPositions(i).second);
+			sm.addAllKmers(rs->speciesID(),
+                           rs->isFw()? rd.patFw : rd.patRc,
+                           rs->readPositions(i).first,
+                           rs->readPositions(i).second);
 		}
 	}
 

@@ -165,9 +165,18 @@ public:
                 bool considerOnlyIfPreviouslyObserved = partialHitLen < _minHitLen;
 
                 // get all coordinates of the hit
-                EList<Coord>& coords = getCoords(hit, hi, ebwtFw, ref, rnd,
-                        maxGenomeHitSize, wlm, prm, him);
-                if (coords.empty()) continue;
+                EList<Coord>& coords = getCoords(
+                                                 hit,
+                                                 hi,
+                                                 ebwtFw,
+                                                 ref,
+                                                 rnd,
+                                                 maxGenomeHitSize,
+                                                 wlm,
+                                                 prm,
+                                                 him);
+                if(coords.empty())
+                    continue;
 
                 usedPortion += partialHitLen;
 

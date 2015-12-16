@@ -522,31 +522,7 @@ static struct option long_options[] = {
 	{(char*)"fuzzy",        no_argument,       0,            ARG_FUZZY},
 	{(char*)"fullref",      no_argument,       0,            ARG_FULLREF},
 	{(char*)"usage",        no_argument,       0,            ARG_USAGE},
-	{(char*)"sam-no-qname-trunc", no_argument, 0,            ARG_SAM_NO_QNAME_TRUNC},
-	{(char*)"sam-omit-sec-seq", no_argument,   0,            ARG_SAM_OMIT_SEC_SEQ},
 	{(char*)"omit-sec-seq", no_argument,       0,            ARG_SAM_OMIT_SEC_SEQ},
-	{(char*)"sam-no-head",  no_argument,       0,            ARG_SAM_NOHEAD},
-	{(char*)"sam-nohead",   no_argument,       0,            ARG_SAM_NOHEAD},
-	{(char*)"sam-noHD",     no_argument,       0,            ARG_SAM_NOHEAD},
-	{(char*)"sam-no-hd",    no_argument,       0,            ARG_SAM_NOHEAD},
-	{(char*)"sam-nosq",     no_argument,       0,            ARG_SAM_NOSQ},
-	{(char*)"sam-no-sq",    no_argument,       0,            ARG_SAM_NOSQ},
-	{(char*)"sam-noSQ",     no_argument,       0,            ARG_SAM_NOSQ},
-	{(char*)"no-head",      no_argument,       0,            ARG_SAM_NOHEAD},
-	{(char*)"no-hd",        no_argument,       0,            ARG_SAM_NOHEAD},
-	{(char*)"no-sq",        no_argument,       0,            ARG_SAM_NOSQ},
-	{(char*)"no-HD",        no_argument,       0,            ARG_SAM_NOHEAD},
-	{(char*)"no-SQ",        no_argument,       0,            ARG_SAM_NOSQ},
-	{(char*)"no-unal",      no_argument,       0,            ARG_SAM_NO_UNAL},
-	{(char*)"color",        no_argument,       0,            'C'},
-	{(char*)"sam-RG",       required_argument, 0,            ARG_SAM_RG},
-	{(char*)"sam-rg",       required_argument, 0,            ARG_SAM_RG},
-	{(char*)"sam-rg-id",    required_argument, 0,            ARG_SAM_RGID},
-	{(char*)"RG",           required_argument, 0,            ARG_SAM_RG},
-	{(char*)"rg",           required_argument, 0,            ARG_SAM_RG},
-	{(char*)"rg-id",        required_argument, 0,            ARG_SAM_RGID},
-	{(char*)"snpphred",     required_argument, 0,            ARG_SNPPHRED},
-	{(char*)"snpfrac",      required_argument, 0,            ARG_SNPFRAC},
 	{(char*)"gbar",         required_argument, 0,            ARG_GAP_BAR},
 	{(char*)"qseq",         no_argument,       0,            ARG_QSEQ},
 	{(char*)"policy",       required_argument, 0,            ARG_ALIGN_POLICY},
@@ -580,14 +556,6 @@ static struct option long_options[] = {
 	{(char*)"n-ceil",           required_argument, 0,        ARG_N_CEIL},
 	{(char*)"dpad",             required_argument, 0,        ARG_DPAD},
 	{(char*)"mapq-print-inputs",no_argument,       0,        ARG_SAM_PRINT_YI},
-	{(char*)"very-fast",        no_argument,       0,        ARG_PRESET_VERY_FAST},
-	{(char*)"fast",             no_argument,       0,        ARG_PRESET_FAST},
-	{(char*)"sensitive",        no_argument,       0,        ARG_PRESET_SENSITIVE},
-	{(char*)"very-sensitive",   no_argument,       0,        ARG_PRESET_VERY_SENSITIVE},
-	{(char*)"very-fast-local",      no_argument,   0,        ARG_PRESET_VERY_FAST_LOCAL},
-	{(char*)"fast-local",           no_argument,   0,        ARG_PRESET_FAST_LOCAL},
-	{(char*)"sensitive-local",      no_argument,   0,        ARG_PRESET_SENSITIVE_LOCAL},
-	{(char*)"very-sensitive-local", no_argument,   0,        ARG_PRESET_VERY_SENSITIVE_LOCAL},
 	{(char*)"no-score-priority",no_argument,       0,        ARG_NO_SCORE_PRIORITY},
 	{(char*)"seedlen",          required_argument, 0,        'L'},
 	{(char*)"seedmms",          required_argument, 0,        'N'},
@@ -739,14 +707,7 @@ static void printUsage(ostream& out) {
         << "  --min-hitlen       " << endl
 		<< endl
         << " Paired-end:" << endl
-	    << "  -I/--minins <int>  minimum fragment length (0)" << endl
-	    << "  -X/--maxins <int>  maximum fragment length (500)" << endl
 	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
-		<< "  --no-mixed         suppress unpaired alignments for paired reads" << endl
-		<< "  --no-discordant    suppress discordant alignments for paired reads" << endl
-		<< "  --no-dovetail      not concordant when mates extend past each other" << endl
-		<< "  --no-contain       not concordant when one mate alignment contains other" << endl
-		<< "  --no-overlap       not concordant when mates overlap at all" << endl
 		<< endl
 		<< "Score:" << endl
 		<< "  --min-hitlen <int>    minimum length of partial hits (default "<<minHitLen<<", must be greater than 15)" << endl
@@ -2981,7 +2942,6 @@ static void driver(
 
 			//uint32_t genusID = (uint32_t)(id & 0xffffffff);
 			taxidToNameLen[speciesID] = pair<string,uint64_t>(name_part,ebwt.plen()[i]);
-
 		}
 
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
@@ -3057,26 +3017,34 @@ static void driver(
 		if (!reportFile.empty()) {
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
-			SpeciesMetrics spm = metrics.spmu;
+			SpeciesMetrics& spm = metrics.spmu;
+            spm.calculateAbundance(ebwt);
+            map<uint32_t, double>& abundance = spm.abundance;
+            map<uint32_t, double>& abundance_len = spm.abundance_len;
 			reportOfb << "name" << '\t' << "taxid" << '\t' << "n_genomes" << '\t'
 					  << "idx_size" << '\t'  << "avg_genome_size" << '\t'
 					  << "n_reads" << '\t' << "n_unique_reads" << '\t'
 					  << "summed_hit_len" << '\t'
-					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << endl;
+					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << '\t'
+                      << "abundance" << '\t' << "abundance normalized by genome size" << endl;
 			for (map<uint32_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 				uint32_t taxid = it->first;
 
 				// extract name, average genome size, and number of genomes from istringstream
-				string name,avg_size,n_genomes;
+				string name, avg_size, n_genomes;
 				istringstream name_size_n(taxidToNameLen[taxid].first);
 				name_size_n >> name >> avg_size >> n_genomes;
-
+                
+                assert(abundance.find(taxid) != abundance.end());
+                assert(abundance_len.find(taxid) != abundance_len.end());
 				reportOfb << name << '\t' << taxid << '\t'  << n_genomes << '\t'
 						  << taxidToNameLen[taxid].second << '\t' << avg_size << '\t'
 						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t'
 						  << it->second.summed_hit_len << '\t'
 						  << it->second.weighted_reads << '\t'
-						  << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << endl;
+                          << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t'
+                          << abundance[taxid] << '\t'
+                          << abundance_len[taxid] << endl;
 
 			}
 			reportOfb.close();
