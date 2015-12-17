@@ -55,7 +55,7 @@ struct SpeciesMetrics {
     
     //
     struct IDs {
-        EList<uint32_t, 5> ids;
+        EList<uint64_t, 5> ids;
         bool operator<(const IDs& o) const {
             if(ids.size() != o.ids.size()) return ids.size() < o.ids.size();
             for(size_t i = 0; i < ids.size(); i++) {
@@ -177,10 +177,10 @@ struct SpeciesMetrics {
     
     void calculateAbundance(const Ebwt<uint64_t>& ebwt) {
         // Lengths of genomes (or contigs
-        map<uint32_t, uint64_t> id_to_length;
+        map<uint64_t, uint64_t> id_to_length;
         const EList<pair<string, uint64_t> >& table = ebwt.uid_to_tid();
         for(size_t i = 0; i < table.size(); i++) {
-            uint32_t id = (uint32_t)table[i].second;
+            uint64_t id = table[i].second;
             if(id_to_length.find(id) == id_to_length.end()) {
                 id_to_length[id] = ebwt.plen()[i];
             } else {
@@ -188,18 +188,18 @@ struct SpeciesMetrics {
             }
         }
         
-        map<uint32_t, uint32_t> id_to_num; // species id to corresponding element of a list
+        map<uint64_t, uint64_t> id_to_num; // species id to corresponding element of a list
         EList<double> p;
         for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
             const IDs& ids = itr->first;
             uint64_t count = itr->second;
             for(size_t i = 0; i < ids.ids.size(); i++) {
-                uint32_t id = ids.ids[i];
+                uint64_t id = ids.ids[i];
                 if(id_to_num.find(id) == id_to_num.end()) {
-                    id_to_num[id] = (uint32_t)id_to_num.size();
+                    id_to_num[id] = id_to_num.size();
                     p.push_back(1.0 / ids.ids.size() * count);
                 } else {
-                    uint32_t num = id_to_num[id];
+                    uint64_t num = id_to_num[id];
                     assert_lt(num, p.size());
                     p[num] += (1.0 / ids.ids.size() * count);
                 }
@@ -222,19 +222,19 @@ struct SpeciesMetrics {
         while(true) {
             // E step
             for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
-                const EList<uint32_t, 5>& ids = itr->first.ids;
+                const EList<uint64_t, 5>& ids = itr->first.ids;
                 uint64_t count = itr->second;
                 double psum = 0.0;
                 for(size_t i = 0; i < ids.size(); i++) {
-                    uint32_t id = ids[i];
+                    uint64_t id = ids[i];
                     assert(id_to_num.find(id) != id_to_num.end());
-                    uint32_t num = id_to_num[id];
+                    uint64_t num = id_to_num[id];
                     assert_lt(num, p.size());
                     psum += p[num];
                 }
                 
                 for(size_t i = 0; i < ids.size(); i++) {
-                    uint32_t num = id_to_num[ids[i]];
+                    uint64_t num = id_to_num[ids[i]];
                     assert_leq(p[num], psum);
                     p_next[num] += (count * p[num] / psum);
                 }
@@ -262,9 +262,9 @@ struct SpeciesMetrics {
         // Calculate abundance without genome size taken into account
         {
             abundance.clear();
-            for(map<uint32_t, uint32_t>::iterator itr = id_to_num.begin(); itr != id_to_num.end(); itr++) {
-                uint32_t id = itr->first;
-                uint32_t num = itr->second;
+            for(map<uint64_t, uint64_t>::iterator itr = id_to_num.begin(); itr != id_to_num.end(); itr++) {
+                uint64_t id = itr->first;
+                uint64_t num = itr->second;
                 assert_lt(num, p.size());
                 abundance[id] = p[num];
                 p_len[num] = p[num] / id_to_length[id];
@@ -281,9 +281,9 @@ struct SpeciesMetrics {
                 p_len[i] /= sum;
             }
             abundance_len.clear();
-            for(map<uint32_t, uint32_t>::iterator itr = id_to_num.begin(); itr != id_to_num.end(); itr++) {
-                uint32_t id = itr->first;
-                uint32_t num = itr->second;
+            for(map<uint64_t, uint64_t>::iterator itr = id_to_num.begin(); itr != id_to_num.end(); itr++) {
+                uint64_t id = itr->first;
+                uint64_t num = itr->second;
                 assert_lt(num, p.size());
                 abundance_len[id] = p_len[num];                
                 // cerr << "Species " << id << ": " << p[num] << " \t(" << p_len[num] << ")" << endl;
@@ -296,8 +296,8 @@ struct SpeciesMetrics {
     
     map<IDs, uint64_t>     observed;
     IDs                    cur_ids;
-    map<uint32_t, double>  abundance;      // abundance without genome size taken into consideration
-    map<uint32_t, double>  abundance_len;  // abundance normalized by genome size
+    map<uint64_t, double>  abundance;      // abundance without genome size taken into consideration
+    map<uint64_t, double>  abundance_len;  // abundance normalized by genome size
 
 	MUTEX_T mutex_m;
 };

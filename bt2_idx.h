@@ -654,7 +654,7 @@ public:
 			assert(repOk());
 		}
         
-        // Read ALTs
+        // Read conversion table, genome size table, and taxonomy tree
         string in3Str = in + ".3." + gEbwt_ext;
         if(verbose || startVerbose) cerr << "Opening \"" << in3Str.c_str() << "\"" << endl;
         ifstream in3(in3Str.c_str(), ios::binary);
@@ -672,7 +672,6 @@ public:
                 while(true) {
                     char c = '\0';
                     in3 >> c;
-                    // if(MM_READ(in3, (void *)(&c), (size_t)1) != (size_t)1) break;
                     if(c == '\0' || c == '\n') break;
                     uid.push_back(c);
                 }
@@ -684,6 +683,18 @@ public:
             }
             assert_eq(nref, _uid_to_tid.size());
         }
+        
+        _size.clear();
+        uint64_t nsize = readIndex<uint64_t>(in3, this->toBe());
+        if(nsize > 0) {
+            while(!in3.eof()) {
+                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
+                uint64_t size = readIndex<uint64_t>(in3, this->toBe());
+                assert(_size.find(tid) == _size.end());
+                _size[tid] = size;
+            }
+        }
+        
         _tree.clear();
         uint64_t ntid = readIndex<uint64_t>(in3, this->toBe());
         if(ntid > 0) {
@@ -1187,8 +1198,23 @@ public:
                     string uid;
                     table_file >> uid;
                     if(uid.length() == 0 || uid[0] == '#') continue;
-                    uint64_t tid = 0;
-                    table_file >> tid;
+                    string stid;
+                    table_file >> stid;
+                    uint64_t tid1 = 0, tid2 = 0;
+                    bool sawDot = false;
+                    for(size_t i = 0; i < stid.length(); i++) {
+                        if(stid[i] == '.') {
+                            sawDot = true;
+                            continue;
+                        }
+                        uint32_t num = stid[i] - '0';
+                        if(sawDot) {
+                            tid2 = tid2 * 10 + num;
+                        } else {
+                            tid1 = tid1 * 10 + num;
+                        }
+                    }
+                    uint64_t tid = tid1 | (tid2 << 32);
                     if(uids.find(uid) == uids.end()) continue;
                     if(uid_to_tid.find(uid) != uid_to_tid.end()) {
                         cerr << "Warning: " << uid << " already exists!" << endl;
@@ -1233,6 +1259,15 @@ public:
             } else {
                 cerr << "Warning: taxomony id doesn't exists for " << uid << "!" << endl;
                 writeIndex<uint64_t>(fout3, 0, this->toBe());
+            }
+        }
+        
+        {
+            _size.clear();
+            writeIndex<uint64_t>(fout3, _size.size(), this->toBe());
+            for(std::map<uint64_t, uint64_t>::const_iterator itr = _size.begin(); itr != _size.end(); itr++) {
+                writeIndex<uint64_t>(fout3, itr->first, this->toBe());
+                writeIndex<uint64_t>(fout3, itr->second, this->toBe());
             }
         }
 
@@ -1541,6 +1576,7 @@ public:
 	bool        fw() const           { return fw_; }
     
     const EList<pair<string, uint64_t> >&   uid_to_tid() const { return _uid_to_tid; }
+    const std::map<uint64_t, uint64_t>&     size() const { return _size; }
     const std::map<uint64_t, TaxonomyNode>& tree() const { return _tree; }
     
 #ifdef POPCNT_CAPABILITY
@@ -2856,6 +2892,7 @@ public:
 	bool packed_;
     
     EList<pair<string, uint64_t> >   _uid_to_tid; // table that converts uid to tid
+    std::map<uint64_t, uint64_t>     _size;
     std::map<uint64_t, TaxonomyNode> _tree;
 
 	static const uint64_t default_bmax = OFF_MASK;

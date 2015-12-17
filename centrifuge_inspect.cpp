@@ -419,7 +419,14 @@ static void driver(
         if(conversion_table) {
             const EList<pair<string, uint64_t> >& uid_to_tid = ebwt.uid_to_tid();
             for(size_t i = 0; i < uid_to_tid.size(); i++) {
-                cout << uid_to_tid[i].first << "\t" << uid_to_tid[i].second << endl;
+                uint64_t tid = uid_to_tid[i].second;
+                cout << uid_to_tid[i].first << "\t"
+                     << (tid & 0xffffffff);
+                tid >>= 32;
+                if(tid > 0) {
+                    cout << "." << tid;
+                }
+                cout << endl;
             }
         } else if(taxonomy_tree) {
             const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();

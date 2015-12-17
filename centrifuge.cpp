@@ -3019,8 +3019,8 @@ static void driver(
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics& spm = metrics.spmu;
             spm.calculateAbundance(ebwt);
-            map<uint32_t, double>& abundance = spm.abundance;
-            map<uint32_t, double>& abundance_len = spm.abundance_len;
+            map<uint64_t, double>& abundance = spm.abundance;
+            map<uint64_t, double>& abundance_len = spm.abundance_len;
 			reportOfb << "name" << '\t' << "taxid" << '\t' << "n_genomes" << '\t'
 					  << "idx_size" << '\t'  << "avg_genome_size" << '\t'
 					  << "n_reads" << '\t' << "n_unique_reads" << '\t'
