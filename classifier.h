@@ -111,9 +111,9 @@ public:
             // get forward or reverse hits for this read from this->_hits[rdi]
             //  the strand is chosen based on higher average hit length in either direction
             int fwi = getForwardOrReverseHit( rdi ) ;
-            if ( fwi == -1 )
-                return 0 ;
-            ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi] ;
+            if(fwi == -1)
+                return 0;
+            ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
             assert(hit.done());
             isFw = hit._fw;  // TODO: Sync between mates!
             
@@ -126,24 +126,22 @@ public:
             {
                 const BWTHit<index_t> partialHit = hit.getPartialHit(hi);
 #ifdef LI_DEBUG
-                cout<<partialHit.len()<<" "<<partialHit.size()<<endl ;
+                cout << partialHit.len() << " " << partialHit.size() << endl;
 #endif
-                if ( partialHit.len() >= _minHitLen && partialHit.size() > maxGenomeHitSize )
-                {
-                    maxGenomeHitSize = partialHit.size() ;
+                if(partialHit.len() >= _minHitLen && partialHit.size() > maxGenomeHitSize) {
+                    maxGenomeHitSize = partialHit.size();
                 }
             }
             
-	    if ( maxGenomeHitSize > (index_t)rp.khits )
-	    	maxGenomeHitSize += rp.khits ;
-
+	    if(maxGenomeHitSize > (index_t)rp.khits)
+	    	maxGenomeHitSize += rp.khits;
             hit._partialHits.sort(compareBWTHits());
-            
             size_t usedPortion = 0 ;
             size_t genomeHitCnt = 0 ;
             for(size_t hi = 0; hi < offsetSize; hi++) {
 				const BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
                 size_t partialHitLen = partialHit.len();
+                if(partialHit.size() == 0) continue;
 
                 // only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
                 // TODO: consider not requiring minHitLen when we have already hits to the same genome
@@ -178,7 +176,7 @@ public:
                 // find the genome id for all coordinates, and count the number of genomes
                 EList<pair<uint64_t, uint64_t> > coord_ids;
                 for(index_t k = 0; k < nHitsToConsider; k++, genomeHitCnt++) {
-                    const Coord& coord = coords[k] ;
+                    const Coord& coord = coords[k];
                     assert_lt(coord.ref(), _refnames.size()); // gives a warning - coord.ref() is signed integer. why?
 
                     // extract numeric id from refName
@@ -186,7 +184,7 @@ public:
                     assert_lt(coord.ref(), uid_to_tid.size());
                     uint64_t taxID = uid_to_tid[coord.ref()].second;
                     bool found = false;
-                    for(index_t k2 = 0; k2 < k; k2++) {
+                    for(index_t k2 = 0; k2 < coord_ids.size(); k2++) {
                         // count the genome if it is not in coord_ids, yet
                         if(coord_ids[k2].first == coord.ref()) {
                             found = true;
@@ -208,7 +206,7 @@ public:
                 double weightedHitLen = double(partialHitLen) / double(n_genomes) ;
 
                 // go through all coordinates reported for partial hit
-                for(index_t k = 0; k < nHitsToConsider; ++k) {
+                for(index_t k = 0; k < coord_ids.size(); ++k) {
                     uint64_t uniqueID = coord_ids[k].first;
                     uint64_t taxID = coord_ids[k].second;
                     uint32_t speciesID = (uint32_t)taxID, genusID = (uint32_t)taxID;
