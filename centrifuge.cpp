@@ -2926,7 +2926,7 @@ static void driver(
 		readEbwtRefnames<index_t>(adjIdxBase, refnames);
 
 		EList<size_t> reflens;
-		map<uint32_t,pair<string,uint64_t> > taxidToNameLen;
+		map<uint64_t,pair<string,uint64_t> > taxidToNameLen;
 		for(size_t i = 0; i < ebwt.nPat(); i++) {
 			// cerr << "Push back to reflens: "<<  refnames[i] << " is so long: " << ebwt.plen()[i] << endl;
 			reflens.push_back(ebwt.plen()[i]);
@@ -2962,7 +2962,7 @@ static void driver(
 					fout->writeString(buf);
 				}
 				// Write header for read-results file
-				fout->writeChars("ID\tgenusID\tspeciesID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
+				fout->writeChars("ID\tuniqueID\ttaxID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
 				break;
 			}
 			default:
@@ -3026,9 +3026,11 @@ static void driver(
 					  << "n_reads" << '\t' << "n_unique_reads" << '\t'
 					  << "summed_hit_len" << '\t'
 					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << '\t'
-                      << "abundance" << '\t' << "abundance normalized by genome size" << endl;
-			for (map<uint32_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
-				uint32_t taxid = it->first;
+                      << "abundance" << '\t' << "abundance_normalized_by_genome_size" << endl;
+			for (map<uint64_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
+				uint64_t taxid = it->first;
+                uint64_t taxid1 = taxid & 0xffffffff;
+                uint64_t taxid2 = taxid >> 32;
 
 				// extract name, average genome size, and number of genomes from istringstream
 				string name, avg_size, n_genomes;
@@ -3037,7 +3039,11 @@ static void driver(
                 
                 assert(abundance.find(taxid) != abundance.end());
                 assert(abundance_len.find(taxid) != abundance_len.end());
-				reportOfb << name << '\t' << taxid << '\t'  << n_genomes << '\t'
+                reportOfb << name << '\t' << taxid1;
+                if(taxid2) {
+                    reportOfb << "." << taxid2;
+                }
+                reportOfb << '\t'  << n_genomes << '\t'
 						  << taxidToNameLen[taxid].second << '\t' << avg_size << '\t'
 						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t'
 						  << it->second.summed_hit_len << '\t'

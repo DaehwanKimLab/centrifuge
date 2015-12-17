@@ -80,8 +80,8 @@ struct SpeciesMetrics {
 	}
 
 	void init(
-              const map<uint32_t, ReadCounts>& species_counts_,
-              const map<uint32_t, HyperLogLogPlusMinus<uint64_t> >& species_kmers_,
+              const map<uint64_t, ReadCounts>& species_counts_,
+              const map<uint64_t, HyperLogLogPlusMinus<uint64_t> >& species_kmers_,
               const map<IDs, uint64_t>& observed_)
 	{
 		species_counts = species_counts_;
@@ -98,7 +98,7 @@ struct SpeciesMetrics {
         ThreadSafe ts(&mutex_m, getLock);
 
         // update species read count
-        for(map<uint32_t,ReadCounts>::const_iterator it = met.species_counts.begin(); it != met.species_counts.end(); ++it) {
+        for(map<uint64_t, ReadCounts>::const_iterator it = met.species_counts.begin(); it != met.species_counts.end(); ++it) {
         	if (species_counts.find(it->first) == species_counts.end()) {
         		species_counts[it->first] = it->second;
         	} else {
@@ -111,7 +111,7 @@ struct SpeciesMetrics {
         }
 
         // update species k-mers
-        for(map<uint32_t, HyperLogLogPlusMinus<uint64_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
+        for(map<uint64_t, HyperLogLogPlusMinus<uint64_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
         	species_kmers[it->first].merge(&(it->second));
         }
 
@@ -128,20 +128,20 @@ struct SpeciesMetrics {
     }
 
 	void addSpeciesCounts(
-                          uint32_t species,
+                          uint64_t taxID,
                           uint32_t score,
                           double summed_hit_len,
                           double weighted_read,
                           uint32_t nresult) {
-		species_counts[species].n_reads += 1;
-		species_counts[species].sum_score += score;
-		species_counts[species].weighted_reads += weighted_read;
-		species_counts[species].summed_hit_len += summed_hit_len;
+		species_counts[taxID].n_reads += 1;
+		species_counts[taxID].sum_score += score;
+		species_counts[taxID].weighted_reads += weighted_read;
+		species_counts[taxID].summed_hit_len += summed_hit_len;
 		if(nresult == 1) {
-			species_counts[species].n_unique_reads += 1;
+			species_counts[taxID].n_unique_reads += 1;
 		}
         
-        cur_ids.ids.push_back(species);
+        cur_ids.ids.push_back(taxID);
         if(cur_ids.ids.size() == nresult) {
             cur_ids.ids.sort();
             if(observed.find(cur_ids) == observed.end()) {
@@ -154,25 +154,25 @@ struct SpeciesMetrics {
 	}
 
 	void addAllKmers(
-                     uint32_t species,
+                     uint64_t taxID,
                      const BTDnaString &btdna,
                      size_t begin,
                      size_t len) {
 #ifndef NDEBUG //FB
-		cerr << "add all kmers for " << species << " from " << begin << " for " << len << ": " << string(btdna.toZBuf()).substr(begin,len) << endl;
+		cerr << "add all kmers for " << taxID << " from " << begin << " for " << len << ": " << string(btdna.toZBuf()).substr(begin,len) << endl;
 #endif
 		uint64_t kmer = btdna.int_kmer<uint64_t>(begin,begin+len);
-		species_kmers[species].add(kmer);
+		species_kmers[taxID].add(kmer);
 		size_t i = begin;
 		while (i+32 < len) {
 			kmer = btdna.next_kmer(kmer,i);
-			species_kmers[species].add(kmer);
+			species_kmers[taxID].add(kmer);
 			++i;
 		}
 	}
 
-	size_t nDistinctKmers(uint32_t species) {
-		return(species_kmers[species].cardinality());
+	size_t nDistinctKmers(uint64_t taxID) {
+		return(species_kmers[taxID].cardinality());
 	}
     
     void calculateAbundance(const Ebwt<uint64_t>& ebwt) {
@@ -291,8 +291,8 @@ struct SpeciesMetrics {
         }
     }
 
-	map<uint32_t, ReadCounts> species_counts;                        // read count per species
-	map<uint32_t, HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
+	map<uint64_t, ReadCounts> species_counts;                        // read count per species
+	map<uint64_t, HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
     
     map<IDs, uint64_t>     observed;
     IDs                    cur_ids;
@@ -2003,7 +2003,7 @@ void AlnSinkSam<index_t>::appendMate(
     o.append('\t');
 
 	sm.addSpeciesCounts(
-                        rs->speciesID(),
+                        rs->taxID(),
                         1,
                         rs->summedHitLen(),
                         1.0 / n_results,
@@ -2012,7 +2012,7 @@ void AlnSinkSam<index_t>::appendMate(
 	// only count k-mers if the read is unique
     if (n_results == 1) {
 		for (size_t i = 0; i< rs->nReadPositions(); ++i) {
-			sm.addAllKmers(rs->speciesID(),
+			sm.addAllKmers(rs->taxID(),
                            rs->isFw()? rd.patFw : rd.patRc,
                            rs->readPositions(i).first,
                            rs->readPositions(i).second);
@@ -2021,14 +2021,21 @@ void AlnSinkSam<index_t>::appendMate(
 
 //    (sc[rs->speciesID_])++;
 
-    // genus ID
-    itoa10<int64_t>(rs->genusID(), buf);
-    o.append(buf);
+    // unique ID
+    o.append(rs->uid().c_str());
     o.append('\t');
     
-    // species ID
-    itoa10<int64_t>(rs->speciesID(), buf);
+    // tax ID
+    uint64_t tid = rs->taxID();
+    uint64_t tid1 = tid & 0xffffffff;
+    uint64_t tid2 = tid >> 32;
+    itoa10<int64_t>(tid1, buf);
     o.append(buf);
+    if(tid2 > 0) {
+        o.append(".");
+        itoa10<int64_t>(tid2, buf);
+        o.append(buf);
+    }
     o.append('\t');
     
     // score
