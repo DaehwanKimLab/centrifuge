@@ -39,6 +39,7 @@ static bool refFromEbwt = false; // true -> when printing reference, decode it f
 static string wrapper;
 static const char *short_options = "vhnsea:";
 static int conversion_table = 0;
+static int size_table = 0;
 static int taxonomy_tree = 0;
 
 enum {
@@ -46,6 +47,7 @@ enum {
     ARG_WRAPPER,
 	ARG_USAGE,
     ARG_CONVERSION_TABLE,
+    ARG_SIZE_TABLE,
     ARG_TAXONOMY_TREE,
 };
 
@@ -60,6 +62,7 @@ static struct option long_options[] = {
 	{(char*)"ebwt-ref", no_argument,        0, 'e'},
     {(char*)"wrapper",  required_argument,  0, ARG_WRAPPER},
     {(char*)"conversion-table", no_argument,  0, ARG_CONVERSION_TABLE},
+    {(char*)"size-table",       no_argument,  0, ARG_SIZE_TABLE},
     {(char*)"taxonomy-tree",    no_argument,  0, ARG_TAXONOMY_TREE},
 	{(char*)0, 0, 0, 0} // terminator
 };
@@ -145,6 +148,9 @@ static void parseOptions(int argc, char **argv) {
 			case ARG_VERSION: showVersion = true; break;
             case ARG_CONVERSION_TABLE:
                 conversion_table = true;
+                break;
+            case ARG_SIZE_TABLE:
+                size_table = true;
                 break;
             case ARG_TAXONOMY_TREE:
                 taxonomy_tree = true;
@@ -427,6 +433,18 @@ static void driver(
                     cout << "." << tid;
                 }
                 cout << endl;
+            }
+        } else if(size_table) {
+            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
+            for(std::map<uint64_t, uint64_t>::const_iterator itr = size_map.begin(); itr != size_map.end(); itr++) {
+                uint64_t tid = itr->first;
+                uint64_t size = itr->second;
+                cout << (tid & 0xffffffff);
+                tid >>= 32;
+                if(tid > 0) {
+                    cout << "." << tid;
+                }
+                cout << "\t" << size << endl;
             }
         } else if(taxonomy_tree) {
             const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();

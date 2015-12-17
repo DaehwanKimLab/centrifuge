@@ -60,7 +60,8 @@ static int32_t offRate;
 static int32_t ftabChars;
 static int32_t localOffRate;
 static int32_t localFtabChars;
-static string table_fname; // conversion table file name
+static string conversion_table_fname; // conversion table file name
+static string size_table_fname; // contig size table file name
 static string taxonomy_fname; // taxonomy tree file name
 static int  bigEndian;
 static bool nsToAs;
@@ -93,7 +94,8 @@ static void resetOptions() {
 	ftabChars      = 10; // 10 chars in initial lookup table
     localOffRate   = 3;
     localFtabChars = 6;
-    table_fname    = "";
+    conversion_table_fname    = "";
+    size_table_fname = "";
     taxonomy_fname = "";
 	bigEndian      = 0;  // little endian
 	nsToAs         = false; // convert reference Ns to As prior to indexing
@@ -124,7 +126,8 @@ enum {
     ARG_LOCAL_OFFRATE,
     ARG_LOCAL_FTABCHARS,
     ARG_CONVERSION_TABLE,
-    ARG_TAXONOMY_TREE,
+    ARG_SIZE_TABLE,
+    ARG_TAXONOMY_TREE
 };
 
 /**
@@ -159,6 +162,7 @@ static void printUsage(ostream& out) {
         // << "    --localoffrate <int>    SA (local) is sampled every 2^offRate BWT chars (default: 3)" << endl
         // << "    --localftabchars <int>  # of chars consumed in initial lookup in a local index (default: 6)" << endl
         << "    --conversion-table <file name>  a table that converts any id to a taxonomy id" << endl
+        << "    --size-table       <file name>  table of contig (or genome) sizes" << endl
         << "    --taxonomy-tree    <file name>  taxonomy tree" << endl
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
@@ -202,6 +206,7 @@ static struct option long_options[] = {
     {(char*)"localoffrate",   required_argument, 0,            ARG_LOCAL_OFFRATE},
 	{(char*)"localftabchars", required_argument, 0,            ARG_LOCAL_FTABCHARS},
     {(char*)"conversion-table", required_argument, 0,          ARG_CONVERSION_TABLE},
+    {(char*)"size-table",       required_argument, 0,          ARG_SIZE_TABLE},
     {(char*)"taxonomy-tree",    required_argument, 0,          ARG_TAXONOMY_TREE},
 	{(char*)"help",           no_argument,       0,            'h'},
 	{(char*)"ntoa",           no_argument,       0,            ARG_NTOA},
@@ -319,7 +324,10 @@ static void parseOptions(int argc, const char **argv) {
                 break;
 			case ARG_NTOA: nsToAs = true; break;
             case ARG_CONVERSION_TABLE:
-                table_fname = optarg;
+                conversion_table_fname = optarg;
+                break;
+            case ARG_SIZE_TABLE:
+                size_table_fname = optarg;
                 break;
             case ARG_TAXONOMY_TREE:
                 taxonomy_fname = optarg;
@@ -375,7 +383,8 @@ template<typename TStr>
 static void driver(
                    const string& infile,
                    EList<string>& infiles,
-                   const string& table_fname,
+                   const string& conversion_table_fname,
+                   const string& size_table_fname,
                    const string& taxonomy_fname,
                    const string& outfile,
                    bool packed,
@@ -462,7 +471,8 @@ static void driver(
                           is,           // list of input streams
                           szs,          // list of reference sizes
                           (TIndexOffU)sztot.first,  // total size of all unambiguous ref chars
-                          table_fname,
+                          conversion_table_fname,
+                          size_table_fname,
                           taxonomy_fname,
                           refparams,    // reference read-in parameters
                           seed,         // pseudo-random number generator seed
@@ -578,7 +588,7 @@ int centrifuge_build(int argc, const char **argv) {
 			return 1;
 		}
         
-        if(table_fname == "") {
+        if(conversion_table_fname == "") {
             cerr << "Please specify --conversion-table!" << endl;
             printUsage(cerr);
             return 1;
@@ -642,7 +652,8 @@ int centrifuge_build(int argc, const char **argv) {
 					driver<SString<char> >(
                                            infile,
                                            infiles,
-                                           table_fname,
+                                           conversion_table_fname,
+                                           size_table_fname,
                                            taxonomy_fname,
                                            outfile,
                                            false,
@@ -660,7 +671,8 @@ int centrifuge_build(int argc, const char **argv) {
 				driver<S2bDnaString>(
                                      infile,
                                      infiles,
-                                     table_fname,
+                                     conversion_table_fname,
+                                     size_table_fname,
                                      taxonomy_fname,
                                      outfile,
                                      true,

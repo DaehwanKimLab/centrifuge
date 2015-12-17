@@ -692,6 +692,8 @@ public:
                 uint64_t size = readIndex<uint64_t>(in3, this->toBe());
                 assert(_size.find(tid) == _size.end());
                 _size[tid] = size;
+                if(_size.size() == nsize)
+                    break;
             }
         }
         
@@ -773,7 +775,8 @@ public:
          EList<FileBuf*>& is,
          EList<RefRecord>& szs,
          index_t sztot,
-         const string& table_fname,
+         const string& conversion_table_fname,
+         const string& size_table_fname,
          const string& taxonomy_fname,
          const RefReadInParams& refparams,
          uint32_t seed,
@@ -847,7 +850,8 @@ public:
                              saOut,
                              bwtOut,
                              file,
-                             table_fname,
+                             conversion_table_fname,
+                             size_table_fname,
                              taxonomy_fname,
 							 useBlockwise,
 							 bmax,
@@ -1106,7 +1110,8 @@ public:
                         ofstream* saOut,
                         ofstream* bwtOut,
                         const string& base_fname,
-                        const string& table_fname,
+                        const string& conversion_table_fname,
+                        const string& size_table_fname,
                         const string& taxonomy_fname,
 	                    bool useBlockwise,
 	                    index_t bmax,
@@ -1180,19 +1185,12 @@ public:
         std::set<string> uids;
         for(size_t i = 0; i < _refnames.size(); i++) {
             const string& refname = _refnames[i];
-            size_t ndelim = 0;
-            size_t j = 0;
-            for(; j < refname.length(); j++) {
-                if(refname[j] == ' ') break;
-                if(refname[j] == '|') ndelim++;
-                if(ndelim == 2) break;
-            }
-            string uid = refname.substr(0, j);
+            string uid = get_uid(refname);
             uids.insert(uid);
         }
         std::map<string, uint64_t> uid_to_tid; // map from unique id to taxonomy id
         {
-            ifstream table_file(table_fname.c_str(), ios::in);
+            ifstream table_file(conversion_table_fname.c_str(), ios::in);
             if(table_file.is_open()) {
                 while(!table_file.eof()) {
                     string uid;
@@ -1200,21 +1198,7 @@ public:
                     if(uid.length() == 0 || uid[0] == '#') continue;
                     string stid;
                     table_file >> stid;
-                    uint64_t tid1 = 0, tid2 = 0;
-                    bool sawDot = false;
-                    for(size_t i = 0; i < stid.length(); i++) {
-                        if(stid[i] == '.') {
-                            sawDot = true;
-                            continue;
-                        }
-                        uint32_t num = stid[i] - '0';
-                        if(sawDot) {
-                            tid2 = tid2 * 10 + num;
-                        } else {
-                            tid1 = tid1 * 10 + num;
-                        }
-                    }
-                    uint64_t tid = tid1 | (tid2 << 32);
+                    uint64_t tid = get_tid(stid);
                     if(uids.find(uid) == uids.end()) continue;
                     if(uid_to_tid.find(uid) != uid_to_tid.end()) {
                         cerr << "Warning: " << uid << " already exists!" << endl;
@@ -1224,7 +1208,7 @@ public:
                 }
                 table_file.close();
             } else {
-                cerr << "Error: " << table_fname << " doesn't exist!" << endl;
+                cerr << "Error: " << conversion_table_fname << " doesn't exist!" << endl;
                 throw 1;
             }
         }
@@ -1264,6 +1248,40 @@ public:
         
         {
             _size.clear();
+            
+            // Calculate contig (or genome) sizes corresponding to each taxonomic ID
+            for(size_t i = 0; i < _refnames.size(); i++) {
+                string uid = get_uid(_refnames[i]);
+                if(uid_to_tid.find(uid) == uid_to_tid.end())
+                    continue;
+                uint64_t tid = uid_to_tid[uid];
+                uint64_t contig_size = plen()[i];
+                if(_size.find(tid) == _size.end()) {
+                    _size[tid] = contig_size;
+                } else {
+                    _size[tid] += contig_size;
+                }
+            }
+            
+            if(size_table_fname != "") {
+                ifstream table_file(size_table_fname.c_str(), ios::in);
+                if(table_file.is_open()) {
+                    while(!table_file.eof()) {
+                        string stid;
+                        table_file >> stid;
+                        if(stid.length() == 0 || stid[0] == '#') continue;
+                        uint64_t tid = get_tid(stid);
+                        uint64_t size;
+                        table_file >> size;
+                        _size[tid] = size;
+                    }
+                    table_file.close();
+                } else {
+                    cerr << "Error: " << size_table_fname << " doesn't exist!" << endl;
+                    throw 1;
+                }
+            }
+            
             writeIndex<uint64_t>(fout3, _size.size(), this->toBe());
             for(std::map<uint64_t, uint64_t>::const_iterator itr = _size.begin(); itr != _size.end(); itr++) {
                 writeIndex<uint64_t>(fout3, itr->first, this->toBe());
@@ -2847,6 +2865,36 @@ public:
 		return repOk(_eh);
 	}
 #endif
+    
+    string get_uid(const string& header) {
+        size_t ndelim = 0;
+        size_t j = 0;
+        for(; j < header.length(); j++) {
+            if(header[j] == ' ') break;
+            if(header[j] == '|') ndelim++;
+            if(ndelim == 2) break;
+        }
+        string uid = header.substr(0, j);
+        return uid;
+    }
+    
+    uint64_t get_tid(const string& stid) {
+        uint64_t tid1 = 0, tid2 = 0;
+        bool sawDot = false;
+        for(size_t i = 0; i < stid.length(); i++) {
+            if(stid[i] == '.') {
+                sawDot = true;
+                continue;
+            }
+            uint32_t num = stid[i] - '0';
+            if(sawDot) {
+                tid2 = tid2 * 10 + num;
+            } else {
+                tid1 = tid1 * 10 + num;
+            }
+        }
+        return tid1 | (tid2 << 32);
+    }
 
 	bool       _toBigEndian;
 	int32_t    _overrideOffRate;
