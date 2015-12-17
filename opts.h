@@ -169,6 +169,7 @@ enum {
     ARG_MIN_TOTALLEN,            // --min-totallen
     ARG_HOST_GENOMES,            // --host-genomes
 	ARG_REPORT_FILE,             // --report
+    ARG_NO_ABUNDANCE,            // --no-abundance
 };
 
 #endif

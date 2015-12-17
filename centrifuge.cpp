@@ -232,15 +232,6 @@ static bool reorder;          // true -> reorder SAM recs in -p mode
 static float sampleFrac;      // only align random fraction of input reads
 static bool arbitraryRandom;  // pseudo-randoms no longer a function of read properties
 static bool bowtie2p5;
-static bool useTempSpliceSite;
-static int penCanSplice;
-static int penNoncanSplice;
-static SimpleFunc penIntronLen;
-static string knownSpliceSiteInfile;  //
-static string novelSpliceSiteInfile;  //
-static string novelSpliceSiteOutfile; //
-static bool no_spliced_alignment;
-static int rna_strandness; //
 
 static string bt2index;      // read Bowtie 2 index from files with this prefix
 static EList<pair<int, string> > extra_opts;
@@ -248,12 +239,12 @@ static size_t extra_opts_cur;
 
 static EList<uint64_t> thread_rids;
 static MUTEX_T         thread_rids_mutex;
-static uint64_t        thread_rids_mindist;
 
 static uint32_t minHitLen;   // minimum length of partial hits
 static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
 static EList<uint32_t> hostGenomes;
+static bool abundance_analysis;
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -445,19 +436,11 @@ static void resetOptions() {
 	sampleFrac = 1.1f;       // align all reads
 	arbitraryRandom = false; // let pseudo-random seeds be a function of read properties
 	bowtie2p5 = false;
-    useTempSpliceSite = true;
-    penCanSplice = 0;
-    penNoncanSplice = 3;
-    penIntronLen.init(SIMPLE_FUNC_LOG, -8, 1);
-    knownSpliceSiteInfile = "";
-    novelSpliceSiteInfile = "";
-    novelSpliceSiteOutfile = "";
-    no_spliced_alignment = false;
-    rna_strandness = RNA_STRANDNESS_UNKNOWN;
     minHitLen = 22;
     minTotalLen = 0;
     hostGenomes.clear();
     reportFile = "centrifuge-species_report.csv";
+    abundance_analysis = true;
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -610,10 +593,11 @@ static struct option long_options[] = {
 	{(char*)"desc-landing",     required_argument, 0,        ARG_DESC_LANDING},
 	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
-    {(char*)"min-hitlen",   required_argument, 0,        ARG_MIN_HITLEN},
+    {(char*)"min-hitlen",     required_argument, 0,        ARG_MIN_HITLEN},
     {(char*)"min-totallen",   required_argument, 0,        ARG_MIN_TOTALLEN},
     {(char*)"host-genomes",   required_argument, 0,        ARG_HOST_GENOMES},
-	{(char*)"report-file",  required_argument, 0, ARG_REPORT_FILE},
+	{(char*)"report-file",    required_argument, 0,        ARG_REPORT_FILE},
+    {(char*)"no-abundance",   no_argument,       0,        ARG_NO_ABUNDANCE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1352,51 +1336,6 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case ARG_VERSION: showVersion = 1; break;
-        case ARG_NO_TEMPSPLICESITE: useTempSpliceSite = false; break;
-        case ARG_PEN_CANSPLICE: {
-	  penCanSplice = parseInt(0, "-k arg must be at least 0", arg);
-	  break;
-	}
-        case ARG_PEN_NONCANSPLICE: {
-	  penNoncanSplice = parseInt(0, "-k arg must be at least 0", arg);
-	  break;
-	}
-        case ARG_PEN_INTRONLEN: {
-			polstr += ";";
-			EList<string> args;
-			tokenize(arg, ",", args);
-			if(args.size() > 3 && args.size() == 0) {
-				cerr << "Error: expected 3 or fewer comma-separated "
-                << "arguments to --n-ceil option, got "
-                << args.size() << endl;
-				throw 1;
-			}
-			polstr += ("INTRONLEN=" + args[0]);
-			if(args.size() > 1) {
-				polstr += ("," + args[1]);
-			}
-			if(args.size() > 2) {
-				polstr += ("," + args[2]);
-			}
-			break;
-		}
-        case ARG_KNOWN_SPLICESITE_INFILE: knownSpliceSiteInfile = arg; break;
-        case ARG_NOVEL_SPLICESITE_INFILE: novelSpliceSiteInfile = arg; break;
-        case ARG_NOVEL_SPLICESITE_OUTFILE: novelSpliceSiteOutfile = arg; break;
-        case ARG_NO_SPLICED_ALIGNMENT: no_spliced_alignment = true; break;
-        case ARG_RNA_STRANDNESS: {
-            string strandness = arg;
-            if(strandness == "F")       rna_strandness = RNA_STRANDNESS_F;
-            else if(strandness == "R")  rna_strandness = RNA_STRANDNESS_R;
-            else if(strandness == "FR") rna_strandness = RNA_STRANDNESS_FR;
-            else if(strandness == "RF") rna_strandness = RNA_STRANDNESS_RF;
-            else {
-                // daehwan - throw exception with details
-                cerr << "Error: should be one of F, R, FR, or RF " << endl;
-				throw 1;
-            }
-            break;
-        }
         case ARG_MIN_HITLEN: {
             minHitLen = parseInt(15, "--min-hitlen arg must be at least 15", arg);
             break;
@@ -1412,6 +1351,10 @@ static void parseOption(int next_option, const char *arg) {
         case ARG_REPORT_FILE: {
         	reportFile = arg;
         	break;
+        }
+        case ARG_NO_ABUNDANCE: {
+            abundance_analysis = false;
+            break;
         }
 		default:
 			printUsage(cerr);
@@ -1494,8 +1437,7 @@ static void parseOptions(int argc, const char **argv) {
 		multiseedLen,
 		msIval,
 		failStreakTmp,
-		nSeedRounds,
-        &penIntronLen);
+		nSeedRounds);
 	if(failStreakTmp > 0) {
 		maxEeStreak = failStreakTmp;
 		maxUgStreak = failStreakTmp;
@@ -2739,8 +2681,6 @@ static void multiseedSearch(
         
         thread_rids.resize(nthreads);
         thread_rids.fill(0);
-        thread_rids_mindist = (nthreads == 1 || !useTempSpliceSite ? 0 : 1000 * nthreads);
-
 		for(int i = 0; i < nthreads; i++) {
 			// Thread IDs start at 1
 			tids[i] = i+1;
@@ -2903,24 +2843,20 @@ static void driver(
 			bonusMatch = 0;
 		}
 		Scoring sc(
-			bonusMatch,     // constant reward for match
-			penMmcType,     // how to penalize mismatches
-			penMmcMax,      // max mm pelanty
-			penMmcMin,      // min mm pelanty
-			scoreMin,       // min score as function of read len
-			nCeil,          // max # Ns as function of read len
-			penNType,       // how to penalize Ns in the read
-			penN,           // constant if N pelanty is a constant
-			penNCatPair,    // whether to concat mates before N filtering
-			penRdGapConst,  // constant coeff for read gap cost
-			penRfGapConst,  // constant coeff for ref gap cost
-			penRdGapLinear, // linear coeff for read gap cost
-			penRfGapLinear, // linear coeff for ref gap cost
-			gGapBarrier,    // # rows at top/bot only entered diagonally
-            penCanSplice,   // canonical splicing penalty
-            penNoncanSplice,// non-canonical splicing penalty
-                   0,
-            &penIntronLen);  // penalty as to intron length
+                   bonusMatch,     // constant reward for match
+                   penMmcType,     // how to penalize mismatches
+                   penMmcMax,      // max mm pelanty
+                   penMmcMin,      // min mm pelanty
+                   scoreMin,       // min score as function of read len
+                   nCeil,          // max # Ns as function of read len
+                   penNType,       // how to penalize Ns in the read
+                   penN,           // constant if N pelanty is a constant
+                   penNCatPair,    // whether to concat mates before N filtering
+                   penRdGapConst,  // constant coeff for read gap cost
+                   penRfGapConst,  // constant coeff for ref gap cost
+                   penRdGapLinear, // linear coeff for read gap cost
+                   penRfGapLinear, // linear coeff for ref gap cost
+                   gGapBarrier);    // # rows at top/bot only entered diagonally
 
 		EList<string> refnames;
 		readEbwtRefnames<index_t>(adjIdxBase, refnames);
@@ -3011,14 +2947,16 @@ static void driver(
 				gReportMixed,
 				hadoopOut);
 		}
-
-		// write the species report into the corresponding file
-		cerr << "report file " << reportFile << endl;
+		
 		if (!reportFile.empty()) {
+            // write the species report into the corresponding file
+            cerr << "report file " << reportFile << endl;
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics& spm = metrics.spmu;
-            spm.calculateAbundance(ebwt);
+            if(abundance_analysis) {
+                spm.calculateAbundance(ebwt);
+            }
             map<uint64_t, double>& abundance = spm.abundance;
             map<uint64_t, double>& abundance_len = spm.abundance_len;
 			reportOfb << "name" << '\t' << "taxid" << '\t' << "n_genomes" << '\t'
@@ -3027,7 +2965,7 @@ static void driver(
 					  << "summed_hit_len" << '\t'
 					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << '\t'
                       << "abundance" << '\t' << "abundance_normalized_by_genome_size" << endl;
-			for (map<uint64_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
+			for(map<uint64_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 				uint64_t taxid = it->first;
                 uint64_t taxid1 = taxid & 0xffffffff;
                 uint64_t taxid2 = taxid >> 32;
@@ -3036,9 +2974,6 @@ static void driver(
 				string name, avg_size, n_genomes;
 				istringstream name_size_n(taxidToNameLen[taxid].first);
 				name_size_n >> name >> avg_size >> n_genomes;
-                
-                assert(abundance.find(taxid) != abundance.end());
-                assert(abundance_len.find(taxid) != abundance_len.end());
                 reportOfb << name << '\t' << taxid1;
                 if(taxid2) {
                     reportOfb << "." << taxid2;
@@ -3048,9 +2983,16 @@ static void driver(
 						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t'
 						  << it->second.summed_hit_len << '\t'
 						  << it->second.weighted_reads << '\t'
-                          << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t'
-                          << abundance[taxid] << '\t'
-                          << abundance_len[taxid] << endl;
+                          << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
+                if(abundance_analysis) {
+                    assert(abundance.find(taxid) != abundance.end());
+                    assert(abundance_len.find(taxid) != abundance_len.end());
+                    reportOfb << abundance[taxid] << '\t'
+                              << abundance_len[taxid];
+                } else {
+                    reportOfb << "0\t0";
+                }
+                reportOfb << endl;
 
 			}
 			reportOfb.close();
