@@ -278,6 +278,7 @@ void Ebwt<index_t>::readIntoMemory(
 	}
 	
 	bool shmemLeader;
+    size_t OFFSET_SIZE;
 	
 	// TODO: I'm not consistent on what "header" means.  Here I'm using
 	// "header" to mean everything that would exist in memory if we
@@ -522,127 +523,114 @@ void Ebwt<index_t>::readIntoMemory(
         }
 	}
 	
+    this->_offw = this->_nPat > std::numeric_limits<uint16_t>::max();
+    OFFSET_SIZE = (this->_offw ? 4 : 2);
 	_offs.reset();
-	if(loadSASamp) {
-		bytesRead = 4; // reset for secondary index file (already read 1-sentinel)
-		
-		shmemLeader = true;
-		if(_verbose || startVerbose) {
-			cerr << "Reading offs (" << offsLenSampled << " " << std::setw(2) << sizeof(index_t)*8 << "-bit words): ";
-			logTime(cerr);
-		}
-		
-		if(!_useMm) {
-			if(!useShmem_) {
-				// Allocate offs_
-				try {
-#ifdef CENTRIFUGE
-					_offs.init(new uint16_t[offsLenSampled], offsLenSampled, true);
-#else
-                    _offs.init(new index_t[offsLenSampled], offsLenSampled, true);
-#endif
-				} catch(bad_alloc& e) {
-					cerr << "Out of memory allocating the offs[] array  for the Bowtie index." << endl
+    _offsw.reset();
+    if(loadSASamp) {
+        bytesRead = 4; // reset for secondary index file (already read 1-sentinel)
+        
+        shmemLeader = true;
+        if(_verbose || startVerbose) {
+            cerr << "Reading offs (" << offsLenSampled << " " << std::setw(2) << sizeof(index_t)*8 << "-bit words): ";
+            logTime(cerr);
+        }
+        
+        if(!_useMm) {
+            if(!useShmem_) {
+                // Allocate offs_
+                try {
+                    if(this->_offw) {
+                        _offsw.init(new uint32_t[offsLenSampled], offsLenSampled, true);
+                    } else {
+                        _offs.init(new uint16_t[offsLenSampled], offsLenSampled, true);
+                    }
+                } catch(bad_alloc& e) {
+                    cerr << "Out of memory allocating the offs[] array  for the Bowtie index." << endl
 					<< "Please try again on a computer with more memory." << endl;
 					throw 1;
 				}
 			} else {
-#ifdef CENTRIFUGE
-				uint16_t *tmp = NULL;
-				shmemLeader = ALLOC_SHARED_U32(
-					(_in2Str + "[offs]"), offsLenSampled*sizeof(uint16_t), &tmp,
-					"offs", (_verbose || startVerbose));
-				_offs.init((uint16_t*)tmp, offsLenSampled, false);
-#else
-                index_t *tmp = NULL;
-				shmemLeader = ALLOC_SHARED_U32(
-                                               (_in2Str + "[offs]"), offsLenSampled*sizeof(index_t), &tmp,
-                                               "offs", (_verbose || startVerbose));
-				_offs.init((index_t*)tmp, offsLenSampled, false);
-#endif
+                if(this->_offw) {
+                    uint32_t *tmp = NULL;
+                    shmemLeader = ALLOC_SHARED_U32(
+                                                   (_in2Str + "[offs]"), offsLenSampled*OFFSET_SIZE, &tmp,
+                                                   "offs", (_verbose || startVerbose));
+                    _offsw.init((uint32_t*)tmp, offsLenSampled, false);
+                } else {
+                    uint16_t *tmp = NULL;
+                    shmemLeader = ALLOC_SHARED_U32(
+                                                   (_in2Str + "[offs]"), offsLenSampled*OFFSET_SIZE, &tmp,
+                                                   "offs", (_verbose || startVerbose));
+                    _offs.init((uint16_t*)tmp, offsLenSampled, false);
+                }
 			}
 		}
-		
-		if(_overrideOffRate < 32) {
-			if(shmemLeader) {
-				// Allocate offs (big allocation)
-				if(switchEndian || offRateDiff > 0) {
-					assert(!_useMm);
-					const index_t blockMaxSz = (index_t)(2 * 1024 * 1024); // 2 MB block size
-#ifdef CENTRIFUGE
-					const index_t blockMaxSzU = (blockMaxSz / sizeof(uint16_t)); // # U32s per block
-#else
-                    const index_t blockMaxSzU = (blockMaxSz / sizeof(index_t)); // # U32s per block
-#endif
-					char *buf;
-					try {
-						buf = new char[blockMaxSz];
-					} catch(std::bad_alloc& e) {
-						cerr << "Error: Out of memory allocating part of _offs array: '" << e.what() << "'" << endl;
-						throw e;
-					}
-					for(index_t i = 0; i < offsLen; i += blockMaxSzU) {
-					  index_t block = min<index_t>((index_t)blockMaxSzU, (index_t)(offsLen - i));
-#ifdef CENTRIFUGE
-						size_t r = MM_READ(_in2, (void *)buf, block * sizeof(uint16_t));
-                        if(r != (size_t)(block * sizeof(uint16_t))) {
-							cerr << "Error reading block of _offs[] array: " << r << ", " << (block * sizeof(uint16_t)) << endl;
-							throw 1;
-						}
+        
+        if(_overrideOffRate < 32) {
+            if(shmemLeader) {
+                // Allocate offs (big allocation)
+                if(switchEndian || offRateDiff > 0) {
+                    assert(!_useMm);
+                    const index_t blockMaxSz = (index_t)(2 * 1024 * 1024); // 2 MB block size
+                    const index_t blockMaxSzU = (blockMaxSz / OFFSET_SIZE); // # U32s per block
+                    char *buf;
+                    try {
+                        buf = new char[blockMaxSz];
+                    } catch(std::bad_alloc& e) {
+                        cerr << "Error: Out of memory allocating part of _offs array: '" << e.what() << "'" << endl;
+                        throw e;
+                    }
+                    for(index_t i = 0; i < offsLen; i += blockMaxSzU) {
+                        index_t block = min<index_t>((index_t)blockMaxSzU, (index_t)(offsLen - i));
+                        size_t r = MM_READ(_in2, (void *)buf, block * OFFSET_SIZE);
+                        if(r != (size_t)(block * OFFSET_SIZE)) {
+                            cerr << "Error reading block of _offs[] array: " << r << ", " << (block * OFFSET_SIZE) << endl;
+                            throw 1;
+                        }
                         index_t idx = i >> 1;
-						for(index_t j = 0; j < block; j += 2) {
-							assert_lt(idx, offsLenSampled);
-							this->offs()[idx] = ((uint16_t*)buf)[j];
-							if(switchEndian) {
-								this->offs()[idx] = endianSwapIndex((uint16_t)this->offs()[idx]);
-							}
-							idx++;
-						}
-#else
-                        size_t r = MM_READ(_in2, (void *)buf, block * sizeof(index_t));
-                        if(r != (size_t)(block * sizeof(index_t))) {
-							cerr << "Error reading block of _offs[] array: " << r << ", " << (block * sizeof(index_t)) << endl;
-							throw 1;
-						}
-                        index_t idx = i >> offRateDiff;
-						for(index_t j = 0; j < block; j += (1 << offRateDiff)) {
-							assert_lt(idx, offsLenSampled);
-							this->offs()[idx] = ((index_t*)buf)[j];
-							if(switchEndian) {
-								this->offs()[idx] = endianSwapIndex(this->offs()[idx]);
-							}
-							idx++;
-						}
-#endif
-					}
-					delete[] buf;
-				} else {
-					if(_useMm) {
+                        for(index_t j = 0; j < block; j += OFFSET_SIZE) {
+                            assert_lt(idx, offsLenSampled);
+                            if(this->_offw) {
+                                this->offsw()[idx] = ((uint32_t*)buf)[j];
+                                if(switchEndian) {
+                                    this->offsw()[idx] = endianSwapIndex((uint32_t)this->offs()[idx]);
+                                }
+                            } else {
+                                this->offs()[idx] = ((uint16_t*)buf)[j];
+                                if(switchEndian) {
+                                    this->offs()[idx] = endianSwapIndex((uint16_t)this->offs()[idx]);
+                                }
+                            }
+                            idx++;
+                        }
+                    }
+                    delete[] buf;
+                } else {
+                    if(_useMm) {
 #ifdef BOWTIE_MM
-#  ifdef CENTRIFUGE
-                        _offs.init((uint16_t*)(mmFile[1] + bytesRead), offsLen, false);
-                        bytesRead += (offsLen * sizeof(uint16_t));
-                        fseek(_in2, (offsLen * sizeof(uint16_t)), SEEK_CUR);
-#  else
-                        _offs.init((index_t*)(mmFile[1] + bytesRead), offsLen, false);
-						bytesRead += (offsLen * sizeof(index_t));
-						fseek(_in2, (offsLen * sizeof(index_t)), SEEK_CUR);
-#  endif
+                        if(this->_offw) {
+                            _offsw.init((uint32_t*)(mmFile[1] + bytesRead), offsLen, false);
+                        } else {
+                            _offs.init((uint16_t*)(mmFile[1] + bytesRead), offsLen, false);
+                        }
+                        bytesRead += (offsLen * OFFSET_SIZE);
+                        fseek(_in2, (offsLen * OFFSET_SIZE), SEEK_CUR);
 #endif
-					} else {
+                    } else {
                         // Workaround for small-index mode where MM_READ may
                         // not be able to handle read amounts greater than 2^32
                         // bytes.
-#ifdef CENTRIFUGE
-                        uint64_t bytesLeft = (offsLen * sizeof(uint16_t));
-#else
-                        uint64_t bytesLeft = (offsLen * sizeof(index_t));
-#endif
-                        char *offs = (char *)this->offs();
-                        
+                        uint64_t bytesLeft = (offsLen * OFFSET_SIZE);
+                        char *offs = NULL;
+                        if(this->_offw) {
+                            offs = (char *)this->offsw();
+                        } else {
+                            offs = (char *)this->offs();
+                        }
                         while(bytesLeft > 0) {
                             size_t r = MM_READ(_in2, (void*)offs, bytesLeft);
-                            if(MM_IS_IO_ERR(_in2,r,bytesLeft)) {
+                            if(MM_IS_IO_ERR(_in2, r, bytesLeft)) {
                                 cerr << "Error reading block of _offs[] array: "
                                 << r << ", " << bytesLeft << gLastIOErrMsg << endl;
                                 throw 1;
@@ -650,28 +638,38 @@ void Ebwt<index_t>::readIntoMemory(
                             offs += r;
                             bytesLeft -= r;
                         }
-					}
-				}
-#ifdef BOWTIE_SHARED_MEM				
-				if(useShmem_) NOTIFY_SHARED(offs(), offsLenSampled*sizeof(index_t));
+                    }
+                }
+#ifdef BOWTIE_SHARED_MEM
+                if(useShmem_) {
+                    if(this->_offw) {
+                        NOTIFY_SHARED(offsw(), offsLenSampled*OFFSET_SIZE);
+                    } else {
+                        NOTIFY_SHARED(offs(), offsLenSampled*OFFSET_SIZE);
+                    }
+                }
 #endif
-			} else {
-				// Not the shmem leader
-				fseek(_in2, offsLenSampled*sizeof(index_t), SEEK_CUR);
-#ifdef BOWTIE_SHARED_MEM				
-				if(useShmem_) WAIT_SHARED(offs(), offsLenSampled*sizeof(index_t));
+            } else {
+                // Not the shmem leader
+				fseek(_in2, offsLenSampled*OFFSET_SIZE, SEEK_CUR);
+#ifdef BOWTIE_SHARED_MEM
+                if(this->_offw) {
+                    NOTIFY_SHARED(offsw(), offsLenSampled*OFFSET_SIZE);
+                } else {                    
+                    NOTIFY_SHARED(offs(), offsLenSampled*OFFSET_SIZE);
+                }
 #endif
-			}
-		}
-	}
-	
-	this->postReadInit(*eh); // Initialize fields of Ebwt not read from file
-	if(_verbose || startVerbose) print(cerr, *eh);
-	
-	// The fact that _ebwt and friends actually point to something
-	// (other than NULL) now signals to other member functions that the
-	// Ebwt is loaded into memory.
-	
+            }
+        }
+    }
+    
+    this->postReadInit(*eh); // Initialize fields of Ebwt not read from file
+    if(_verbose || startVerbose) print(cerr, *eh);
+    
+    // The fact that _ebwt and friends actually point to something
+    // (other than NULL) now signals to other member functions that the
+    // Ebwt is loaded into memory.
+    
 done: // Exit hatch for both justHeader and !justHeader
 	
 	// Be kind

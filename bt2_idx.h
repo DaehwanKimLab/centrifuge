@@ -586,7 +586,9 @@ public:
 	    _fchr(EBWT_CAT), \
 	    _ftab(EBWT_CAT), \
 	    _eftab(EBWT_CAT), \
+        _offw(false), \
 	    _offs(EBWT_CAT), \
+        _offsw(EBWT_CAT), \
 	    _ebwt(EBWT_CAT), \
 	    _useMm(false), \
 	    useShmem_(false), \
@@ -1162,6 +1164,8 @@ public:
 			throw 1;
 		}
         
+        this->_offw = this->_nPat > std::numeric_limits<uint16_t>::max();
+        
         std::set<string> uids;
         for(size_t i = 0; i < _refnames.size(); i++) {
             const string& refname = _refnames[i];
@@ -1492,10 +1496,14 @@ public:
 		_plen.reset();
 		_rstarts.reset();
 		_offs.reset();
+        _offsw.reset();
 		_ebwt.reset();
 		if(offs() != NULL && useShmem_) {
 			FREE_SHARED(offs());
 		}
+        if(offsw() != NULL && useShmem_) {
+            FREE_SHARED(offsw());
+        }
 		if(ebwt() != NULL && useShmem_) {
 			FREE_SHARED(ebwt());
 		}
@@ -1513,22 +1521,16 @@ public:
 	inline index_t*   fchr()              { return _fchr.get(); }
 	inline index_t*   ftab()              { return _ftab.get(); }
 	inline index_t*   eftab()             { return _eftab.get(); }
-#ifdef CENTRIFUGE
 	inline uint16_t*   offs()              { return _offs.get(); }
-#else
-    inline index_t*   offs()              { return _offs.get(); }
-#endif
+    inline uint32_t*   offsw()             { return _offsw.get(); }
 	inline index_t*   plen()              { return _plen.get(); }
 	inline index_t*   rstarts()           { return _rstarts.get(); }
 	inline uint8_t*    ebwt()              { return _ebwt.get(); }
 	inline const index_t* fchr() const    { return _fchr.get(); }
 	inline const index_t* ftab() const    { return _ftab.get(); }
 	inline const index_t* eftab() const   { return _eftab.get(); }
-#ifdef CENTRIFUGE
-	inline const uint16_t* offs() const    { return _offs.get(); }
-#else
-    inline const index_t* offs() const    { return _offs.get(); }
-#endif
+    inline const uint16_t* offs() const    { return _offs.get(); }
+    inline const uint32_t* offsw() const    { return _offsw.get(); }
 	inline const index_t* plen() const    { return _plen.get(); }
 	inline const index_t* rstarts() const { return _rstarts.get(); }
 	inline const uint8_t*  ebwt() const    { return _ebwt.get(); }
@@ -1588,6 +1590,7 @@ public:
 			assert(eftab() == NULL);
 			assert(fchr() == NULL);
 			assert(offs() == NULL);
+            assert(offsw() == NULL);
 			// assert(rstarts() == NULL); // FIXME FB: Assertion fails when calling centrifuge-build-bin-debug
 			assert_eq(_zEbwtByteOff, (index_t)OFF_MASK);
 			assert_eq(_zEbwtBpOff, -1);
@@ -1636,6 +1639,7 @@ public:
 		_eftab.free();
 		_rstarts.free();
 		_offs.free(); // might not be under control of APtrWrap
+        _offsw.free(); // might not be under control of APtrWrap
 		_ebwt.free(); // might not be under control of APtrWrap
 		// Keep plen; it's small and the client may want to seq it
 		// even when the others are evicted.
@@ -1800,12 +1804,23 @@ public:
 	 * it cannot be resolved immediately, return 0xffffffff.
 	 */
 	index_t tryOffset(index_t elt) const {
-		assert(offs() != NULL);
+#ifndef NDEBUG
+        if(this->_offw) {
+            assert(offsw() != NULL);
+        } else {
+            assert(offs() != NULL);
+        }
+#endif
 		if(elt == _zOff) return 0;
 		if((elt & _eh._offMask) == elt) {
 			index_t eltOff = elt >> _eh._offRate;
 			assert_lt(eltOff, _eh._offsLen);
-			index_t off = offs()[eltOff];
+            index_t off;
+            if(this->_offw) {
+                off = offsw()[eltOff];
+            } else {
+                off = offs()[eltOff];
+            }
 			assert_neq((index_t)OFF_MASK, off);
 			return off;
 		} else {
@@ -2826,11 +2841,9 @@ public:
 	// _offs may be extremely large.  E.g. for DNA w/ offRate=4 (one
 	// offset every 16 rows), the total size of _offs is the same as
 	// the total size of the input sequence
-#ifdef CENTRIFUGE
-	APtrWrap<uint16_t> _offs;
-#else
-    APtrWrap<index_t> _offs;
-#endif
+    bool _offw;
+	APtrWrap<uint16_t> _offs;  // offset when # of seq. is less than 2^16
+    APtrWrap<uint32_t> _offsw; // offset when # of seq. is more than 2^16
 	// _ebwt is the Extended Burrows-Wheeler Transform itself, and thus
 	// is at least as large as the input sequence.
 	APtrWrap<uint8_t> _ebwt;
@@ -3318,7 +3331,6 @@ void Ebwt<index_t>::buildToDisk(
 					assert_lt((si >> eh._offRate), eh._offsLen);
 					// Write offsets directly to the secondary output
 					// stream, thereby avoiding keeping them in memory
-#ifdef CENTRIFUGE
                     index_t tidx = 0, toff = 0, tlen = 0;
                     bool straddled2 = false;
                     if(saElt > 0) {
@@ -3331,10 +3343,12 @@ void Ebwt<index_t>::buildToDisk(
                                         false,        // reject straddlers?
                                         straddled2);  // straddled?
                     }
-                    writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
-#else
-                    writeIndex<index_t>(out2, saElt, this->toBe());
-#endif
+                    if(this->_offw) {
+                        writeIndex<uint32_t>(out2, (uint32_t)tidx, this->toBe());
+                    } else {
+                        assert_lt(tidx, std::numeric_limits<uint16_t>::max());
+                        writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
+                    }
 				}
 			} else {
 				// Strayed off the end of the SA, now we're just
@@ -3619,7 +3633,13 @@ void Ebwt<index_t>::joinedToTextOff(
  */
 template <typename index_t>
 index_t Ebwt<index_t>::walkLeft(index_t row, index_t steps) const {
-	assert(offs() != NULL);
+#ifndef NDEBUG
+    if(this->_offw) {
+        assert(offsw() != NULL);
+    } else {
+        assert(offs() != NULL);
+    }
+#endif
 	assert_neq((index_t)OFF_MASK, row);
 	SideLocus<index_t> l;
 	if(steps > 0) l.initFromRow(row, _eh, ebwt());
@@ -3640,10 +3660,22 @@ index_t Ebwt<index_t>::walkLeft(index_t row, index_t steps) const {
  */
 template <typename index_t>
 index_t Ebwt<index_t>::getOffset(index_t row) const {
-	assert(offs() != NULL);
+#ifndef NDEBUG
+    if(this->_offw) {
+        assert(offsw() != NULL);
+    } else {
+        assert(offs() != NULL);
+    }
+#endif
 	assert_neq((index_t)OFF_MASK, row);
 	if(row == _zOff) return 0;
-	if((row & _eh._offMask) == row) return this->offs()[row >> _eh._offRate];
+    if((row & _eh._offMask) == row) {
+        if(this->_offw) {
+            return this->offsw()[row >> _eh._offRate];
+        } else {
+            return this->offs()[row >> _eh._offRate];
+        }
+    }
 	index_t jumps = 0;
 	SideLocus<index_t> l;
 	l.initFromRow(row, _eh, ebwt());
@@ -3656,7 +3688,11 @@ index_t Ebwt<index_t>::getOffset(index_t row) const {
 		if(row == _zOff) {
 			return jumps;
 		} else if((row & _eh._offMask) == row) {
-			return jumps + this->offs()[row >> _eh._offRate];
+            if(this->_offw) {
+                return jumps + this->offsw()[row >> _eh._offRate];
+            } else {
+                return jumps + this->offs()[row >> _eh._offRate];
+            }
 		}
 		l.initFromRow(row, _eh, ebwt());
 	}
