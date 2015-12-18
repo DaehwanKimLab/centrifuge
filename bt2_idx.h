@@ -1225,13 +1225,7 @@ public:
         writeIndex<uint64_t>(fout3, _refnames.size(), this->toBe());
         for(size_t i = 0; i < _refnames.size(); i++) {
             const string& refname = _refnames[i];
-            size_t ndelim = 0;
-            size_t j = 0;
-            for(; j < refname.length(); j++) {
-                if(refname[j] == '|') ndelim++;
-                if(ndelim == 2) break;
-            }
-            string uid = refname.substr(0, j);
+            string uid = get_uid(refname);
             for(size_t c = 0; c < uid.length(); c++) {
                 fout3 << uid[c];
             }

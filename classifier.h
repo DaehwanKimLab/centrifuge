@@ -186,7 +186,7 @@ public:
                     bool found = false;
                     for(index_t k2 = 0; k2 < coord_ids.size(); k2++) {
                         // count the genome if it is not in coord_ids, yet
-                        if(coord_ids[k2].first == coord.ref()) {
+		      if(coord_ids[k2].first == (uint64_t)coord.ref()) {
                             found = true;
                             break;
                         }
