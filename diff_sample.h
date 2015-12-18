@@ -496,7 +496,7 @@ public:
 	const EList<uint32_t>& dmap() const  { return _dmap; }
 	ostream& log() const                 { return _logger; }
 
-	void     build();
+	void     build(int nthreads);
 	uint32_t tieBreakOff(TIndexOffU i, TIndexOffU j) const;
 	int64_t  breakTie(TIndexOffU i, TIndexOffU j) const;
 	bool     isCovered(TIndexOffU i) const;
@@ -670,12 +670,58 @@ static inline bool suffixSameUpTo(
 	return true;
 }
 
+template<typename TStr>
+struct VSortingParam {
+    DifferenceCoverSample<TStr>* dcs;
+    TIndexOffU*                  sPrimeArr;
+    size_t                       sPrimeSz;
+    TIndexOffU*                  sPrimeOrderArr;
+    size_t                       depth;
+    const EList<size_t>*         boundaries;
+    size_t*                      cur;
+    MUTEX_T*                     mutex;
+};
+
+template<typename TStr>
+static void VSorting_worker(void *vp)
+{
+    VSortingParam<TStr>* param = (VSortingParam<TStr>*)vp;
+    DifferenceCoverSample<TStr>* dcs = param->dcs;
+    const TStr& host = dcs->text();
+    const size_t hlen = host.length();
+    uint32_t v = dcs->v();
+    while(true) {
+        size_t cur = 0;
+        {
+            ThreadSafe ts(param->mutex, true);
+            cur = *(param->cur);
+            (*param->cur)++;
+        }
+        if(cur >= param->boundaries->size()) return;
+        size_t begin = (cur == 0 ? 0 : (*param->boundaries)[cur-1]);
+        size_t end = (*param->boundaries)[cur];
+        assert_leq(begin, end);
+        if(end - begin <= 1) continue;
+        mkeyQSortSuf2(
+                      host,
+                      hlen,
+                      param->sPrimeArr,
+                      param->sPrimeSz,
+                      param->sPrimeOrderArr,
+                      4,
+                      begin,
+                      end,
+                      param->depth,
+                      v);
+    }
+}
+
 /**
  * Calculates a ranking of all suffixes in the sample and stores them,
  * packed according to the mu mapping, in _isaPrime.
  */
 template <typename TStr>
-void DifferenceCoverSample<TStr>::build() {
+void DifferenceCoverSample<TStr>::build(int nthreads) {
 	// Local names for relevant types
 	VMSG_NL("Building DifferenceCoverSample");
 	// Local names for relevant data
@@ -714,7 +760,7 @@ void DifferenceCoverSample<TStr>::build() {
 			TIndexOffU *sPrimeOrderArr = (TIndexOffU*)sPrimeOrder.ptr();
 			assert_eq(sPrimeOrderArr[0], sPrimeOrder[0]);
 			assert_eq(sPrimeOrderArr[sPrimeSz-1], sPrimeOrder[sPrimeSz-1]);
-			// Sort sample suffixes up to the vth character using a
+            // Sort sample suffixes up to the vth character using a
 			// multikey quicksort.  Sort time is proportional to the
 			// number of samples times v.  It isn't quadratic.
 			// sPrimeOrder is passed in as a swapping partner for
@@ -722,8 +768,55 @@ void DifferenceCoverSample<TStr>::build() {
 			// elements in sPrime, it swaps the same elements in
 			// sPrimeOrder too.  This allows us to easily reconstruct
 			// what the sort did.
-			mkeyQSortSuf2(t, sPrimeArr, sPrimeSz, sPrimeOrderArr, 4,
-			              this->verbose(), this->sanityCheck(), v);
+            if(nthreads == 1) {
+                mkeyQSortSuf2(t, sPrimeArr, sPrimeSz, sPrimeOrderArr, 4,
+                              this->verbose(), this->sanityCheck(), v);
+            } else {
+                int query_depth = 0;
+                int tmp_nthreads = nthreads;
+                while(tmp_nthreads > 0) {
+                    query_depth++;
+                    tmp_nthreads >>= 1;
+                }
+                EList<size_t> boundaries; // bucket boundaries for parallelization
+                TIndexOffU *sOrig = NULL;
+                if(this->sanityCheck()) {
+                    sOrig = new TIndexOffU[sPrimeSz];
+                    memcpy(sOrig, sPrimeArr, OFF_SIZE * sPrimeSz);
+                }
+                mkeyQSortSuf2(t, sPrimeArr, sPrimeSz, sPrimeOrderArr, 4,
+                              this->verbose(), false, query_depth, &boundaries);
+                if(boundaries.size() > 0) {
+                    AutoArray<tthread::thread*> threads(nthreads);
+                    EList<VSortingParam<TStr> > tparams;
+                    size_t cur = 0;
+                    MUTEX_T mutex;
+                    for(int tid = 0; tid < nthreads; tid++) {
+                        // Calculate bucket sizes by doing a binary search for each
+                        // suffix and noting where it lands
+                        tparams.expand();
+                        tparams.back().dcs = this;
+                        tparams.back().sPrimeArr = sPrimeArr;
+                        tparams.back().sPrimeSz = sPrimeSz;
+                        tparams.back().sPrimeOrderArr = sPrimeOrderArr;
+                        tparams.back().depth = query_depth;
+                        tparams.back().boundaries = &boundaries;
+                        tparams.back().cur = &cur;
+                        tparams.back().mutex = &mutex;
+                        threads[tid] = new tthread::thread(VSorting_worker<TStr>, (void*)&tparams.back());
+                    }
+                    for (int tid = 0; tid < nthreads; tid++) {
+                        threads[tid]->join();
+                    }
+                }
+                if(this->sanityCheck()) {
+                    sanityCheckOrderedSufs(t, t.length(), sPrimeArr, sPrimeSz, v);
+                    for(size_t i = 0; i < sPrimeSz; i++) {
+                        assert_eq(sPrimeArr[i], sOrig[sPrimeOrderArr[i]]);
+                    }
+                    delete[] sOrig;
+                }
+            }
 			// Make sure sPrime and sPrimeOrder are consistent with
 			// their respective backing-store arrays
 			assert_eq(sPrimeArr[0], sPrime[0]);

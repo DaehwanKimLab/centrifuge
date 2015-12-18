@@ -505,30 +505,40 @@ void mkeyQSortSuf(
  */
 template<typename T>
 void mkeyQSortSuf2(
-	const T& host,
-	size_t hlen,
-	TIndexOffU *s,
-	size_t slen,
-	TIndexOffU *s2,
-	int hi,
-	size_t begin,
-	size_t end,
-	size_t depth,
-	size_t upto = OFF_MASK)
+                   const T& host,
+                   size_t hlen,
+                   TIndexOffU *s,
+                   size_t slen,
+                   TIndexOffU *s2,
+                   int hi,
+                   size_t begin,
+                   size_t end,
+                   size_t depth,
+                   size_t upto = OFF_MASK,
+                   EList<size_t>* boundaries = NULL)
 {
 	// Helper for making the recursive call; sanity-checks arguments to
 	// make sure that the problem actually got smaller.
 	#define MQS_RECURSE_SUF_DS(nbegin, nend, ndepth) { \
 		assert(nbegin > begin || nend < end || ndepth > depth); \
 		if(ndepth < upto) { /* don't exceed depth of 'upto' */ \
-			mkeyQSortSuf2(host, hlen, s, slen, s2, hi, nbegin, nend, ndepth, upto); \
-		} \
+			mkeyQSortSuf2(host, hlen, s, slen, s2, hi, nbegin, nend, ndepth, upto, boundaries); \
+		} else { \
+            if(boundaries != NULL) { \
+                (*boundaries).push_back(nend); \
+            } \
+        } \
 	}
 	assert_leq(begin, slen);
 	assert_leq(end, slen);
 	size_t a, b, c, d, /*e,*/ r;
 	size_t n = end - begin;
-	if(n <= 1) return;                 // 1-element list already sorted
+    if(n <= 1) { // 1-element list already sorted
+        if(n == 1 && boundaries != NULL) {
+            boundaries->push_back(end);
+        }
+        return;
+    }
 	CHOOSE_AND_SWAP_PIVOT(SWAP2, CHAR_AT_SUF); // pick pivot, swap it into [begin]
 	int v = CHAR_AT_SUF(begin, depth); // v <- randomly-selected pivot value
 	#ifndef NDEBUG
@@ -578,7 +588,7 @@ void mkeyQSortSuf2(
 	r = min(d-c, end-d-1); VECSWAP2(s, s2, b,     end-r, r);  // swap right = to center
 	assert(assertPartitionedSuf2(host, s, slen, hi, v, begin, end, depth)); // check post-=-swap invariant
 	r = b-a; // r <- # of <'s
-	if(r > 0) {
+    if(r > 0) {
 		MQS_RECURSE_SUF_DS(begin, begin + r, depth); // recurse on <'s
 	}
 	// Do not recurse on ='s if the pivot was the off-the-end value;
@@ -598,14 +608,15 @@ void mkeyQSortSuf2(
  */
 template<typename T>
 void mkeyQSortSuf2(
-	const T& host,
-	TIndexOffU *s,
-	size_t slen,
-	TIndexOffU *s2,
-	int hi,
-	bool verbose = false,
-	bool sanityCheck = false,
-	size_t upto = OFF_MASK)
+                   const T& host,
+                   TIndexOffU *s,
+                   size_t slen,
+                   TIndexOffU *s2,
+                   int hi,
+                   bool verbose = false,
+                   bool sanityCheck = false,
+                   size_t upto = OFF_MASK,
+                   EList<size_t>* boundaries = NULL)
 {
 	size_t hlen = host.length();
 	if(sanityCheck) sanityCheckInputSufs(s, slen);
@@ -614,7 +625,7 @@ void mkeyQSortSuf2(
 		sOrig = new TIndexOffU[slen];
 		memcpy(sOrig, s, OFF_SIZE * slen);
 	}
-	mkeyQSortSuf2(host, hlen, s, slen, s2, hi, (size_t)0, slen, (size_t)0, upto);
+	mkeyQSortSuf2(host, hlen, s, slen, s2, hi, (size_t)0, slen, (size_t)0, upto, boundaries);
 	if(sanityCheck) {
 		sanityCheckOrderedSufs(host, hlen, s, slen, upto);
 		for(size_t i = 0; i < slen; i++) {

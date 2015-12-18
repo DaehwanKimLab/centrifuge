@@ -380,7 +380,7 @@ private:
 		assert(_dc.get() == NULL);
 		if(_dcV != 0) {
 			_dc.init(new TDC(this->text(), _dcV, this->verbose(), this->sanityCheck()));
-			_dc.get()->build();
+			_dc.get()->build(this->_nthreads);
 		}
 		// Calculate sample suffixes
 		if(this->bucketSz() <= this->text().length()) {
