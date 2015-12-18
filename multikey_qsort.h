@@ -503,6 +503,11 @@ void mkeyQSortSuf(
  * the caller would let s2 be an array s2[] where s2 is the same length
  * as s and s2[i] = i).
  */
+struct QSortRange {
+    size_t begin;
+    size_t end;
+    size_t depth;
+};
 template<typename T>
 void mkeyQSortSuf2(
                    const T& host,
@@ -511,95 +516,121 @@ void mkeyQSortSuf2(
                    size_t slen,
                    TIndexOffU *s2,
                    int hi,
-                   size_t begin,
-                   size_t end,
-                   size_t depth,
+                   size_t _begin,
+                   size_t _end,
+                   size_t _depth,
                    size_t upto = OFF_MASK,
                    EList<size_t>* boundaries = NULL)
 {
-	// Helper for making the recursive call; sanity-checks arguments to
-	// make sure that the problem actually got smaller.
-	#define MQS_RECURSE_SUF_DS(nbegin, nend, ndepth) { \
-		assert(nbegin > begin || nend < end || ndepth > depth); \
-		if(ndepth < upto) { /* don't exceed depth of 'upto' */ \
-			mkeyQSortSuf2(host, hlen, s, slen, s2, hi, nbegin, nend, ndepth, upto, boundaries); \
-		} else { \
-            if(boundaries != NULL) { \
-                (*boundaries).push_back(nend); \
-            } \
-        } \
-	}
-	assert_leq(begin, slen);
-	assert_leq(end, slen);
-	size_t a, b, c, d, /*e,*/ r;
-	size_t n = end - begin;
-    if(n <= 1) { // 1-element list already sorted
-        if(n == 1 && boundaries != NULL) {
-            boundaries->push_back(end);
+    ELList<QSortRange, 3, 1024> block_list;
+    while(true) {
+        size_t begin = 0, end = 0, depth = 0;
+        if(block_list.size() == 0) {
+            begin = _begin;
+            end = _end;
+            depth = _depth;
+        } else {
+            if(block_list.back().size() > 0) {
+                begin = block_list.back()[0].begin;
+                end = block_list.back()[0].end;
+                depth = block_list.back()[0].depth;
+                block_list.back().erase(0);
+            } else {
+                block_list.resize(block_list.size() - 1);
+                if(block_list.size() == 0) {
+                    break;
+                }
+            }
         }
-        return;
+        if(depth == upto) {
+            if(boundaries != NULL) {
+                (*boundaries).push_back(end);
+            }
+            continue;
+        }
+        assert_leq(begin, slen);
+        assert_leq(end, slen);
+        size_t a, b, c, d, /*e,*/ r;
+        size_t n = end - begin;
+        if(n <= 1) { // 1-element list already sorted
+            if(n == 1 && boundaries != NULL) {
+                boundaries->push_back(end);
+            }
+            continue;
+        }
+        CHOOSE_AND_SWAP_PIVOT(SWAP2, CHAR_AT_SUF); // pick pivot, swap it into [begin]
+        int v = CHAR_AT_SUF(begin, depth); // v <- randomly-selected pivot value
+#ifndef NDEBUG
+        {
+            bool stillInBounds = false;
+            for(size_t i = begin; i < end; i++) {
+                if(depth < (hlen-s[i])) {
+                    stillInBounds = true;
+                    break;
+                } else { /* already fell off this suffix */ }
+            }
+            assert(stillInBounds); // >=1 suffix must still be in bounds
+        }
+#endif
+        a = b = begin;
+        c = d = /*e =*/ end-1;
+        while(true) {
+            // Invariant: everything before a is = pivot, everything
+            // between a and b is <
+            int bc = 0; // shouldn't have to init but gcc on Mac complains
+            while(b <= c && v >= (bc = CHAR_AT_SUF(b, depth))) {
+                if(v == bc) {
+                    SWAP2(s, s2, a, b); a++;
+                }
+                b++;
+            }
+            // Invariant: everything after d is = pivot, everything
+            // between c and d is >
+            int cc = 0; // shouldn't have to init but gcc on Mac complains
+            while(b <= c && v <= (cc = CHAR_AT_SUF(c, depth))) {
+                if(v == cc) {
+                    SWAP2(s, s2, c, d); d--; /*e--;*/
+                }
+                //else if(c == e && v == hi) e--;
+                c--;
+            }
+            if(b > c) break;
+            SWAP2(s, s2, b, c);
+            b++;
+            c--;
+        }
+        assert(a > begin || c < end-1);                      // there was at least one =s
+        assert_lt(/*e*/d-c, n); // they can't all have been > pivot
+        assert_lt(b-a, n); // they can't all have been < pivot
+        assert(assertPartitionedSuf(host, s, slen, hi, v, begin, end, depth));  // check pre-=-swap invariant
+        r = min(a-begin, b-a); VECSWAP2(s, s2, begin, b-r,   r);  // swap left = to center
+        r = min(d-c, end-d-1); VECSWAP2(s, s2, b,     end-r, r);  // swap right = to center
+        assert(assertPartitionedSuf2(host, s, slen, hi, v, begin, end, depth)); // check post-=-swap invariant
+        r = b-a; // r <- # of <'s
+        block_list.expand();
+        block_list.back().clear();
+        if(r > 0) { // recurse on <'s
+            block_list.back().expand();
+            block_list.back().back().begin = begin;
+            block_list.back().back().end = begin + r;
+            block_list.back().back().depth = depth;
+        }
+        // Do not recurse on ='s if the pivot was the off-the-end value;
+        // they're already fully sorted
+        if(v != hi) { // recurse on ='s
+            block_list.back().expand();
+            block_list.back().back().begin = begin + r;
+            block_list.back().back().end = begin + r + (a-begin) + (end-d-1);
+            block_list.back().back().depth = depth + 1;
+        }
+        r = d-c;   // r <- # of >'s excluding those exhausted
+        if(r > 0 && v < hi-1) { // recurse on >'s
+            block_list.back().expand();
+            block_list.back().back().begin = end - r;
+            block_list.back().back().end = end;
+            block_list.back().back().depth = depth;
+        }
     }
-	CHOOSE_AND_SWAP_PIVOT(SWAP2, CHAR_AT_SUF); // pick pivot, swap it into [begin]
-	int v = CHAR_AT_SUF(begin, depth); // v <- randomly-selected pivot value
-	#ifndef NDEBUG
-	{
-		bool stillInBounds = false;
-		for(size_t i = begin; i < end; i++) {
-			if(depth < (hlen-s[i])) {
-				stillInBounds = true;
-				break;
-			} else { /* already fell off this suffix */ }
-		}
-		assert(stillInBounds); // >=1 suffix must still be in bounds
-	}
-	#endif
-	a = b = begin;
-	c = d = /*e =*/ end-1;
-	while(true) {
-		// Invariant: everything before a is = pivot, everything
-		// between a and b is <
-		int bc = 0; // shouldn't have to init but gcc on Mac complains
-		while(b <= c && v >= (bc = CHAR_AT_SUF(b, depth))) {
-			if(v == bc) {
-				SWAP2(s, s2, a, b); a++;
-			}
-			b++;
-		}
-		// Invariant: everything after d is = pivot, everything
-		// between c and d is >
-		int cc = 0; // shouldn't have to init but gcc on Mac complains
-		while(b <= c && v <= (cc = CHAR_AT_SUF(c, depth))) {
-			if(v == cc) {
-				SWAP2(s, s2, c, d); d--; /*e--;*/
-			}
-			//else if(c == e && v == hi) e--;
-			c--;
-		}
-		if(b > c) break;
-		SWAP2(s, s2, b, c);
-		b++;
-		c--;
-	}
-	assert(a > begin || c < end-1);                      // there was at least one =s
-	assert_lt(/*e*/d-c, n); // they can't all have been > pivot
-	assert_lt(b-a, n); // they can't all have been < pivot
-	assert(assertPartitionedSuf(host, s, slen, hi, v, begin, end, depth));  // check pre-=-swap invariant
-	r = min(a-begin, b-a); VECSWAP2(s, s2, begin, b-r,   r);  // swap left = to center
-	r = min(d-c, end-d-1); VECSWAP2(s, s2, b,     end-r, r);  // swap right = to center
-	assert(assertPartitionedSuf2(host, s, slen, hi, v, begin, end, depth)); // check post-=-swap invariant
-	r = b-a; // r <- # of <'s
-    if(r > 0) {
-		MQS_RECURSE_SUF_DS(begin, begin + r, depth); // recurse on <'s
-	}
-	// Do not recurse on ='s if the pivot was the off-the-end value;
-	// they're already fully sorted
-	if(v != hi) {
-		MQS_RECURSE_SUF_DS(begin + r, begin + r + (a-begin) + (end-d-1), depth+1); // recurse on ='s
-	}
-	r = d-c;   // r <- # of >'s excluding those exhausted
-	if(r > 0 && v < hi-1) {
-		MQS_RECURSE_SUF_DS(end-r, end, depth); // recurse on >'s
-	}
 }
 
 /**
