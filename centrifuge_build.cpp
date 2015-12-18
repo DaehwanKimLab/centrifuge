@@ -226,7 +226,7 @@ static struct option long_options[] = {
  * exit with an error and a usage message.
  */
 template<typename T>
-static int parseNumber(T lower, const char *errmsg) {
+static T parseNumber(T lower, const char *errmsg) {
 	char *endPtr= NULL;
 	T t = (T)strtoll(optarg, &endPtr, 10);
 	if (endPtr != NULL) {
@@ -235,7 +235,7 @@ static int parseNumber(T lower, const char *errmsg) {
 			printUsage(cerr);
 			throw 1;
 		}
-		return (int)t;
+		return t;
 	}
 	cerr << errmsg << endl;
 	printUsage(cerr);
