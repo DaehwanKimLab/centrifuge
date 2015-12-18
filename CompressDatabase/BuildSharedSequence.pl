@@ -29,7 +29,7 @@ my $overlap = 250 ;
 my $fragment = 0 ;
 my $jellyfish = "jellyfish";
 
-print `jellyfish --version`;
+#print `jellyfish --version`;
 
 GetOptions (
 	"prefix=s" => \$prefix,
@@ -134,6 +134,29 @@ for ( $i = 0 ; $i < scalar( @fileNames )  ; ++$i )
 	close FP1 ;
 }
 
+# Get the genome sizes
+sub GetGenomeSize
+{
+	open FPfa, $_[0] ;
+	my $size = 0 ;
+	while ( <FPfa> )
+	{
+		next if ( /^>/ ) ;
+		$size += length( $_ ) - 1 ;
+	}
+	close FPfa ;
+	return $size ;
+}
+my $longestGenome = 0 ;
+for ( $i = 0 ;  $i < scalar( @fileNames ) ; ++$i )
+{
+	my $size = GetGenomeSize( $fileNames[$i] ) ;
+	if ( $size > $longestGenome )
+	{
+		$longestGenome = $size ;
+	}
+}
+
 #for ( $i = 0 ; $i < scalar( @fileNames ) ; ++$i )
 print "Begin merge files\n" ;
 my $maxSharedKmerCnt = -1 ;
@@ -178,7 +201,7 @@ while ( 1 )
 	}
 
 	$maxSharedKmerCnt = $max if ( $maxSharedKmerCnt == -1 ) ;
-	last if ( $max == 0 || $max < $maxSharedKmerCnt * 0.03 ) ;
+	last if ( $max == 0 || $max < $maxSharedKmerCnt * 0.01 ) ;
 
 	my @commonRegion ;
 	my $fileNameA ;
@@ -201,6 +224,12 @@ while ( 1 )
 	{
 		$fileNameB = $prefix."_".$j.".fa" ;
 	}
+
+	if ( GetGenomeSize( $fileNameA ) < 0.01 * $longestGenome || GetGenomeSize( $fileNameB ) < 0.01 * $longestGenome )
+	{
+		last ;
+	}
+
 	my $nucmerC = 3 * $overlap ;
 	print "nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB\n" ; 
 	my $nucRet = system("nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; # if the call to nucmer failed, we just not compress at all. 

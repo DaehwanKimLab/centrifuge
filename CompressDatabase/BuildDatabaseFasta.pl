@@ -16,22 +16,26 @@ use Cwd 'cwd' ;
 use Cwd 'abs_path' ;
 
 my $CWD = dirname( abs_path( $0 ) ) ;
+my $PWD = abs_path( "./" ) ;
 
-my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-o compressed.fa -noCompress -t 1 -maxG -1]\n" ;
+my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-map header_to_taxid_map -o compressed -noCompress -t 1 -maxG -1 -noDustmasker]\n" ;
 
 my $level = "species" ;
-my $output = "compressed.fa" ;
+my $output = "compressed" ;
 my $bssPath = $CWD ; # take path of binary as script directory
 my $numOfThreads = 1 ;
 my $noCompress = 0 ;
+my $noDustmasker = 0 ;
 my $verbose = 0;
 my $maxGenomeSizeForCompression = -1 ;
+my $mapFile = "" ;
 
 GetOptions ("level|l=s" => \$level,
 			"output|o=s" => \$output,
 			"bss=s" => \$bssPath,
 			"threads|t=i" => \$numOfThreads,
 			"maxG=i" => \$maxGenomeSizeForCompression, 
+			"map=s" => \$mapFile, 
             "verbose|v" => \$verbose,
 			"noCompress" => \$noCompress )
 or die("Error in command line arguments. \n\n$usage");
@@ -60,10 +64,41 @@ my $speciesUsed : shared ;
 my $debug: shared ;
 my %speciesIdToName : shared ;
 
+my %idToTaxId : shared ; 
+my %newIdToTaxId : shared ;
+my %idToGenomeSize : shared ;
+my $idMapLock : shared ;
+
+my $step = 1 ;
+
+if ( `which dustmasker` eq "" ) 
+{
+	print STDERR "Could not find dustmasker. And will turn on -noDustmasker option.\n" ;
+	$noDustmasker = 1 ;
+}
+
 #Extract the gid we met in the file
+if ( $mapFile ne "" )
+{
+	print STDERR "Step $step: Reading in the provided mapping list of ids to taxionomy ids.\n";
+	++$step ;
 
+	open FP1, $mapFile ;
+	while ( <FP1> )
+	{
+		chomp ;
+		my @cols = split ;
+		$idToTaxId{ $cols[0] } = $cols[1] ;
+	}
+}
 
-print STDERR "Step 1: Collecting all .fna files in $path and getting gids\n";
+print STDERR "Step $step: Collecting all .fna files in $path and getting gids\n";
+++$step ;
+if ( $noCompress == 1 )
+{
+	`rm tmp_output.fa` ;
+}
+
 find ( { wanted=>sub {
     return unless -f  ;        # Must be a file
     return unless -s;        # Must be non-zero
@@ -73,13 +108,34 @@ find ( { wanted=>sub {
     }
 
     my $fullfile = $File::Find::name; ## file with full path, but the CWD is actually the file's path
+    if ( $noCompress == 1 )
+    {
+    	# it seems the find will change the working directory
+    	system_call( "head -1 $PWD/$fullfile >> $PWD/tmp_output.fa" ) ;
+    	system_call( "grep -v \"^>\" $PWD/$fullfile >> $PWD/tmp_output.fa" ) ;
+    	return ;
+    }
     my $file = $_; ## file name
 	open FP2, $file or die "Error opening $file: $!";
 	my $head = <FP2> ;
 	close FP2 ;
-	if ( $head =~ /^>gi\|([0-9]+)?\|/ ) {
+	
+	chomp $head ;
+	my $headId = substr( ( split /\s+/, $head )[0], 1 ) ;  
+	if ( defined $idToTaxId{ $headId } )
+	{
+		my $tid = $idToTaxId{ $headId } ;
+		my $dummyGid = "centrifuge_gid_".$fullfile."_$tid" ;
+		$gidUsed{ $dummyGid } = 1 ;
+		$gidToFile{ $dummyGid } = $fullfile ;
+		$fileUsed{ $fullfile } = 0 ;
+		push @{ $tidToGid{ $tid } }, $dummyGid ;	
+		
+		print STDERR "tid=$tid $file\n" if $verbose;
+	}
+	elsif ( $head =~ /^>gi\|([0-9]+)?\|/ ) {
 		my $gid = $1 ;
-		print "gid=$gid $file\n" if $verbose;
+		print STDERR "gid=$gid $file\n" if $verbose;
 		if ( defined $gidUsed{ $gid } )
 		{
 			print "Repeated gid $gid\n" if $verbose ;
@@ -100,16 +156,32 @@ find ( { wanted=>sub {
 		$fileUsed{ $fullfile } = 0 ;
 		push @{ $tidToGid{ $tid } }, $dummyGid ;	
 		
-		print "tid=$tid $file\n" if $verbose;
+		print STDERR "tid=$tid $file\n" if $verbose;
 	} else {
 		print STDERR "Excluding $fullfile: Wrong header.\n";
 	}
 
 }, follow=>1 }, $path );
 
+if ( $noCompress == 1 ) 
+{
+	# Remove the Ns from the file
+	if ( $noDustmasker == 1 )
+	{
+		system_call("$bssPath/RemoveN tmp_output.fa > $output.fa") ;
+	}
+	else
+	{
+		system_call("$bssPath/RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
+		system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
+		system_call("$bssPath/RemoveN tmp_output_dustmasker.fa > $output.fa") ;
+	}
+	exit ;
+}
 
 # Extract the tid that are associated with the gids
-print STDERR "Step 2: Extract the taxonomy ids that are associated with the gids\n";
+print STDERR "Step $step: Extract the taxonomy ids that are associated with the gids\n";
+++$step ;
 open FP1, "$taxPath/gi_taxid_nucl.dmp" ;
 while ( <FP1> )
 {
@@ -120,14 +192,15 @@ while ( <FP1> )
 	if ( defined( $gidUsed{ $cols[0] } ) )
 	{
 		push @{ $tidToGid{ $cols[1] } }, $cols[0] ;	
-		print "gid=", $cols[0], " tid=", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" if $verbose;
+		print STDERR "gid=", $cols[0], " tid=", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" if $verbose;
 	}
 }
 close FP1 ;
 
 
 # Organize the tree
-print STDERR "Step 3: Organizing the taxonomical tree\n";
+print STDERR "Step $step: Organizing the taxonomical tree\n";
+++$step ;
 open FP1, "$taxPath/nodes.dmp" ;
 while ( <FP1> ) {
 	chomp ;
@@ -156,7 +229,8 @@ while ( <FP1> ) {
 close FP1 ;
 
 # Put the sub-species taxonomy id into the corresponding species.
-print STDERR "Step 4: Putting the sub-species taxonomy id into the corresponding species\n";
+print STDERR "Step $step: Putting the sub-species taxonomy id into the corresponding species\n";
+++$step ;
 for $i ( keys %tidToGid )
 {
 	my $p = $i ;
@@ -185,7 +259,8 @@ for $i ( keys %tidToGid )
 	}
 }
 
-print STDERR "Step 5: Reading the name of the species\n";
+print STDERR "Step $step: Reading the name of the species\n";
+++$step ;
 open FP1, "$taxPath/names.dmp" ;
 while ( <FP1> )
 {
@@ -251,6 +326,7 @@ sub solve
 	my $FP1 ;
 	open FP1, ">tmp_$tid.list" ;
 	my $genomeSize = 0 ;
+	my $avgGenomeSize = 0 ;
 	foreach $i ( @subspeciesList )
 	{
 		foreach my $j ( @{$tidToGid{ $i } } )
@@ -266,13 +342,19 @@ sub solve
 			}
 			print FP1 $file, "\n" ;
 
-			$genomeSize += GetGenomeSize( $file ) ;
+			my $tmp = GetGenomeSize( $file ) ;
+			if ( $tmp > $genomeSize )
+			{
+				$genomeSize = $tmp ;
+			}
+			$avgGenomeSize += $tmp ;
 		}
 	}
 	close FP1 ;
 
-	$genomeSize = int( $genomeSize / scalar( @subspeciesList ) ) ;
-		
+	#$genomeSize = int( $genomeSize / scalar( @subspeciesList ) ) ;
+	$avgGenomeSize = int( $avgGenomeSize / scalar( @subspeciesList ) ) ;
+	
 	#print $file, "\n" ;	
 	#if ( $file =~ /\/(\w*?)uid/ )
 	#{
@@ -287,11 +369,16 @@ sub solve
 	{
 		$speciesName = "Unknown_species_name" ;
 	}
-	my $id = ( $speciesId << 32 ) | $genusId ;
-	my $header = ">$id $speciesName $genomeSize ".scalar( @subspeciesList ) ;
-	print $header, "\n" ;
+	my $id = $speciesId ;#( $speciesId << 32 ) | $genusId ;
+	my $header = ">cid|$id $speciesName $genomeSize ".scalar( @subspeciesList ) ;
+	print STDERR "$header\n" ;
+	{
+		lock( $idMapLock ) ;
+		$newIdToTaxId{ "cid|$id" } = $speciesId ;
+		$idToGenomeSize{ "cid|$id" } = $genomeSize ;
+	}
 
-#return ;
+	#return ;
 # Build the sequence
 	my $seq = "" ;
 	if ( $noCompress == 0 &&  ( $maxGenomeSizeForCompression < 0 || $genomeSize <= $maxGenomeSizeForCompression ) ) #$genomeSize < 50000000 )
@@ -361,7 +448,8 @@ sub threadWrapper
 }
 
 
-print STDERR "Step 6: Merging sub-species\n";
+print STDERR "Step $step: Merging sub-species\n";
+++$step ;
 my @threads ;
 @speciesListKey = keys %speciesList ; 
 $speciesUsed = 0 ;
@@ -396,6 +484,30 @@ foreach $i ( keys %fileUsed )
 }
 
 # Remove the Ns from the file
-system_call("$bssPath/RemoveN tmp_output.fa > $output") ;
+if ( $noDustmasker == 1 )
+{
+	system_call("$bssPath/RemoveN tmp_output.fa > $output.fa") ;
+}
+else
+{
+	system_call("$bssPath/RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
+	system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
+	system_call("$bssPath/RemoveN tmp_output_dustmasker.fa > $output.fa") ;
+}
 
+# Output the mapping of the ids to species
+open FP1, ">$output.map" ;
+foreach my $key (keys %newIdToTaxId )
+{
+	print FP1 "$key\t", $newIdToTaxId{ $key }, "\n" ;
+}
+close FP1 ;
+
+# Output the genome sizem map
+open FP1, ">$output.size" ;
+foreach my $key ( keys %newIdToTaxId )
+{
+	print FP1 "$key\t", $idToGenomeSize{ $key }, "\n" ;
+}
+close FP1 ;
 unlink glob("tmp_*") ;
