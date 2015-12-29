@@ -73,8 +73,8 @@ static struct option long_options[] = {
 static void printUsage(ostream& out) {
 	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
 	out
-	<< "Usage: centrifuge-inspect [options]* <bt2_base>" << endl
-	<< "  <cf_base>         cf filename minus trailing .1." << gEbwt_ext << "/.2." << gEbwt_ext << endl
+	<< "Usage: centrifuge-inspect [options]* <cf_base>" << endl
+	<< "  <cf_base>         cf filename minus trailing .1." << gEbwt_ext << "/.2." << gEbwt_ext << "/.3." << gEbwt_ext << endl
 	<< endl
 	<< "  By default, prints FASTA records of the indexed nucleotide sequences to" << endl
 	<< "  standard out.  With -n, just prints names.  With -s, just prints a summary of" << endl

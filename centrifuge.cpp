@@ -648,9 +648,9 @@ static void printUsage(ostream& out) {
 		tool_name = "hisat";
 	}
 	out << "Usage: " << endl
-	    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>] [--report-file <report>]" << endl
+	    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>] [--report-file <report>]" << endl
 	    << endl
-		<<     "  <bt2-idx>  Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
+		<<     "  <cf-idx>   Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
 	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
@@ -715,24 +715,12 @@ static void printUsage(ostream& out) {
 		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
 		<< "  --met-stderr       send metrics to stderr (off)" << endl
 		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
-	// Following is supported in the wrapper instead
-	//  << "  --no-unal          supppress SAM records for unaligned reads" << endl
-	    << "  --no-head          supppress header lines, i.e. lines starting with @" << endl
-	    << "  --no-sq            supppress @SQ header lines" << endl
-	    << "  --rg-id <text>     set read group id, reflected in @RG line and RG:Z: opt field" << endl
-	    << "  --rg <text>        add <text> (\"lab:value\") to @RG line of SAM header." << endl
-	    << "                     Note: @RG line only printed when --rg-id is set." << endl
-	    << "  --omit-sec-seq     put '*' in SEQ and QUAL fields for secondary alignments." << endl
 		<< endl
 	    << " Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
-	    << "  --reorder          force SAM output order to match order of input reads" << endl
 #ifdef BOWTIE_MM
 	    << "  --mm               use memory-mapped I/O for index; many 'bowtie's can share" << endl
-#endif
-#ifdef BOWTIE_SHARED_MEM
-		//<< "  --shmem            use shared mem for index; many 'bowtie's can share" << endl
 #endif
 		<< endl
 	    << " Other:" << endl
@@ -2862,24 +2850,6 @@ static void driver(
 		readEbwtRefnames<index_t>(adjIdxBase, refnames);
 
 		EList<size_t> reflens;
-		map<uint64_t,pair<string,uint64_t> > taxidToNameLen;
-		for(size_t i = 0; i < ebwt.nPat(); i++) {
-			// cerr << "Push back to reflens: "<<  refnames[i] << " is so long: " << ebwt.plen()[i] << endl;
-			reflens.push_back(ebwt.plen()[i]);
-
-			// extract numeric id from refName
-			const string& refName = refnames[i];
-			uint64_t id = extractIDFromRefName(refName);
-			uint32_t speciesID = (uint32_t)(id >> 32);
-
-			// extract name from refName
-			//index_t avglen = refName.substr(refName.find_last_of(' ')); //TODO: use the average len provided in the header
-			const string& name_part = refName.substr(refName.find_first_of(' '));
-
-			//uint32_t genusID = (uint32_t)(id & 0xffffffff);
-			taxidToNameLen[speciesID] = pair<string,uint64_t>(name_part,ebwt.plen()[i]);
-		}
-
 		// Set up hit sink; if sanityCheck && !os.empty() is true,
 		// then instruct the sink to "retain" hits in a vector in
 		// memory so that we can easily sanity check them later on
@@ -2967,19 +2937,14 @@ static void driver(
                       << "abundance" << '\t' << "abundance_normalized_by_genome_size" << endl;
 			for(map<uint64_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 				uint64_t taxid = it->first;
-                uint64_t taxid1 = taxid & 0xffffffff;
-                uint64_t taxid2 = taxid >> 32;
 
 				// extract name, average genome size, and number of genomes from istringstream
-				string name, avg_size, n_genomes;
-				istringstream name_size_n(taxidToNameLen[taxid].first);
-				name_size_n >> name >> avg_size >> n_genomes;
-                reportOfb << name << '\t' << taxid1;
-                if(taxid2) {
-                    reportOfb << "." << taxid2;
+                reportOfb << "name" << '\t' << taxid;
+                if(taxid && false) {
+                    reportOfb << "." << taxid;
                 }
-                reportOfb << '\t'  << n_genomes << '\t'
-						  << taxidToNameLen[taxid].second << '\t' << avg_size << '\t'
+                reportOfb << '\t'  << "n_genomes" << '\t'
+						  << "genome_size" << '\t' << "avg_size" << '\t'
 						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t'
 						  << it->second.summed_hit_len << '\t'
 						  << it->second.weighted_reads << '\t'
