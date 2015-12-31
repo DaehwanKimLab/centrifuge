@@ -89,6 +89,11 @@ if ( $mapFile ne "" )
 		chomp ;
 		my @cols = split ;
 		$idToTaxId{ $cols[0] } = $cols[1] ;
+
+		if ( $noCompress == 1 )
+		{
+			$newIdToTaxId{ $cols[0] } = $cols[1] ;
+		}
 	}
 }
 
@@ -108,20 +113,45 @@ find ( { wanted=>sub {
     }
 
     my $fullfile = $File::Find::name; ## file with full path, but the CWD is actually the file's path
-    if ( $noCompress == 1 )
-    {
-    	# it seems the find will change the working directory
-    	system_call( "head -1 $PWD/$fullfile >> $PWD/tmp_output.fa" ) ;
-    	system_call( "grep -v \"^>\" $PWD/$fullfile >> $PWD/tmp_output.fa" ) ;
-    	return ;
-    }
     my $file = $_; ## file name
 	open FP2, $file or die "Error opening $file: $!";
 	my $head = <FP2> ;
 	close FP2 ;
-	
+
 	chomp $head ;
 	my $headId = substr( ( split /\s+/, $head )[0], 1 ) ;  
+
+	if ( $noCompress == 1 )
+	{
+		# it seems the find will change the working directory
+		#system_call( "cat $PWD/$fullfile >> $PWD/tmp_output.fa" ) ;
+		if ( defined $idToTaxId{ $headId } )
+		{
+			$newIdToTaxId{ $headId } = $idToTaxId{ $headId } ;
+		}
+		else
+		{
+			$newIdToTaxId{ $headId } = -1 ;
+			my @cols = split /\|/, $headId ;
+			my $subHeader = $cols[0]."\|".$cols[1] ; 
+			if ( $headId =~ /gi\|([0-9]+)?\|/ )
+			{
+				$newIdToTaxId{ $subHeader } = -1 ;
+				#print STDERR "$headId $subHeader\n" if $verbose ;
+			}
+			elsif ( $headId =~ /taxid\|([0-9]+)?[\|\s]/ )
+			{
+				$newIdToTaxId{ $headId } = $1 ;
+				$newIdToTaxId{ $subHeader } = $1 ;
+			}
+			elsif ( scalar( @cols ) > 2 )
+			{
+				$newIdToTaxId{ $subHeader } = -1 ;
+			}
+		}
+	}
+
+
 	if ( defined $idToTaxId{ $headId } )
 	{
 		my $tid = $idToTaxId{ $headId } ;
@@ -130,7 +160,7 @@ find ( { wanted=>sub {
 		$gidToFile{ $dummyGid } = $fullfile ;
 		$fileUsed{ $fullfile } = 0 ;
 		push @{ $tidToGid{ $tid } }, $dummyGid ;	
-		
+
 		print STDERR "tid=$tid $file\n" if $verbose;
 	}
 	elsif ( $head =~ /^>gi\|([0-9]+)?\|/ ) {
@@ -165,18 +195,17 @@ find ( { wanted=>sub {
 
 if ( $noCompress == 1 ) 
 {
-	# Remove the Ns from the file
+# Remove the Ns from the file
 	if ( $noDustmasker == 1 )
 	{
-		system_call("$bssPath/RemoveN tmp_output.fa > $output.fa") ;
+		system_call("$bssPath/RemoveN tmp_output.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
 	}
 	else
 	{
 		system_call("$bssPath/RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
 		system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
-		system_call("$bssPath/RemoveN tmp_output_dustmasker.fa > $output.fa") ;
+		system_call("$bssPath/RemoveN tmp_output_dustmasker.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
 	}
-	exit ;
 }
 
 # Extract the tid that are associated with the gids
@@ -187,16 +216,48 @@ while ( <FP1> )
 {
 	chomp ;
 	my @cols = split ;		
-	#print $cols[0], "\n" ;	
+#print $cols[0], "\n" ;	
 	next if ( @ARGV < 2 ) ;
 	if ( defined( $gidUsed{ $cols[0] } ) )
 	{
-		push @{ $tidToGid{ $cols[1] } }, $cols[0] ;	
+		push @{ $tidToGid{ $cols[1] } }, $cols[0] ;
+		$gidToTid{ $cols[0] } = $cols[1] ;
 		print STDERR "gid=", $cols[0], " tid=", $cols[1], " ", $gidToFile{ $cols[0] }, "\n" if $verbose;
 	}
 }
 close FP1 ;
 
+if ( $noCompress == 1 )
+{
+	open FP1, ">tmp_$output.map" ;
+	foreach my $key (keys %newIdToTaxId )
+	{
+		if ( $newIdToTaxId{$key} != -1 )
+		{
+			print FP1 "$key\t", $newIdToTaxId{$key}, "\n" ; 
+		}
+		elsif ( $key =~ /gi\|([0-9]+)?/ )
+		{
+			#if ( defined $gidToTid{ $1 } )
+			#{
+			#	$newIdToTaxId{ $key } = $gidToTid{ $1 } ;
+			#}
+			my $taxId = 1 ;
+			if (defined $gidToTid{ $1 } )
+			{
+				$taxId = $gidToTid{ $1 } ;
+			}
+			print FP1 "$key\t", $taxId, "\n" ; 
+		}
+		else
+		{
+			print FP1 "$key\t1\n" ;
+		}
+	}
+	close FP1 ;
+	system_call( "sort tmp_$output.map | uniq > $output.map" ) ;
+	exit ;
+}
 
 # Organize the tree
 print STDERR "Step $step: Organizing the taxonomical tree\n";
@@ -206,17 +267,17 @@ while ( <FP1> ) {
 	chomp ;
 
 	my @cols = split ;
-	#next if ( !defined $tidToGid{ $cols[0] } ) ;
-	
+#next if ( !defined $tidToGid{ $cols[0] } ) ;
+
 	my $tid = $cols[0] ;
 	my $parentTid = $cols[2] ;
 	my $rank = $cols[4] ;
-	#print "subspecies: $tid $parentTid\n" ;
-	#push @{ $species{ $parentTid } }, $tid ;
-	#$tidToSpecies{ $tid } = $parentTid ;
+#print "subspecies: $tid $parentTid\n" ;
+#push @{ $species{ $parentTid } }, $tid ;
+#$tidToSpecies{ $tid } = $parentTid ;
 
 	$taxTree{ $cols[0] } = $cols[2] ;
-	#print $cols[0], "=>", $cols[2], "\n" ;
+#print $cols[0], "=>", $cols[2], "\n" ;
 	if ( $rank eq "species" )	
 	{
 		$species{ $cols[0] } = 1 ;
@@ -266,7 +327,7 @@ while ( <FP1> )
 {
 	next if (!/scientific name/ ) ;
 	my @cols = split /\t/ ;
-	
+
 	if ( defined $species{ $cols[0] } )
 	{
 		$speciesIdToName{ $cols[0] } = $cols[2] ;
@@ -294,7 +355,7 @@ sub solve
 # Extracts the files
 #print "find $pwd -name *.fna > tmp.list\n" ;
 	my $tid = threads->tid() - 1 ;
-	#system_call("find $pwd -name *.fna > tmp_$tid.list") ;
+#system_call("find $pwd -name *.fna > tmp_$tid.list") ;
 
 #system_call("find $pwd -name *.fa >> tmp.list") ; # Just in case
 # Build the header
@@ -331,10 +392,10 @@ sub solve
 	{
 		foreach my $j ( @{$tidToGid{ $i } } )
 		{
-			#{
-			#	lock( $debug ) ;
-			#	print "Merge ", $gidToFile{ $j }, "\n" ;
-			#}
+#{
+#	lock( $debug ) ;
+#	print "Merge ", $gidToFile{ $j }, "\n" ;
+#}
 			$file =  $gidToFile{ $j } ;
 			{
 				lock( $fileUsedLock ) ;
@@ -352,14 +413,14 @@ sub solve
 	}
 	close FP1 ;
 
-	#$genomeSize = int( $genomeSize / scalar( @subspeciesList ) ) ;
+#$genomeSize = int( $genomeSize / scalar( @subspeciesList ) ) ;
 	$avgGenomeSize = int( $avgGenomeSize / scalar( @subspeciesList ) ) ;
-	
-	#print $file, "\n" ;	
-	#if ( $file =~ /\/(\w*?)uid/ )
-	#{
-	#	$speciesName = ( split /_/, $1 )[0]."_". ( split /_/, $1 )[1] ;
-	#}
+
+#print $file, "\n" ;	
+#if ( $file =~ /\/(\w*?)uid/ )
+#{
+#	$speciesName = ( split /_/, $1 )[0]."_". ( split /_/, $1 )[1] ;
+#}
 	if ( defined $speciesIdToName{ $speciesId } )
 	{
 		$speciesName = $speciesIdToName{ $speciesId } ;
@@ -378,7 +439,7 @@ sub solve
 		$idToGenomeSize{ "cid|$id" } = $genomeSize ;
 	}
 
-	#return ;
+#return ;
 # Build the sequence
 	my $seq = "" ;
 	if ( $noCompress == 0 &&  ( $maxGenomeSizeForCompression < 0 || $genomeSize <= $maxGenomeSizeForCompression ) ) #$genomeSize < 50000000 )
@@ -423,10 +484,10 @@ sub solve
 }
 
 sub system_call {
-    print STDERR "SYSTEM CALL: ".join(" ",@_);
+	print STDERR "SYSTEM CALL: ".join(" ",@_);
 	system(@_) == 0
-	  or die "system @_ failed: $?";
-    print STDERR " finished\n";
+		or die "system @_ failed: $?";
+	print STDERR " finished\n";
 }
 
 sub threadWrapper
@@ -438,9 +499,9 @@ sub threadWrapper
 	{
 		my $u ;
 		{
-		lock $speciesUsed ;
-		$u = $speciesUsed ;
-		++$speciesUsed ;
+			lock $speciesUsed ;
+			$u = $speciesUsed ;
+			++$speciesUsed ;
 		}
 		last if ( $u >= scalar( @speciesListKey ) ) ;
 		solve( $speciesListKey[ $u ] ) ;
@@ -486,13 +547,13 @@ foreach $i ( keys %fileUsed )
 # Remove the Ns from the file
 if ( $noDustmasker == 1 )
 {
-	system_call("$bssPath/RemoveN tmp_output.fa > $output.fa") ;
+	system_call("$bssPath/RemoveN tmp_output.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
 }
 else
 {
 	system_call("$bssPath/RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
 	system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
-	system_call("$bssPath/RemoveN tmp_output_dustmasker.fa > $output.fa") ;
+	system_call("$bssPath/RemoveN tmp_output_dustmasker.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
 }
 
 # Output the mapping of the ids to species
