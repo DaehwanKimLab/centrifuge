@@ -202,8 +202,8 @@ public:
                 // scoring function: calculate the weight of this partial hit
                 assert_gt(partialHitLen, 15);
                 assert_gt(n_genomes, 0);
-                uint32_t partialHitScore = (uint32_t)((partialHitLen - 15) * (partialHitLen - 15)) / n_genomes;
-                double weightedHitLen = double(partialHitLen) / double(n_genomes) ;
+                uint32_t partialHitScore = (uint32_t)((partialHitLen - 15) * (partialHitLen - 15)) ; // / n_genomes;
+                double weightedHitLen = double(partialHitLen) ; // / double(n_genomes) ;
 
                 // go through all coordinates reported for partial hit
                 for(index_t k = 0; k < coord_ids.size(); ++k) {
@@ -290,7 +290,13 @@ public:
             std::cerr << "  rdi-done" << endl;
 #endif
         } // rdi
-        
+       
+       	// boost up the score if the assignment is unique
+	if ( _hitMap.size() == 1 )
+	{
+		HitCount &hitCount = _hitMap[0] ;
+		hitCount.score = ( hitCount.summedHitLen - 15 ) * ( hitCount.summedHitLen - 15 ) ;
+	}
         for(size_t gi = 0; gi < _hitMap.size(); gi++) {
             assert_gt(_hitMap[gi].score, 0);
             HitCount& hitCount = _hitMap[gi];
@@ -589,7 +595,7 @@ private:
     {
         size_t idx = 0;
 #ifdef LI_DEBUG
-        cout << "Add " << taxID << " " << weightedHitLen << endl;
+        cout << "Add " << taxID << " " << partialHitScore << " " << weightedHitLen << endl;
 #endif
         for(; idx < hitMap.size(); ++idx) {
             if(hitMap[idx].uniqueID == uniqueID) {
@@ -612,7 +618,7 @@ private:
             hitMap.back().taxID = taxID;
             hitMap.back().count = 1;
             hitMap.back().score = partialHitScore;
-            hitMap.back().summedHitLen = 0 ; //weightedHitLen;
+            hitMap.back().summedHitLen = weightedHitLen;
             hitMap.back().timeStamp = (uint32_t)hi;
             hitMap.back().readPositions.clear();
             hitMap.back().readPositions.push_back(make_pair(offset, length));
