@@ -231,8 +231,15 @@ while ( 1 )
 	}
 
 	my $nucmerC = 3 * $overlap ;
-	print "nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB\n" ; 
-	my $nucRet = system("nucmer --maxmatch --coords -l $kmerSize -g 10 -b 10 -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; # if the call to nucmer failed, we just not compress at all. 
+	my $nucmerG = 10 ;
+	my $nucmerB = 10 ;
+	if ( $i >= scalar( @fileNames ) && $j >= scalar( @fileNames ) )
+	{
+		$nucmerG = 5 ;
+		$nucmerB = 5 ;
+	}
+	print "nucmer --maxmatch --coords -l $kmerSize -g $nucmerG -b $nucmerB -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB\n" ; 
+	my $nucRet = system("nucmer --maxmatch --coords -l $kmerSize -g $nucmerG -b $nucmerB -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; # if the call to nucmer failed, we just not compress at all. 
 
 	open FPCoords, "nucmer_$prefix.coords" ;
 	my $line ;
