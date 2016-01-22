@@ -1,59 +1,26 @@
-<!--#set var="Title" value="HISAT" -->
+<!--#set var="Title" value="Centrifuge" -->
 <!--#set var="NoCrumbs" value="1" -->
-<!--#set var="SubTitle" value="Hierarchical Indexing for Spliced Alignment of Transcripts"-->
-<!--#set var="ExtraCSS" value="/software/hisat/add.css"-->
+<!--#set var="SubTitle" value="Classifier for metagenomic sequences"-->
+<!--#set var="ExtraCSS" value="/software/centrifuge/add.css"-->
 <!--#include virtual="/iheader_r.shtml"-->
 <div id="mainContent">
   <div id="subheader">
     <table width="100%"><tbody><tr>
-    <td>
-    <strong>HISAT</strong> is a fast and sensitive spliced alignment program for mapping RNA-seq reads.
-    In addition to one global FM index that represents a whole genome, HISAT uses a large set of small FM indexes that collectively cover the whole genome
-    (each index represents a genomic region of ~64,000 bp and ~48,000 indexes are needed to cover the human genome).
-    These small indexes (called local indexes) combined with several alignment strategies enable effective alignment of RNA-seq reads, in particular, reads spanning multiple exons.
-    The memory footprint of HISAT is relatively low (~4.3GB for the human genome).
-    We have developed HISAT based on the <a href = "http://bowtie-bio.sourceforge.net/bowtie2"><strong>Bowtie2</strong></a> implementation to handle most of the operations on the FM index.
-	  <br>
-	  </td><td valign="middle" align="right">
-    <a href="http://opensource.org"><img alt="Open Source Software" src="images/osi-certified.gif" border="0"></a>
-    </td></tr>
+	  <td>
+	    <strong>Centrifuge</strong> is a very rapid and memory-efficient system for the classification of DNA sequences from microbial samples, with better sensitivity than and comparable accuracy to other leading systems. The system uses a novel indexing scheme based on the Burrows-Wheeler transform (BWT) and the Ferragina-Manzini (FM) index, optimized specifically for the metagenomic classification problem. Centrifuge requires a relatively small index (e.g., 2.9 GB for ~2,800 bacterial genomes) yet provides very fast classification speed, allowing it to process a typical DNA sequencing run within an hour. Together these advances enable timely and accurate analysis of large metagenomics data sets on conventional desktop computers.
+	    <br>
+	  </td>
+	  <td valign="middle" align="right">
+	    <a href="http://opensource.org"><img alt="Open Source Software" src="images/osi-certified.gif" border="0"></a>
+	</td></tr>
     </tbody></table>
   </div>
   <div id="main">
-	<div id="rightside">
+    <div id="rightside">
 	<!--#include virtual="sidebar.inc.shtml"-->
 	</div> <!-- End of "rightside" -->
 	<div id="leftside">
-	  <h2>HISAT 0.1.4-beta release 1/30/2015</h2>
-	  <ul>
-	    <li> Alignment score for second-best alignment (XS:i) is no longer reported because it is in conflict with XS:A tag.  XS:A tag is required for transcript assemblers such as Cufflinks and StringTie. </li>
-	    <li> Improved alignment accuracy involving multiple splice sites. </li>
-	  </ul>
-	  <br>
-	  <h2>HISAT 0.1.3-beta release 1/27/2015</h2>
-	  <ul>
-	    <li> Fixed an occasional runtime error. </li>
-	    <li> Fixed a python script, extract_splice_sites.py, to handle gene annotation files (GTF files) correctly. </li>
-	  </ul>
-	  <br>
-	  <h2>A preprint version of <a href = "http://biorxiv.org/content/early/2014/12/15/012591">HISAT manuscript</a> is available 12/12/2014</h2>
-	  <br>
-	  <h2>HISAT 0.1.2-beta release 11/03/2014</h2>
-	  <ul>
-	    <li> This version includes improvements in alignment sensitivity and splice site discovery. </li>
-	</ul>
-	  <br>
-	<h2>HISAT 0.1.1-beta release 7/29/2014</h2>
-	  <ul>
-	    <li> This version supports genomes of any size, larger than 4 billion base pairs (see <a href = "manual.shtml">the manual</a>). </li>
-	</ul>
-	  <br>
-	<h2>HISAT 0.1.0-beta release 7/10/2014</h2>
-	  <ul>
-	    <li> First release of HISAT.
-	    </li>
-	</ul>
-	  <br>
+	  <h2>The Centrifuge source code is available in a <a href="https://github.com/infphilo/centrifuge">public GitHub repository</a> (7/14/2015).</h2>
 	</div>
   </div>
 </div>

@@ -1,7 +1,7 @@
 <div id="TOC">
 <ul>
 <li><a href="#introduction">Introduction</a><ul>
-<li><a href="#what-is-hisat">What is HISAT?</a></li>
+<li><a href="#what-is-centrifuge">What is Centrifuge?</a></li>
 </ul></li>
 <li><a href="#obtaining-hisat">Obtaining HISAT</a><ul>
 <li><a href="#building-from-source">Building from source</a></li>
@@ -51,7 +51,7 @@
  ! -->
 
 <h1 id="introduction">Introduction</h1>
-<h2 id="what-is-hisat">What is HISAT?</h2>
+<h2 id="what-is-centrifuge">What is Centrifuge?</h2>
 <p><a href="http://ccb.jhu.edu/software/hisat">HISAT</a> is a fast and sensitive spliced alignment program. As part of HISAT, we have developed a new indexing scheme based on the Burrows-Wheeler transform (<a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">BWT</a>) and the <a href="http://en.wikipedia.org/wiki/FM-index">FM index</a>, called hierarchical indexing, that employs two types of indexes: (1) one global FM index representing the whole genome, and (2) many separate local FM indexes for small regions collectively covering the genome. Our hierarchical index for the human genome (about 3 billion bp) includes ~48,000 local FM indexes, each representing a genomic region of ~64,000bp. As the basis for non-gapped alignment, the FM index is extremely fast with a low memory footprint, as demonstrated by <a href="http://bowtie-bio.sf.net">Bowtie</a>. In addition, HISAT provides several alignment strategies specifically designed for mapping different types of RNA-seq reads. All these together, HISAT enables extremely fast and sensitive alignment of reads, in particular those spanning two exons or more. As a result, HISAT is much faster &gt;50 times than <a href="http://ccb.jhu.edu/software/tophat">TopHat2</a> with better alignment quality. Although it uses a large number of indexes, the memory requirement of HISAT is still modest, approximately 4.3 GB for human. HISAT uses the <a href="http://bowtie-bio.sf.net/bowtie2">Bowtie2</a> implementation to handle most of the operations on the FM index. In addition to spliced alignment, HISAT handles reads involving indels and supports a paired-end alignment mode. Multiple processors can be used simultaneously to achieve greater alignment speed. HISAT outputs alignments in <a href="http://samtools.sourceforge.net/SAM1.pdf">SAM</a> format, enabling interoperation with a large number of other tools (e.g. <a href="http://samtools.sourceforge.net">SAMtools</a>, <a href="http://www.broadinstitute.org/gsa/wiki/index.php/The_Genome_Analysis_Toolkit">GATK</a>) that use SAM. HISAT is distributed under the <a href="http://www.gnu.org/licenses/gpl-3.0.html">GPLv3 license</a>, and it runs on the command line under Linux, Mac OS X and Windows.</p>
 <h1 id="obtaining-hisat">Obtaining HISAT</h1>
 <p>Download HISAT sources and binaries from the Releases sections on the right side. Binaries are available for Intel architectures (<code>x86_64</code>) running Linux, and Mac OS X.</p>

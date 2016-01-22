@@ -7,7 +7,7 @@
 Introduction
 ============
 
-What is HISAT?
+What is Centrifuge?
 -----------------
 
 [HISAT] is a fast and sensitive spliced alignment program.  As part of HISAT, 
