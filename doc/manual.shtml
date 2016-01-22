@@ -1,7 +1,7 @@
-<!--#set var="Title" value="HISAT" -->
+<!--#set var="Title" value="Centrifuge" -->
 <!--#set var="NoCrumbs" value="1" -->
-<!--#set var="SubTitle" value="Hierarchical Indexing for Spliced Alignment of Transcripts"-->
-<!--#set var="ExtraCSS" value="/software/hisat/add.css"-->
+<!--#set var="SubTitle" value="Classifier for metagenomic sequences"-->
+<!--#set var="ExtraCSS" value="/software/centrifuge/add.css"-->
 <!--#include virtual="/iheader_r.shtml"-->
 <div id="mainContent">
   <div id="main">
