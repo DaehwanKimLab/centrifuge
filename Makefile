@@ -411,3 +411,5 @@ clean:
 	centrifuge-src.zip centrifuge-bin.zip
 	rm -f core.* .tmp.head
 	rm -rf *.dSYM
+push-doc: doc/manual.inc.html
+	scp doc/*.*html igm1:/data1/igm3/www/ccb.jhu.edu/html/software/centrifuge/
