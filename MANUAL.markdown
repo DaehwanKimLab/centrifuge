@@ -543,6 +543,8 @@ Print the wall-clock time required to load the index files and align the reads.
 This is printed to the "standard error" ("stderr") filehandle.  Default: off.
 
 </td></tr>
+
+<!--
 <tr><td id="centrifuge-options-un">
 
 [`--un`]: #centrifuge-options-un
@@ -636,6 +638,8 @@ same quality string, same quality encoding).  Reads will not necessarily appear
 in the same order as they did in the inputs.
 
 </td></tr>
+-->
+
 <tr><td id="centrifuge-options-quiet">
 
 [`--quiet`]: #centrifuge-options-quiet
@@ -835,17 +839,6 @@ Centrifuge output
 Following is a brief description of the [SAM] format as output by `centrifuge`. 
 For more details, see the [SAM format specification][SAM].
 
-By default, `centrifuge` prints a SAM header with `@HD`, `@SQ` and `@PG` lines. 
-When one or more [`--rg`] arguments are specified, `centrifuge` will also print
-an `@RG` line that includes all user-specified [`--rg`] tokens separated by
-tabs.
-
-Each subsequnt line describes an alignment or, if the read failed to align, a
-read.  Each line is a collection of at least 12 fields separated by tabs; from
-left to right, the fields are:
-
-1.  Name of read that aligned.
-
 The `centrifuge-build` indexer
 ===========================
 
@@ -857,8 +850,8 @@ reference.  The original sequence FASTA files are no longer used by Centrifuge
 once the index is built.
 
 Use of Karkkainen's [blockwise algorithm] allows `centrifuge-build` to trade off
-between running time and memory usage. `centrifuge-build` has three options
-governing how it makes this trade: [`-p`/`--packed`], [`--bmax`]/[`--bmaxdivn`],
+between running time and memory usage. `centrifuge-build` has two options
+governing how it makes this trade: [`--bmax`]/[`--bmaxdivn`],
 and [`--dcv`].  By default, `centrifuge-build` will automatically search for the
 settings that yield the best running time without exhausting memory.  This
 behavior can be disabled using the [`-a`/`--noauto`] option.
@@ -870,12 +863,6 @@ original [FM Index] paper for details).  All of these options are potentially
 profitable trade-offs depending on the application.  They have been set to
 defaults that are reasonable for most cases according to our experiments.  See
 [Performance tuning] for details.
-
-`centrifuge-build` can generate either [small or large indexes](#small-and-large-indexes).  The wrapper
-will decide which based on the length of the input genome.  If the reference
-does not exceed 4 billion characters but a large index is preferred,  the user
-can specify [`--large-index`] to force `centrifuge-build` to build a large index
-instead.
 
 The Centrifuge index is based on the [FM Index] of Ferragina and Manzini, which in
 turn is based on the [Burrows-Wheeler] transform.  The algorithm used to build
@@ -890,7 +877,7 @@ Command Line
 
 Usage:
 
-    centrifuge-build [options]* <reference_in> <cf_base>
+    centrifuge-build [options]* --conversion-table <table_in> --taxonomy-tree <taxonomy_in> <reference_in> <cf_base>
 
 ### Main arguments
 
@@ -913,9 +900,7 @@ or, if [`-c`](#centrifuge-build-options-c) is specified, this might be
 </td><td>
 
 The basename of the index files to write.  By default, `centrifuge-build` writes
-files named `NAME.1.cf`, `NAME.2.cf`, `NAME.3.cf`, `NAME.4.cf`,
-`NAME.5.cf`, `NAME.6.cf`, `NAME.rev.1.cf`, `NAME.rev.2.cf`, 
-`NAME.rev.5.cf`, and `NAME.rev.6.cf` where `NAME` is `<cf_base>`.
+files named `NAME.1.cf`, `NAME.2.cf`, and `NAME.3.cf`, where `NAME` is `<cf_base>`.
 
 </td></tr></table>
 
@@ -956,16 +941,43 @@ to the user to try new parameters.
 
 </td></tr><tr><td id="centrifuge-build-options-p">
 
-[`--packed`]: #centrifuge-build-options-p
-[`-p`/`--packed`]: #centrifuge-build-options-p
+[`-p`]: #centrifuge-build-options-p
 
-    -p/--packed
+    -p <int>
 
 </td><td>
 
-Use a packed (2-bits-per-nucleotide) representation for DNA strings. This saves
-memory but makes indexing 2-3 times slower.  Default: off. This is configured
-automatically by default; use [`-a`/`--noauto`] to configure manually.
+Launch `NTHREADS` parallel search threads (default: 1).
+
+</td></tr><tr><td id="centrifuge-build-options-conversion-table">
+
+[`--conversion-table`]: #centrifuge-build-options-conversion-table
+
+    --conversion-table <file>
+
+</td><td>
+
+List of UIDs (unique ID) and corresponding taxonomic IDs.
+
+</td></tr><tr><td id="centrifuge-build-options-taxonomy-tree">
+
+[`--taxonomy-tree`]: #centrifuge-build-options-taxonomy-tree
+
+    --taxonomy-tree <file>
+
+</td><td>
+
+Taxonomic tree.
+
+</td></tr><tr><td id="centrifuge-build-options-taxonomy-tree">
+
+[`--size-table`]: #centrifuge-build-options-size-table
+
+    --size-table <file>
+
+</td><td>
+
+Llist of UIDs (unique ID) and lengths of sequences.
 
 </td></tr><tr><td id="centrifuge-build-options-bmax">
 
@@ -1066,28 +1078,6 @@ range with respect to the first `<int>` characters of the query.  A larger
 `<int>` yields a larger lookup table but faster query times.  The ftab has size
 4^(`<int>`+1) bytes.  The default setting is 10 (ftab is 4MB).
 
-
-</td></tr><tr><td id="centrifuge-build-options-localoffrate">
-
-    --localoffrate <int>
-
-</td><td>
-
-This option governs how many rows get marked in a local index:
-the indexer will mark every 2^`<int>` rows.  Marking more rows makes
-reference-position lookups faster, but requires more memory to hold the
-annotations at runtime.  The default is 3 (every 8th row is marked,
-this occupies about 16KB per local index).  
-
-</td></tr><tr><td>
-
-    --localftabchars <int>
-
-</td><td>
-
-The local ftab is the lookup table in a local index.
-The default setting is 6 (ftab is 8KB per local index).
-
 </td></tr><tr><td>
 
     --seed <int>
@@ -1159,7 +1149,7 @@ Usage:
 </td><td>
 
 The basename of the index to be inspected.  The basename is name of any of the
-index files but with the `.X.cf` or `.rev.X.cf` suffix omitted.
+index files but with the `.X.cf` suffix omitted.
 `centrifuge-inspect` first looks in the current directory for the index files, then
 in the directory specified in the `Centrifuge_INDEXES` environment variable.
 
@@ -1206,6 +1196,36 @@ names and lengths of the input sequences.  The summary has this format:
     Sequence-N	<name>	<len>
 
 Fields are separated by tabs.  Colorspace is always set to 0 for Centrifuge.
+
+</td></tr><tr><td id="centrifuge-inspect-options-conversion-table">
+
+[`--conversion-table`]: #centrifuge-inspect-options-conversion-table
+
+    --conversion-table
+
+</td><td>
+
+Print a list of UIDs (unique ID) and corresponding taxonomic IDs.
+
+</td></tr><tr><td id="centrifuge-inspect-options-taxonomy-tree">
+
+[`--taxonomy-tree`]: #centrifuge-inspect-options-taxonomy-tree
+
+    --taxonomy-tree
+
+</td><td>
+
+Print a taxonomic tree.
+
+</td></tr><tr><td id="centrifuge-inspect-options-taxonomy-tree">
+
+[`--size-table`]: #centrifuge-inspect-options-size-table
+
+    --size-table
+
+</td><td>
+
+Print a list of UIDs (unique ID) and lengths of sequences.
 
 </td></tr><tr><td>
 
