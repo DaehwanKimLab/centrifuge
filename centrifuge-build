@@ -35,10 +35,7 @@ def build_args():
     to_remove = []
     argv = sys.argv[:]
     for i, arg in enumerate(argv):
-        if arg == '--large-index':
-            parsed_args[arg] = ""
-            to_remove.append(i)
-        elif arg == '--debug':
+        if arg == '--debug':
             parsed_args[arg] = ""
             to_remove.append(i)
         elif arg == '--verbose':
