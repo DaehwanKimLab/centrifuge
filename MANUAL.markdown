@@ -1251,7 +1251,7 @@ directory.
 Indexing a reference genome
 ---------------------------
 
-To create an index for two small sequeces included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:
+To create an index for two small sequences included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:
 
     $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/taxonomy.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
 
