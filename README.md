@@ -18,7 +18,7 @@ The Centrifuge hompage is  http://www.ccb.jhu.edu/software/centrifuge
 
 The Centrifuge poster is available at http://www.ccb.jhu.edu/people/infphilo/data/Centrifuge-poster.pdf
 
-For more details on installing and running Centrifuge, look at MANUAL.markdown
+For more details on installing and running Centrifuge, look at MANUAL
 
 ## Quick guide
 ### Installation from source
@@ -27,13 +27,13 @@ For more details on installing and running Centrifuge, look at MANUAL.markdown
     cd centrifuge
     make
 
-### Building databases
+### Building indexes
 
-We provide several databases on the Centrifuge homepage at http://www.ccb.jhu.edu/software/centrifuge.
+We provide several indexes on the Centrifuge homepage at http://www.ccb.jhu.edu/software/centrifuge.
 To create your own, you need to download and index the genomes.
 
 #### Downloading genomes
-[Centrifuge] needs the NCBI taxonomy for the naming and hierachy. To download the taxonomy and 
+[Centrifuge] needs the NCBI taxonomy for the naming and hierarchy. To download the taxonomy and 
 GI to taxonomy mapping, as well as all complete viral, archaeal and bacterial genomes from RefSeq, 
 use the following commands:
 
