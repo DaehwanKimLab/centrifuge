@@ -160,6 +160,10 @@ Extract the taxonomy tree from the index:
 
     centrifuge-inspect --taxonomy-tree <centrifuge database>
 
+Extract the lengths of the sequences from the index:
+
+    centrifuge-inspect --size-table <centrifuge database>
+
 Extract raw sequences:
 
     centrifuge-inspect <centrifuge database>
