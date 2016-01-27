@@ -1,4 +1,5 @@
 
+
 <!--
  ! This manual is written in "markdown" format and thus contains some
  ! distracting formatting clutter.  See 'MANUAL' for an easier-to-read version
@@ -93,19 +94,76 @@ If you would like to install Centrifuge by copying the Centrifuge executable fil
 to an existing directory in your [PATH], make sure that you copy all the
 executables, including `centrifuge`, `centrifuge-align-s`, `centrifuge-align-l`,
 `centrifuge-build`, `centrifuge-build-s`, `centrifuge-build-l`, `centrifuge-inspect`,
-`centrifuge-inspect-s` and `centrifuge-inspect-l`.
+`centrifuge-inspect-s` and `centrifuge-inspect-l`. Furthermore you need the files
+in the scripts/ folder for genome downloading and compression.
 
 [PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
 [PATH]: http://en.wikipedia.org/wiki/PATH_(variable)
 
 Database building
 -----------------
+
+Centrifuge can be build with arbritary sequences. Standard choices are
+all complete bacterial and viral genomes, or using the sequences that
+are part of the BLAST nt database. Centrifuge always needs the
+nodes.dmp file from the NCBI taxonomy dump to build the taxonomy tree,
+as well as a sequence ID to taxonomy ID map. The map is a tab-separated
+file with the sequence ID to taxonomy ID map.
+
+### Getting taxonomy
+
+    mkdir taxonomy && cd taxonomy
+    wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
+    tar xvvf taxdump.tar.gz
+    cd ..
+
+### nt database
+
+NCBI BLAST's nt database contains all spliced non-redundant coding
+sequences from multiplpe databases, infered from genommic
+sequences. Traditionally used with BLAST, a download of the FASTA is
+provided on the NCBI homepage. Further we need a sequence ID to taxonomy ID
+map that can be generated from a GI taxid dump:
+
+    wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
+    gunzip nt.gz && mv -v nt nt.fa
+
+    wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz
+    gunzip -c gi_taxid_nucl.dmp.gz | sed 's/^/gi|/' > gi_taxid_nucl.map
+
+    # build index using 16 cores and a small bucket size, which will require less memory
+    centrifuge-build -p 16 --bmax 1342177280 --conversion-table gi_taxid_nucl.map --taxonomy-tree taxonomy/nodes.dmp nt.fa nt
+
+### Refseq database
+
 TODO
+
+    scripts/DownloadTaxonomy.sh -l taxonomy
+    scripts/DownloadGenomes.sh -g refseq -a 'Complete Genome' -l library bacteria archaea viral
+
+    centrifuge-build --ftabchars 14 -bmax 2147483648 --conversion-table seqid-to-taxid.map --taxonomy-tree nodes.dmp sequences.fa 
+
 
 Reporting
 ---------
 TODO
 
+
+Inspecting the database
+-----------------------
+
+The database can be inspected with `centrifuge-inspect`. To extract
+the sequence ID to taxonomy ID conversion table from the database
+
+    centrifuge-inspect-bin --conversion-table <centrifuge database>
+
+Extract the taxonomy tree from the index:
+
+    centrifuge-inspect-bin --taxonomy-tree <centrifuge database>
+
+Extract raw sequences:
+
+    centrifuge-inspect-bin <centrifuge database>
 
 Wrapper
 -------
@@ -119,10 +177,6 @@ and the functionality for [`--un`], [`--al`] and related options.
 
 It is recommended that you always run the centrifuge wrappers and not run the
 binaries directly.
-
-Small and large indexes
------------------------
-TODO
 
 Performance tuning
 ------------------

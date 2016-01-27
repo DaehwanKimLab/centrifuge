@@ -6,6 +6,7 @@ source `dirname $0`/functions.sh
 #########################################################
 
 function download_n_process() {
+    set -x
     IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
 
     NAME=`basename $FILEPATH .gz`
@@ -23,6 +24,19 @@ function download_n_process() {
 }
 export -f download_n_process
 
+function count {
+   typeset C=0
+   while read L; do
+      C=$(( C + 1 ))
+      if [ $(( $C % $1 )) -eq 0 ]; then
+         echo $C 1>&2
+      fi
+      echo "$L"
+   done
+}
+
+## Check if GNU parallel exists
+command -v parallel >/dev/null 2>&1 && PARALLEL=1 || PARALLEL=0
 
 
 ALL_GENOMES="bacteria viral archaea fungi protozoa invertebrate plant vertebrate_mammalian vertebrate_other"
@@ -43,12 +57,12 @@ USAGE="
 `basename $0` [OPTIONS] DOMAINS
 
 OPTIONS
- -g DATABASE            Either refseq or genbank. Default: 'refseq'.
- -a ASSEMBLY_LEVEL      Assembly level. Default: 'Complete Genome'.
- -l LIBRARY_DIRECTORY   Directory to which the files are downloaded. Default: 'library'.
- -j NPROC               number of processes when downloading. Default: '1'
- -d                     Mask low-complexity regions using dustmasker
- -t                     Modify header to include taxonomy ID.
+ -g DATABASE            Either refseq or genbank. Default: '$DATABASE'.
+ -a ASSEMBLY_LEVEL      Assembly level. Default: '$ASSEMBLY_LEVEL'.
+ -l LIBRARY_DIRECTORY   Directory to which the files are downloaded. Default: '$BASE_DIR'.
+ -P NPROC               Number of processes when downloading (uses xargs). Default: '$N_PROC'
+ -d                     Mask low-complexity regions using dustmasker. Default: off.
+ -t                     Modify header to include taxonomy ID. Default: off.
 
 DOMAINS
   Domains to download. For RefSeq, this is one or more of
@@ -56,12 +70,12 @@ DOMAINS
 "
 
 # arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
-while getopts "g:a:l:j:rdt" OPT "$@"; do
+while getopts "g:a:P:j:rdt" OPT "$@"; do
     case $OPT in
         g) DATABASE=$OPTARG ;;
         a) ASSEMBLY_LEVEL="$OPTARG" ;;
         l) BASE_DIR="$OPTARG" ;;
-        j) N_PROC=$OPTARG ;;
+        P) N_PROC=$OPTARG ;;
         r) DOWNLOAD_RNA=1 ;;
         d) DO_DUST=1 ;;
         t) CHANGE_HEADER=1 ;;
@@ -105,21 +119,22 @@ for DOMAIN in $DOMAINS; do
 
     ASSEMBLY_SUMMARY_FILE="$BASEDIR/$DOMAIN/assembly_summary.txt"
 
-    # Download and filter the assembly_summary.txt file
+    echo "Downloading and filtering the assembly_summary.txt file"
     wget -qO- -nc ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt |\
         awk -F "\t" "\$$ASSEMBLY_LEVEL_FIELD==\"$ASSEMBLY_LEVEL\" && \$$VERSION_STATUS_FIELD==\"latest\"" > "$ASSEMBLY_SUMMARY_FILE"
 
-    # Download all the genomic.fna.gz files
-    cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
-        parallel --bar --gnu -j $N_PROC "download_n_process {}"
+    echo "Download all genomic.fna.gz files"
+    cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' | \
+       tr '\n' '\0' | count 100 | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _
+
     N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
     N_GENOMIC=`find $BASEDIR/$DOMAIN -maxdepth 1 -type f -name '*_genomic.fna' | wc -l`
     c_echo "$DOMAIN: expected $N_EXPECTED files, downloaded $N_GENOMIC"
 
-    # Download all the rna.fna.gz files
     if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
+    	echo "Downloading all rna.fna.gz files"
         cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
-            parallel --bar --gnu -j $N_PROC "[[ \`validate_url {}\` ]] && download_n_process {}"
+            tr '\n' '\0' | count 100 |  xargs -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _
         N_RNA=`find $BASEDIR/$DOMAIN -maxdepth 1 -type f -name '*_rna.fna' | wc -l`
         c_echo "$DOMAIN: further downloaded $N_RNA RNAs"
     fi
