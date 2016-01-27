@@ -92,9 +92,8 @@ your [PATH].
 
 If you would like to install Centrifuge by copying the Centrifuge executable files
 to an existing directory in your [PATH], make sure that you copy all the
-executables, including `centrifuge`, `centrifuge-align-s`, `centrifuge-align-l`,
-`centrifuge-build`, `centrifuge-build-s`, `centrifuge-build-l`, `centrifuge-inspect`,
-`centrifuge-inspect-s` and `centrifuge-inspect-l`. Furthermore you need the files
+executables, including `centrifuge`, `centrifuge-class`, `centrifuge-build`, `centrifuge-build-bin`, `centrifuge-inspect`
+and `centrifuge-inspect-bin`. Furthermore you need the files
 in the scripts/ folder for genome downloading and compression.
 
 [PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
@@ -155,15 +154,16 @@ Inspecting the database
 The database can be inspected with `centrifuge-inspect`. To extract
 the sequence ID to taxonomy ID conversion table from the database
 
-    centrifuge-inspect-bin --conversion-table <centrifuge database>
+    centrifuge-inspect --conversion-table <centrifuge database>
 
 Extract the taxonomy tree from the index:
 
-    centrifuge-inspect-bin --taxonomy-tree <centrifuge database>
+    centrifuge-inspect --taxonomy-tree <centrifuge database>
 
 Extract raw sequences:
 
-    centrifuge-inspect-bin <centrifuge database>
+    centrifuge-inspect <centrifuge database>
+
 
 Wrapper
 -------

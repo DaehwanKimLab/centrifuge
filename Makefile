@@ -178,15 +178,11 @@ endif
 
 CENTRIFUGE_BIN_LIST = centrifuge-build-bin \
 	centrifuge-class \
-	centrifuge-inspect-bin \
-	centrifuge-compress-bin \
-	centrifuge-report-bin
+	centrifuge-inspect-bin
 
 CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 	centrifuge-class-debug \
-	centrifuge-inspect-bin-debug \
-	centrifuge-compress-bin-debug \
-	centrifuge-report-bin-debug
+	centrifuge-inspect-bin-debug
 
 GENERAL_LIST = $(wildcard scripts/*.sh) \
 	$(wildcard scripts/*.pl) \

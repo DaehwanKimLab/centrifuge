@@ -8,10 +8,14 @@
 </ul></li>
 <li><a href="#running-centrifuge">Running Centrifuge</a><ul>
 <li><a href="#adding-to-path">Adding to PATH</a></li>
-<li><a href="#database-building">Database building</a></li>
+<li><a href="#database-building">Database building</a><ul>
+<li><a href="#getting-taxonomy">Getting taxonomy</a></li>
+<li><a href="#nt-database">nt database</a></li>
+<li><a href="#refseq-database">Refseq database</a></li>
+</ul></li>
 <li><a href="#reporting">Reporting</a></li>
+<li><a href="#inspecting-the-database">Inspecting the database</a></li>
 <li><a href="#wrapper">Wrapper</a></li>
-<li><a href="#small-and-large-indexes">Small and large indexes</a></li>
 <li><a href="#performance-tuning">Performance tuning</a></li>
 <li><a href="#command-line">Command Line</a><ul>
 <li><a href="#usage">Usage</a></li>
@@ -57,16 +61,42 @@
 <h1 id="running-centrifuge">Running Centrifuge</h1>
 <h2 id="adding-to-path">Adding to PATH</h2>
 <p>By adding your new Centrifuge directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>, you ensure that whenever you run <code>centrifuge</code>, <code>centrifuge-build</code> or <code>centrifuge-inspect</code> from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>.</p>
-<p>If you would like to install Centrifuge by copying the Centrifuge executable files to an existing directory in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>, make sure that you copy all the executables, including <code>centrifuge</code>, <code>centrifuge-align-s</code>, <code>centrifuge-align-l</code>, <code>centrifuge-build</code>, <code>centrifuge-build-s</code>, <code>centrifuge-build-l</code>, <code>centrifuge-inspect</code>, <code>centrifuge-inspect-s</code> and <code>centrifuge-inspect-l</code>.</p>
+<p>If you would like to install Centrifuge by copying the Centrifuge executable files to an existing directory in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>, make sure that you copy all the executables, including <code>centrifuge</code>, <code>centrifuge-align-s</code>, <code>centrifuge-align-l</code>, <code>centrifuge-build</code>, <code>centrifuge-build-s</code>, <code>centrifuge-build-l</code>, <code>centrifuge-inspect</code>, <code>centrifuge-inspect-s</code> and <code>centrifuge-inspect-l</code>. Furthermore you need the files in the scripts/ folder for genome downloading and compression.</p>
 <h2 id="database-building">Database building</h2>
+<p>Centrifuge can be build with arbritary sequences. Standard choices are all complete bacterial and viral genomes, or using the sequences that are part of the BLAST nt database. Centrifuge always needs the nodes.dmp file from the NCBI taxonomy dump to build the taxonomy tree, as well as a sequence ID to taxonomy ID map. The map is a tab-separated file with the sequence ID to taxonomy ID map.</p>
+<h3 id="getting-taxonomy">Getting taxonomy</h3>
+<pre><code>mkdir taxonomy &amp;&amp; cd taxonomy
+wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
+tar xvvf taxdump.tar.gz
+cd ..</code></pre>
+<h3 id="nt-database">nt database</h3>
+<p>NCBI BLAST's nt database contains all spliced non-redundant coding sequences from multiplpe databases, infered from genommic sequences. Traditionally used with BLAST, a download of the FASTA is provided on the NCBI homepage. Further we need a sequence ID to taxonomy ID map that can be generated from a GI taxid dump:</p>
+<pre><code>wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
+gunzip nt.gz &amp;&amp; mv -v nt nt.fa
+
+wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz
+gunzip -c gi_taxid_nucl.dmp.gz | sed &#39;s/^/gi|/&#39; &gt; gi_taxid_nucl.map
+
+# build index using 16 cores and a small bucket size, which will require less memory
+centrifuge-build -p 16 --bmax 1342177280 --conversion-table gi_taxid_nucl.map --taxonomy-tree taxonomy/nodes.dmp nt.fa nt</code></pre>
+<h3 id="refseq-database">Refseq database</h3>
 <p>TODO</p>
+<pre><code>scripts/DownloadTaxonomy.sh -l taxonomy
+scripts/DownloadGenomes.sh -g refseq -a &#39;Complete Genome&#39; -l library bacteria archaea viral
+
+centrifuge-build --ftabchars 14 -bmax 2147483648 --conversion-table seqid-to-taxid.map --taxonomy-tree nodes.dmp sequences.fa </code></pre>
 <h2 id="reporting">Reporting</h2>
 <p>TODO</p>
+<h2 id="inspecting-the-database">Inspecting the database</h2>
+<p>The database can be inspected with <code>centrifuge-inspect</code>. To extract the sequence ID to taxonomy ID conversion table from the database</p>
+<pre><code>centrifuge-inspect-bin --conversion-table &lt;centrifuge database&gt;</code></pre>
+<p>Extract the taxonomy tree from the index:</p>
+<pre><code>centrifuge-inspect-bin --taxonomy-tree &lt;centrifuge database&gt;</code></pre>
+<p>Extract raw sequences:</p>
+<pre><code>centrifuge-inspect-bin &lt;centrifuge database&gt;</code></pre>
 <h2 id="wrapper">Wrapper</h2>
 <p>The <code>centrifuge</code>, <code>centrifuge-build</code> and <code>centrifuge-inspect</code> executables are actually wrapper scripts that call binary programs as appropriate. The wrappers shield users from having to distinguish between &quot;small&quot; and &quot;large&quot; index formats, discussed briefly in the following section. Also, the <code>centrifuge</code> wrapper provides some key functionality, like the ability to handle compressed inputs, and the functionality for <a href="#centrifuge-options-un"><code>--un</code></a>, <a href="#centrifuge-options-al"><code>--al</code></a> and related options.</p>
 <p>It is recommended that you always run the centrifuge wrappers and not run the binaries directly.</p>
-<h2 id="small-and-large-indexes">Small and large indexes</h2>
-<p>TODO</p>
 <h2 id="performance-tuning">Performance tuning</h2>
 <ol style="list-style-type: decimal">
 <li><p>If your computer has multiple processors/cores, use <code>-p NTHREADS</code></p>
