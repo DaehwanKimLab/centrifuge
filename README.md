@@ -23,7 +23,7 @@ For more details on installing and running Centrifuge, look at MANUAL
 ## Quick guide
 ### Installation from source
 
-    git pull https://github.com/infphilo/centrifuge
+    git clone https://github.com/infphilo/centrifuge
     cd centrifuge
     make
 
