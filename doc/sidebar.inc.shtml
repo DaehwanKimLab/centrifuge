@@ -30,68 +30,43 @@
  </ul>
 </div>
 
-<a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/downloads"><h2><u>Releases</u></h2></a>
+<a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads"><h2><u>Releases</u></h2></a>
 <div class="box">
  <ul>
-   <table width="100%"><tbody><tr><td>version 1.0.0-beta</td> <td align="right">1/XX/2016</td></tr>
-       <!--
+   <table width="100%"><tbody><tr><td>version 1.0.0-beta</td> <td align="right">2/0X/2016</td></tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/downloads/hisat2-2.0.1-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.0-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
        </tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/downloads/hisat2-2.0.1-beta-Linux_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Linux x86_64 binary</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.0-beta-Linux_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Linux x86_64 binary</a></td>
        </tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/downloads/hisat2-2.0.1-beta-OSX_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Mac OS X x86_64 binary</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.0-beta-OSX_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Mac OS X x86_64 binary</a></td>
        </tr>
-       -->
    </tbody></table>
  </ul>
 </div>
 
-<a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/data"><h2><u>Indexes</u></h2></a>
+<a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data"><h2><u>Indexes</u></h2></a>
   <div class="box">
-    <!--
     <table width="100%">
       <tr>
-        <td colspan="2">
-         <i>H. sapiens</i>, Ensembl GRCh37
+        <td>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37.tar.gz"><i>Bacteria, Viruses, and human genome</i></a>
+        </td>
+	<td align="right" style="font-size: x-small">
+	  <b>X.X GB</b>
         </td>
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/data/grch37.tar.gz"><i>genome</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37_snp.tar.gz"><i>Bacterial genomes (Compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>3.9 GB</b>
-        </td>
-      </tr>
-      <tr>
-        <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/data/grch37_snp.tar.gz"><i>genome_snp</i></a>
-        </td>
-	<td align="right" style="font-size: x-small">
-	  <b>4.5 GB</b>
-        </td>
-      </tr>
-      <tr>
-        <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/data/grch37_tran.tar.gz"><i>genome_tran</i></a>
-        </td>
-	<td align="right" style="font-size: x-small">
-	  <b>4.0 GB</b>
-        </td>
-      </tr>
-      <tr>
-        <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/hisat2/data/grch37_snp_tran.tar.gz"><i>genome_snp_tran</i></a>
-        </td>
-	<td align="right" style="font-size: x-small">
-	  <b>4.5 GB</b>
+	  <b>X.X GB</b>
         </td>
       </tr>
     </table>
-    -->
   </div>
 
 <h2>Related Tools</h2>

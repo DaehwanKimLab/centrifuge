@@ -162,9 +162,7 @@ Wrapper
 -------
 
 The `centrifuge`, `centrifuge-build` and `centrifuge-inspect` executables are actually 
-wrapper scripts that call binary programs as appropriate.  The wrappers shield
-users from having to distinguish between "small" and "large" index formats,
-discussed briefly in the following section.  Also, the `centrifuge` wrapper
+wrapper scripts that call binary programs as appropriate. Also, the `centrifuge` wrapper
 provides some key functionality, like the ability to handle compressed inputs,
 and the functionality for `--un`, `--al` and related options.
 
@@ -517,7 +515,7 @@ The `centrifuge-build` indexer
 
 `centrifuge-build` builds a Centrifuge index from a set of DNA sequences.
 `centrifuge-build` outputs a set of 6 files with suffixes `.1.cf`, `.2.cf`, and
-`.3.cf`.  In the case of a large index these suffixes will have a `cfl` termination.  These files together
+`.3.cf`.  These files together
 constitute the index: they are all that is needed to align reads to that
 reference.  The original sequence FASTA files are no longer used by Centrifuge
 once the index is built.
