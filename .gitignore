@@ -1,0 +1,14 @@
+*~
+*.dSYM
+.DS_Store
+*-debug
+*-s
+*-l
+centrifuge.xcodeproj/project.xcworkspace
+centrifuge.xcodeproj/xcuserdata
+centrifuge.xcodeproj/xcshareddata
+
+centrifuge-build-bin
+centrifuge-buildc
+centrifuge-class
+centrifuge-inspect-bin
