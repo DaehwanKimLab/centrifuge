@@ -2868,7 +2868,7 @@ static void driver(
 					fout->writeString(buf);
 				}
 				// Write header for read-results file
-				fout->writeChars("ID\tuniqueID\ttaxID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
+				fout->writeChars("readID\tuniqueID\ttaxID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
 				break;
 			}
 			default:

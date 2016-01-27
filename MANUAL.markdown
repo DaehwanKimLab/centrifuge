@@ -1251,15 +1251,13 @@ directory.
 Indexing a reference genome
 ---------------------------
 
-To create an index for the genomic region (1 million bps from the human chromosome 22 between 20,000,000 and 20,999,999)
-included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:
+To create an index for two small sequeces included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:
 
-    $CENTRIFUGE_HOME/centrifuge-build $CENTRIFUGE_HOME/example/reference/22_20-21M.fa 22_20-21M_centrifuge
+    $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/taxonomy.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
 
 The command should print many lines of output then quit. When the command
 completes, the current directory will contain ten new files that all start with
-`22_20-21M_centrifuge` and end with `.1.cf`, `.2.cf`, `.3.cf`, `.4.cf`, `.5.cf`, `.6.cf`,
-`.rev.1.cf`, `.rev.2.cf`, `.rev.5.cf`, and `.rev.6.cf[5~`.  These files constitute the index - you're done!
+`test` and end with `.1.cf`, `.2.cf`, `.3.cf`.  These files constitute the index - you're done!
 
 You can use `centrifuge-build` to create an index for a set of FASTA files obtained
 from any source, including sites such as [UCSC], [NCBI], and [Ensembl]. When
@@ -1274,55 +1272,35 @@ process by obtaining a pre-built index.
 [manual section on index building]: #the-centrifuge-build-indexer
 [using a pre-built index]: #using-a-pre-built-index
 
-Aligning example reads
+Classifying example reads
 ----------------------
 
 Stay in the directory created in the previous step, which now contains the
-`22_20-21M_centrifuge` index files.  Next, run:
+`test` index files.  Next, run:
 
-    $CENTRIFUGE_HOME/centrifuge -x 22_20-21M_centrifuge -U $CENTRIFUGE_HOME/example/reads/reads_1.fq -S eg1.sam
+    $CENTRIFUGE_HOME/centrifuge -f -x test $CENTRIFUGE_HOME/example/reads/input.fa
 
-This runs the Centrifuge aligner, which aligns a set of unpaired reads to the
-the genome region using the index generated in the previous step.
-The alignment results in SAM format are written to the file `eg1.sam`, and a
-short alignment summary is written to the console.  (Actually, the summary is
-written to the "standard error" or "stderr" filehandle, which is typically
-printed to the console.)
-
-To see the first few lines of the SAM output, run:
-
-    head eg1.sam
+This runs the Centrifuge classifier, which classifies a set of unpaired reads to the
+the genomes using the index generated in the previous step.
+The classification results are reported to stdout, and a
+short classification summary is written to centrifuge-species_report.csv.
 
 You will see something like this:
 
-    @HD VN:1.0   SO:unsorted
-    @SQ SN:22:20000000-20999999	LN:1000000
-    @PG ID:centrifuge			PN:centrifuge	VN:0.1.0
-    1   0				22:20000000-20999999	4115	255	100M			*	0	0	GGAGCGCAGCGTGGGCGGCCCCGCAGCGCGGCCTCGGACCCCAGAAGGGCTTCCCCGGGTCCGTTGGCGCGCGGGGAGCGGCGTTCCCAGGGCGCGGCGC IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0 XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    2   16				22:20000000-20999999	4197	255	100M			*	0	0	GTTCCCAGGGCGCGGCGCGGTGCGGCGCGGCGCGGGTCGCAGTCCACGCGGCCGCAACTCGGACCGGTGCGGGGGCCGCCCCCTCCCTCCAGGCCCAGCG IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0	XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    3   0				22:20000000-20999999	4113	255	100M			*	0	0	CTGGAGCGCAGCGTGGGCGGCCCCGCAGCGCGGCCTCGGACCCCAGAAGGGCTTCCCCGGGTCCGTTGGCGCGCGGGGAGCGGCGTTCCCAGGGCGCGGC IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0	XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    4   0				22:20000000-20999999	52358	255	100M			*	0	0	TTCAGGGTCTGCCTTTATGCCAGTGAGGAGCAGCAGAGTCTGATACTAGGTCTAGGACCGGCCGAGGTATACCATGAACATGTGGATACACCTGAGCCCA IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0	XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    5   16				22:20000000-20999999	52680	255	100M			*	0	0	CTTCTGGCCAGTAGGTCTTTGTTCTGGTCCAACGACAGGAGTAGGCTTGTATTTAAAAGCGGCCCCTCCTCTCCTGTGGCCACAGAACACAGGCGTGCTT IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0	XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    6   16				22:20000000-20999999	52664	255	100M			*	0	0	TCTCACCTCTCATGTGCTTCTGGCCAGTAGGTCTTTGTTCTGGTCCAACGACAGGAGTAGGCTTGTATTTAAAAGCGGCCCCTCCTCTCCTGTGGCCACA IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0	XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    7   0				22:20000000-20999999	52468	255	100M			*	0	0	TGTACACAGGCACTCACATGGCACACACATACACTCCTGCGTGTGCACAAGCACACACATGCAAGCCATATACATGGACACCGACACAGGCACATGTACG IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0	XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    8   0				22:20000000-20999999	4538	255	100M			*	0	0	CGGCCCCGCACCTGCCCGAACCTCTGCGGCGGCGGTGGCAGGGTACGCGGGACCGCTCCCTCCCAGCCGACTTACGAGAACATCCCCCGACCATCCAGCC IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:0 XN:i:0	XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU
-    9   16				22:20000000-20999999	4667	255	50M19567N50M	*	0	0	CTTCCCCGGACTCTGGCCGCGTAGCCTCCGCCACCACTCCCAGTTCACAGACCTCGCGACCTGTGTCAGCAGAGCCGCCCTGCACCACCATGTGCATCAT IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:-1 XN:i:0 XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU XS:A:+
-    10  0				22:20000000-20999999	30948	255	20M9021N80M		*	0	0	CAACAACGAGATCCTCAGTGGGCTGGACATGGAGGAAGGCAAGGAAGGAGGCACATGGCTGGGCATCAGCACACGTGGCAAGCTGGCAGCACTCACCAAC IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:-1 XN:i:0 XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU XS:A:+
-    11  16				22:20000000-20999999	40044	255	65M8945N35M		*	0	0	TGGCAAGCTGGCAGCACTCACCAACTACCTGCAGCCGCAGCTGGACTGGCAGGCCCGAGGGCGAGGCACCTACGGGCTGAGCAACGCGCTGCTGGAGACT IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII AS:i:-1 XN:i:0 XM:i:0 XO:i:0 XG:i:0 NM:i:0 MD:Z:100 YT:Z:UU XS:A:+
-
-The first few lines (beginning with `@`) are SAM header lines, and the rest of
-the lines are SAM alignments, one line per read or mate.  See the [Centrifuge
-manual section on SAM output] and the [SAM specification] for details about how
-to interpret the SAM file format.
-
-[Centrifuge manual section on SAM output]: #sam-output
-
-Paired-end example
-------------------
-
-To align paired-end reads included with Centrifuge, stay in the same directory and
-run:
-
-    $CENTRIFUGE_HOME/centrifuge -x 22_20-21M_ -1 $CENTRIFUGE_HOME/example/reads/reads_1.fq -2 $CENTRIFUGE_[5~HOME/example/reads/reads_2.fq -S eg2.sam
-This aligns a set of paired-end reads to the reference genome, with results
-written to the file `eg2.sam`.
+    readID  uniqueID taxID     score	2ndBestScore	hitLength	numMatches
+    C_1 gi|7     9913      4225	4225		80.00		2
+    C_1 gi|4     9646      4225	4225		80.00		2
+    C_2 gi|4     9646      4225	4225		80.00		2
+    C_2 gi|7     9913      4225	4225		80.00		2
+    C_3 gi|7     9913      4225	4225		80.00		2
+    C_3 gi|4     9646      4225	4225		80.00		2
+    C_4 gi|4     9646      4225	4225		80.00		2
+    C_4 gi|7     9913      4225	4225		80.00		2
+    1_1 gi|4     9646      4225	0		80.00		1
+    1_2 gi|4     9646      4225	0		80.00		1
+    2_1 gi|7     9913      4225	0		80.00		1
+    2_2 gi|7     9913      4225	0		80.00		1
+    2_3 gi|7     9913      4225	0		80.00		1
+    2_4 gi|7     9913      4225	0		80.00		1
+    2_5 gi|7     9913      4225	0		80.00		1
+    2_6 gi|7     9913      4225	0		80.00		1

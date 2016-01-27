@@ -198,7 +198,7 @@ public:
                     coord_ids.back().second = taxID;
                 }
                 
-                size_t n_genomes = coord_ids.size();
+                ASSERT_ONLY(size_t n_genomes = coord_ids.size());
                 // scoring function: calculate the weight of this partial hit
                 assert_gt(partialHitLen, 15);
                 assert_gt(n_genomes, 0);
