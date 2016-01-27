@@ -207,7 +207,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 	VERSION
 
 ifeq (1,$(WINDOWS))
-	CENTRIFUGE_BIN_LIST := $(CENTRIFUGE_BIN_LIST) hisat.bat hisat-build.bat hisat-inspect.bat 
+	CENTRIFUGE_BIN_LIST := $(CENTRIFUGE_BIN_LIST) centrifuge.bat centrifuge-build.bat centrifuge-inspect.bat 
 endif
 
 # This is helpful on Windows under MinGW/MSYS, where Make might go for
@@ -230,9 +230,9 @@ all: $(CENTRIFUGE_BIN_LIST)
 
 allall: $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX)
 
-both: centrifuge-class centrifuge-build
+both: centrifuge-class centrifuge-build-bin
 
-both-debug: centrifuge-class-debug centrifuge-build-debug
+both-debug: centrifuge-class-debug centrifuge-build-bin-debug
 
 DEFS=-fno-strict-aliasing \
      -DCENTRIFUGE_VERSION="\"`cat VERSION`\"" \

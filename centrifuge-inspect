@@ -32,11 +32,10 @@ def main():
                         format='%(levelname)s: %(message)s'
                         )
     inspect_bin_name      = "centrifuge-inspect"
-    idx_ext               = '.1.hc'; 
     curr_script           = os.path.realpath(inspect.getsourcefile(main))
     ex_path               = os.path.dirname(curr_script)
-    inspect_bin_spec      = os.path.join(ex_path,"centrifuge-inspect-bin")
-    bld                   = imp.load_source('centrifuge-build',os.path.join(ex_path,'centrifuge-build'))
+    inspect_bin_spec      = os.path.join(ex_path, "centrifuge-inspect-bin")
+    bld                   = imp.load_source('centrifuge-build', os.path.join(ex_path,'centrifuge-build'))
     options,arguments     = bld.build_args()
 
     if '--verbose' in options:
@@ -44,13 +43,6 @@ def main():
         
     if '--debug' in options:
         inspect_bin_spec += '-debug'
-        inspect_bin_l += '-debug'
-        
-    if len(arguments) >= 1:
-        idx_basename = arguments[-1]
-        large_idx_exists = os.path.exists(idx_basename + idx_ext)
-        if large_idx_exists:
-            inspect_bin_spec = os.path.join(ex_path,inspect_bin)
     
     arguments[0] = inspect_bin_name
     arguments.insert(1, 'basic-0')
@@ -61,8 +53,3 @@ def main():
         
 if __name__ == "__main__":
     main()
-
-
-
-
-
