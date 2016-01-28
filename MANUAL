@@ -770,7 +770,7 @@ Indexing a reference genome
 
 To create an index for two small sequences included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:
 
-    $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/taxonomy.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
+    $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
 
 The command should print many lines of output then quit. When the command
 completes, the current directory will contain ten new files that all start with
