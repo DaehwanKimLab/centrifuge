@@ -1,0 +1,90 @@
+1	|	all	|		|	synonym	|
+1	|	root	|		|	scientific name	|
+2759	|	Eucarya	|		|	synonym	|
+2759	|	Eucaryotae	|		|	synonym	|
+2759	|	Eukarya	|		|	synonym	|
+2759	|	Eukaryota	|		|	scientific name	|
+2759	|	Eukaryotae	|		|	synonym	|
+2759	|	eucaryotes	|		|	genbank common name	|
+2759	|	eukaryotes	|		|	common name	|
+2759	|	eukaryotes	|	eukaryotes<blast2759>	|	blast name	|
+6072	|	Eumetazoa	|		|	scientific name	|
+7711	|	Chordata	|		|	scientific name	|
+7711	|	chordates	|		|	genbank common name	|
+7711	|	chordates	|	chordates<blast7711>	|	blast name	|
+7742	|	Vertebrata	|	Vertebrata <Metazoa>	|	scientific name	|
+7742	|	Vertebrata Cuvier, 1812	|		|	authority	|
+7742	|	vertebrates	|		|	genbank common name	|
+7742	|	vertebrates	|	vertebrates<blast7742>	|	blast name	|
+7776	|	Gnathostomata	|	Gnathostomata <vertebrate>	|	scientific name	|
+7776	|	jawed vertebrates	|		|	genbank common name	|
+8287	|	Sarcopterygii	|		|	scientific name	|
+9347	|	Eutheria	|		|	scientific name	|
+9347	|	Placentalia	|		|	synonym	|
+9347	|	eutherian mammals	|		|	common name	|
+9347	|	placental mammals	|		|	common name	|
+9347	|	placentals	|		|	genbank common name	|
+9347	|	placentals	|	placentals <blast9347>	|	blast name	|
+9632	|	Ursidae	|		|	scientific name	|
+9632	|	bears	|		|	genbank common name	|
+9645	|	Ailuropoda	|		|	scientific name	|
+9646	|	Ailuropoda melanoleuca	|		|	scientific name	|
+9646	|	Ailuropoda melanoleuca (David, 1869)	|		|	authority	|
+9646	|	Ailuropoda melanoleura	|		|	misspelling	|
+9646	|	giant panda	|		|	genbank common name	|
+9845	|	Artiodactyla	|	Artiodactyla <Ruminantia>	|	in-part	|
+9845	|	Ruminantia	|		|	scientific name	|
+9895	|	Bovidae	|		|	scientific name	|
+9903	|	Bos	|		|	scientific name	|
+9903	|	oxen, cattle	|		|	genbank common name	|
+9913	|	Bos Tauurus	|		|	misspelling	|
+9913	|	Bos bovis	|		|	synonym	|
+9913	|	Bos primigenius taurus	|		|	synonym	|
+9913	|	Bos taurus	|		|	scientific name	|
+9913	|	Bos taurus Linnaeus, 1758	|		|	authority	|
+9913	|	Bovidae sp. Adi Nefas	|		|	includes	|
+9913	|	bovine	|		|	common name	|
+9913	|	cattle	|		|	genbank common name	|
+9913	|	cow	|		|	common name	|
+9913	|	domestic cattle	|		|	common name	|
+9913	|	domestic cow	|		|	common name	|
+27592	|	Bovinae	|		|	scientific name	|
+32523	|	Tetrapoda	|		|	scientific name	|
+32523	|	tetrapods	|		|	genbank common name	|
+32524	|	Amniota	|		|	scientific name	|
+32524	|	amniotes	|		|	genbank common name	|
+32525	|	Theria	|	Theria <Mammalia>	|	scientific name	|
+32525	|	Theria Parker & Haswell, 1897	|		|	authority	|
+33154	|	Fungi/Metazoa group	|		|	synonym	|
+33154	|	Opisthokonta	|		|	scientific name	|
+33154	|	Opisthokonta Cavalier-Smith 1987	|		|	authority	|
+33154	|	opisthokonts	|		|	synonym	|
+33208	|	Animalia	|		|	synonym	|
+33208	|	Metazoa	|		|	scientific name	|
+33208	|	animals	|		|	blast name	|
+33208	|	metazoans	|		|	genbank common name	|
+33208	|	multicellular animals	|		|	common name	|
+33213	|	Bilateria	|		|	scientific name	|
+33511	|	Deuterostomia	|		|	scientific name	|
+33511	|	deuterostomes	|		|	common name	|
+33554	|	Carnivora	|		|	scientific name	|
+33554	|	carnivores	|		|	genbank common name	|
+33554	|	carnivores	|	carnivores <blast33554>	|	blast name	|
+35500	|	Pecora	|		|	scientific name	|
+40674	|	Mammalia	|		|	scientific name	|
+40674	|	mammals	|		|	genbank common name	|
+40674	|	mammals	|	mammals<blast40674>	|	blast name	|
+89593	|	Craniata	|	Craniata <chordata>	|	scientific name	|
+91561	|	Cetartiodactyla	|		|	scientific name	|
+91561	|	even-toed ungulates	|		|	blast name	|
+91561	|	whales, hippos, ruminants, pigs, camels etc.	|		|	genbank common name	|
+117570	|	Teleostomi	|		|	scientific name	|
+117571	|	Euteleostomi	|		|	scientific name	|
+117571	|	bony vertebrates	|		|	genbank common name	|
+131567	|	biota	|		|	synonym	|
+131567	|	cellular organisms	|		|	scientific name	|
+314145	|	Laurasiatheria	|		|	scientific name	|
+379584	|	Caniformia	|		|	scientific name	|
+1338369	|	Dipnotetrapodomorpha	|		|	scientific name	|
+1437010	|	Boreoeutheria	|		|	scientific name	|
+1437010	|	Boreotheria	|		|	synonym	|
