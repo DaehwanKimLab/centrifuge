@@ -141,8 +141,11 @@ TODO
 Inspecting the database
 -----------------------
 
-The database can be inspected with `centrifuge-inspect`. To extract
-the sequence ID to taxonomy ID conversion table from the database
+The database can be inspected with `centrifuge-inspect`.  To extract raw sequences:
+
+    centrifuge-inspect <centrifuge database>
+
+Extract the sequence ID to taxonomy ID conversion table from the database
 
     centrifuge-inspect --conversion-table <centrifuge database>
 
@@ -150,13 +153,9 @@ Extract the taxonomy tree from the index:
 
     centrifuge-inspect --taxonomy-tree <centrifuge database>
 
-Extract the lengths of the sequences from the index:
+Extract the lengths of the sequences from the index (each row has two columns: taxonomic ID and length):
 
     centrifuge-inspect --size-table <centrifuge database>
-
-Extract raw sequences:
-
-    centrifuge-inspect <centrifuge database>
 
 Wrapper
 -------
@@ -547,7 +546,7 @@ Command Line
 
 Usage:
 
-    centrifuge-build [options]* --conversion-table <table_in> --taxonomy-tree <taxonomy_in> <reference_in> <cf_base>
+    centrifuge-build [options]* --conversion-table <table_in> --taxonomy-tree <taxonomy_in> --name-table <table_in2> <reference_in> <cf_base>
 
 ### Main arguments
 
@@ -590,11 +589,15 @@ List of UIDs (unique ID) and corresponding taxonomic IDs.
 
     --taxonomy-tree <file>
 
-Taxonomic tree.
+Taxonomic tree (e.g. nodes.dmp).
+
+    --name-table <file>
+
+Name table (e.g. names.dmp).
 
     --size-table <file>
 
-Llist of UIDs (unique ID) and lengths of sequences.
+List of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.
 
     --bmax <int>
 
@@ -734,11 +737,15 @@ Print a list of UIDs (unique ID) and corresponding taxonomic IDs.
 
     --taxonomy-tree
 
-Print a taxonomic tree.
+Print taxonomic tree.
+
+    --name-table
+
+Print name table.
 
     --size-table
 
-Print a list of UIDs (unique ID) and lengths of sequences.
+Print a list of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.
 
     -v/--verbose
 
@@ -770,7 +777,7 @@ Indexing a reference genome
 
 To create an index for two small sequences included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:
 
-    $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
+    $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp --name-table $CENTRIFUGE_HOME/example/reference/names.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
 
 The command should print many lines of output then quit. When the command
 completes, the current directory will contain ten new files that all start with
