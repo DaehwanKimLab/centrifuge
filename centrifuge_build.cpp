@@ -209,7 +209,7 @@ static struct option long_options[] = {
 	{(char*)"localftabchars", required_argument, 0,            ARG_LOCAL_FTABCHARS},
     {(char*)"conversion-table", required_argument, 0,          ARG_CONVERSION_TABLE},
     {(char*)"taxonomy-tree",    required_argument, 0,          ARG_TAXONOMY_TREE},
-    {(char*)"name-table",       required_argument, 0,          ARG_NAME_TABLE}
+    {(char*)"name-table",       required_argument, 0,          ARG_NAME_TABLE},
     {(char*)"size-table",       required_argument, 0,          ARG_SIZE_TABLE},
 	{(char*)"help",           no_argument,       0,            'h'},
 	{(char*)"ntoa",           no_argument,       0,            ARG_NTOA},

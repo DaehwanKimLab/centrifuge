@@ -39,16 +39,18 @@ static bool refFromEbwt = false; // true -> when printing reference, decode it f
 static string wrapper;
 static const char *short_options = "vhnsea:";
 static int conversion_table = 0;
-static int size_table = 0;
 static int taxonomy_tree = 0;
+static int name_table = 0;
+static int size_table = 0;
 
 enum {
 	ARG_VERSION = 256,
     ARG_WRAPPER,
 	ARG_USAGE,
     ARG_CONVERSION_TABLE,
-    ARG_SIZE_TABLE,
     ARG_TAXONOMY_TREE,
+    ARG_NAME_TABLE,
+    ARG_SIZE_TABLE,
 };
 
 static struct option long_options[] = {
@@ -62,8 +64,9 @@ static struct option long_options[] = {
 	{(char*)"ebwt-ref", no_argument,        0, 'e'},
     {(char*)"wrapper",  required_argument,  0, ARG_WRAPPER},
     {(char*)"conversion-table", no_argument,  0, ARG_CONVERSION_TABLE},
-    {(char*)"size-table",       no_argument,  0, ARG_SIZE_TABLE},
     {(char*)"taxonomy-tree",    no_argument,  0, ARG_TAXONOMY_TREE},
+    {(char*)"name-table",       no_argument,  0, ARG_NAME_TABLE},
+    {(char*)"size-table",       no_argument,  0, ARG_SIZE_TABLE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -91,6 +94,8 @@ static void printUsage(ostream& out) {
 	<< "  -e/--bt2-ref       Reconstruct reference from ." << gEbwt_ext << " (slow, preserves colors)" << endl
     << "  --conversion-table Print conversion table" << endl
     << "  --taxonomy-tree    Print taxonomy tree" << endl
+    << "  --name-table       Print names corresponding to taxonomic IDs" << endl
+    << "  --size-table       Print the lengths of the sequences belonging to the same taxonomic ID" << endl
 	<< "  -v/--verbose       Verbose output (for debugging)" << endl
 	<< "  -h/--help          print detailed description of tool and its options" << endl
 	<< "  --help             print this usage message" << endl
@@ -149,11 +154,14 @@ static void parseOptions(int argc, char **argv) {
             case ARG_CONVERSION_TABLE:
                 conversion_table = true;
                 break;
-            case ARG_SIZE_TABLE:
-                size_table = true;
-                break;
             case ARG_TAXONOMY_TREE:
                 taxonomy_tree = true;
+                break;
+            case ARG_NAME_TABLE:
+                name_table = true;
+                break;
+            case ARG_SIZE_TABLE:
+                size_table = true;
                 break;
 			case 'e': refFromEbwt = true; break;
 			case 'n': names_only = true; break;
@@ -434,18 +442,6 @@ static void driver(
                 }
                 cout << endl;
             }
-        } else if(size_table) {
-            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
-            for(std::map<uint64_t, uint64_t>::const_iterator itr = size_map.begin(); itr != size_map.end(); itr++) {
-                uint64_t tid = itr->first;
-                uint64_t size = itr->second;
-                cout << (tid & 0xffffffff);
-                tid >>= 32;
-                if(tid > 0) {
-                    cout << "." << tid;
-                }
-                cout << "\t" << size << endl;
-            }
         } else if(taxonomy_tree) {
             const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
             for(map<uint64_t, TaxonomyNode>::const_iterator itr = tree.begin(); itr != tree.end(); itr++) {
@@ -481,6 +477,29 @@ static void driver(
                     default:                 rank = "no rank";      break;
                 };
                 cout << itr->first << "\t|\t" << itr->second.parent_tid << "\t|\t" << rank << endl;
+            }
+        } else if(name_table) {
+            const std::map<uint64_t, string>& name_map = ebwt.name();
+            for(std::map<uint64_t, string>::const_iterator itr = name_map.begin(); itr != name_map.end(); itr++) {
+                uint64_t tid = itr->first;
+                cout << (tid & 0xffffffff);
+                tid >>= 32;
+                if(tid > 0) {
+                    cout << "." << tid;
+                }
+                cout << "\t" << itr->second << endl;
+            }
+        } else if(size_table) {
+            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
+            for(std::map<uint64_t, uint64_t>::const_iterator itr = size_map.begin(); itr != size_map.end(); itr++) {
+                uint64_t tid = itr->first;
+                uint64_t size = itr->second;
+                cout << (tid & 0xffffffff);
+                tid >>= 32;
+                if(tid > 0) {
+                    cout << "." << tid;
+                }
+                cout << "\t" << size << endl;
             }
         } else {
             ebwt.loadIntoMemory(

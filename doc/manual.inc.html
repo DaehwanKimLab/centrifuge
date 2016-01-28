@@ -87,14 +87,14 @@ centrifuge-build --ftabchars 14 -bmax 2147483648 --conversion-table seqid-to-tax
 <h2 id="reporting">Reporting</h2>
 <p>TODO</p>
 <h2 id="inspecting-the-database">Inspecting the database</h2>
-<p>The database can be inspected with <code>centrifuge-inspect</code>. To extract the sequence ID to taxonomy ID conversion table from the database</p>
+<p>The database can be inspected with <code>centrifuge-inspect</code>. To extract raw sequences:</p>
+<pre><code>centrifuge-inspect &lt;centrifuge database&gt;</code></pre>
+<p>Extract the sequence ID to taxonomy ID conversion table from the database</p>
 <pre><code>centrifuge-inspect --conversion-table &lt;centrifuge database&gt;</code></pre>
 <p>Extract the taxonomy tree from the index:</p>
 <pre><code>centrifuge-inspect --taxonomy-tree &lt;centrifuge database&gt;</code></pre>
-<p>Extract the lengths of the sequences from the index:</p>
+<p>Extract the lengths of the sequences from the index (each row has two columns: taxonomic ID and length):</p>
 <pre><code>centrifuge-inspect --size-table &lt;centrifuge database&gt;</code></pre>
-<p>Extract raw sequences:</p>
-<pre><code>centrifuge-inspect &lt;centrifuge database&gt;</code></pre>
 <h2 id="wrapper">Wrapper</h2>
 <p>The <code>centrifuge</code>, <code>centrifuge-build</code> and <code>centrifuge-inspect</code> executables are actually wrapper scripts that call binary programs as appropriate. Also, the <code>centrifuge</code> wrapper provides some key functionality, like the ability to handle compressed inputs, and the functionality for [<code>--un</code>], [<code>--al</code>] and related options.</p>
 <p>It is recommended that you always run the centrifuge wrappers and not run the binaries directly.</p>
@@ -488,7 +488,7 @@ in the same order as they did in the inputs.
 <p>The Centrifuge index is based on the <a href="http://en.wikipedia.org/wiki/FM-index">FM Index</a> of Ferragina and Manzini, which in turn is based on the <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> transform. The algorithm used to build the index is based on the <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> of Karkkainen.</p>
 <h2 id="command-line-1">Command Line</h2>
 <p>Usage:</p>
-<pre><code>centrifuge-build [options]* --conversion-table &lt;table_in&gt; --taxonomy-tree &lt;taxonomy_in&gt; &lt;reference_in&gt; &lt;cf_base&gt;</code></pre>
+<pre><code>centrifuge-build [options]* --conversion-table &lt;table_in&gt; --taxonomy-tree &lt;taxonomy_in&gt; --name-table &lt;table_in2&gt; &lt;reference_in&gt; &lt;cf_base&gt;</code></pre>
 <h3 id="main-arguments-1">Main arguments</h3>
 <table><tr><td>
 
@@ -541,13 +541,19 @@ in the same order as they did in the inputs.
 <pre><code>--taxonomy-tree &lt;file&gt;</code></pre>
 </td><td>
 
-<p>Taxonomic tree.</p>
+<p>Taxonomic tree (e.g. nodes.dmp).</p>
+</td></tr><tr><td id="centrifuge-build-options-name-table">
+
+<pre><code>--name-table &lt;file&gt;</code></pre>
+</td><td>
+
+<p>Name table (e.g. names.dmp).</p>
 </td></tr><tr><td id="centrifuge-build-options-taxonomy-tree">
 
 <pre><code>--size-table &lt;file&gt;</code></pre>
 </td><td>
 
-<p>Llist of UIDs (unique ID) and lengths of sequences.</p>
+<p>List of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.</p>
 </td></tr><tr><td id="centrifuge-build-options-bmax">
 
 <pre><code>--bmax &lt;int&gt;</code></pre>
@@ -680,13 +686,19 @@ Sequence-N  &lt;name&gt;  &lt;len&gt;</code></pre>
 <pre><code>--taxonomy-tree</code></pre>
 </td><td>
 
-<p>Print a taxonomic tree.</p>
+<p>Print taxonomic tree.</p>
+</td></tr><tr><td id="centrifuge-inspect-options-name-table">
+
+<pre><code>--name-table</code></pre>
+</td><td>
+
+<p>Print name table.</p>
 </td></tr><tr><td id="centrifuge-inspect-options-taxonomy-tree">
 
 <pre><code>--size-table</code></pre>
 </td><td>
 
-<p>Print a list of UIDs (unique ID) and lengths of sequences.</p>
+<p>Print a list of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.</p>
 </td></tr><tr><td>
 
 <pre><code>-v/--verbose</code></pre>
@@ -712,7 +724,7 @@ Sequence-N  &lt;name&gt;  &lt;len&gt;</code></pre>
 <p>First follow the manual instructions to <a href="#obtaining-centrifuge">obtain Centrifuge</a>. Set the <code>CENTRIFUGE_HOME</code> environment variable to point to the new Centrifuge directory containing the <code>centrifuge</code>, <code>centrifuge-build</code> and <code>centrifuge-inspect</code> binaries. This is important, as the <code>CENTRIFUGE_HOME</code> variable is used in the commands below to refer to that directory.</p>
 <h2 id="indexing-a-reference-genome">Indexing a reference genome</h2>
 <p>To create an index for two small sequences included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:</p>
-<pre><code>$CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp $CENTRIFUGE_HOME/example/reference/test.fa test</code></pre>
+<pre><code>$CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp --name-table $CENTRIFUGE_HOME/example/reference/names.dmp $CENTRIFUGE_HOME/example/reference/test.fa test</code></pre>
 <p>The command should print many lines of output then quit. When the command completes, the current directory will contain ten new files that all start with <code>test</code> and end with <code>.1.cf</code>, <code>.2.cf</code>, <code>.3.cf</code>. These files constitute the index - you're done!</p>
 <p>You can use <code>centrifuge-build</code> to create an index for a set of FASTA files obtained from any source, including sites such as <a href="http://genome.ucsc.edu/cgi-bin/hgGateway">UCSC</a>, <a href="http://www.ncbi.nlm.nih.gov/sites/genome">NCBI</a>, and <a href="http://www.ensembl.org/">Ensembl</a>. When indexing multiple FASTA files, specify all the files using commas to separate file names. For more details on how to create an index with <code>centrifuge-build</code>, see the <a href="#the-centrifuge-build-indexer">manual section on index building</a>. You may also want to bypass this process by obtaining a pre-built index.</p>
 <h2 id="classifying-example-reads">Classifying example reads</h2>

@@ -878,7 +878,7 @@ Command Line
 
 Usage:
 
-    centrifuge-build [options]* --conversion-table <table_in> --taxonomy-tree <taxonomy_in> <reference_in> <cf_base>
+    centrifuge-build [options]* --conversion-table <table_in> --taxonomy-tree <taxonomy_in> --name-table <table_in2> <reference_in> <cf_base>
 
 ### Main arguments
 
@@ -968,7 +968,17 @@ List of UIDs (unique ID) and corresponding taxonomic IDs.
 
 </td><td>
 
-Taxonomic tree.
+Taxonomic tree (e.g. nodes.dmp).
+
+</td></tr><tr><td id="centrifuge-build-options-name-table">
+
+[`--taxonomy-tree`]: #centrifuge-build-options-name-table
+
+    --name-table <file>
+
+</td><td>
+
+Name table (e.g. names.dmp).
 
 </td></tr><tr><td id="centrifuge-build-options-taxonomy-tree">
 
@@ -1216,7 +1226,17 @@ Print a list of UIDs (unique ID) and corresponding taxonomic IDs.
 
 </td><td>
 
-Print a taxonomic tree.
+Print taxonomic tree.
+
+</td></tr><tr><td id="centrifuge-inspect-options-name-table">
+
+[`--taxonomy-tree`]: #centrifuge-inspect-options-name-table
+
+    --name-table
+
+</td><td>
+
+Print name table.
 
 </td></tr><tr><td id="centrifuge-inspect-options-taxonomy-tree">
 
@@ -1274,7 +1294,7 @@ Indexing a reference genome
 
 To create an index for two small sequences included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:
 
-    $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
+    $CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp --name-table $CENTRIFUGE_HOME/example/reference/names.dmp $CENTRIFUGE_HOME/example/reference/test.fa test
 
 The command should print many lines of output then quit. When the command
 completes, the current directory will contain ten new files that all start with

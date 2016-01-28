@@ -684,19 +684,6 @@ public:
             assert_eq(nref, _uid_to_tid.size());
         }
         
-        _size.clear();
-        uint64_t nsize = readIndex<uint64_t>(in3, this->toBe());
-        if(nsize > 0) {
-            while(!in3.eof()) {
-                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
-                uint64_t size = readIndex<uint64_t>(in3, this->toBe());
-                assert(_size.find(tid) == _size.end());
-                _size[tid] = size;
-                if(_size.size() == nsize)
-                    break;
-            }
-        }
-        
         _tree.clear();
         uint64_t ntid = readIndex<uint64_t>(in3, this->toBe());
         if(ntid > 0) {
@@ -710,6 +697,36 @@ public:
             }
             assert_eq(ntid, _tree.size());
         }
+        
+        _name.clear();
+        uint64_t nname = readIndex<uint64_t>(in3, this->toBe());
+        if(nname > 0) {
+            string name;
+            while(!in3.eof()) {
+                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
+                in3 >> name;
+                in3.seekg(1, ios_base::cur);
+                assert(_name.find(tid) == _name.end());
+                std::replace(name.begin(), name.end(), '@', ' ');
+                _name[tid] = name;
+                if(_name.size() == nname)
+                    break;
+            }
+        }
+        
+        _size.clear();
+        uint64_t nsize = readIndex<uint64_t>(in3, this->toBe());
+        if(nsize > 0) {
+            while(!in3.eof()) {
+                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
+                uint64_t size = readIndex<uint64_t>(in3, this->toBe());
+                assert(_size.find(tid) == _size.end());
+                _size[tid] = size;
+                if(_size.size() == nsize)
+                    break;
+            }
+        }
+        
         in3.close();
 	}
 	
@@ -776,8 +793,9 @@ public:
          EList<RefRecord>& szs,
          index_t sztot,
          const string& conversion_table_fname,
-         const string& size_table_fname,
          const string& taxonomy_fname,
+         const string& name_table_fname,
+         const string& size_table_fname,
          const RefReadInParams& refparams,
          uint32_t seed,
          int32_t overrideOffRate = -1,
@@ -851,8 +869,9 @@ public:
                              bwtOut,
                              file,
                              conversion_table_fname,
-                             size_table_fname,
                              taxonomy_fname,
+                             name_table_fname,
+                             size_table_fname,
 							 useBlockwise,
 							 bmax,
 							 bmaxSqrtMult,
@@ -1111,8 +1130,9 @@ public:
                         ofstream* bwtOut,
                         const string& base_fname,
                         const string& conversion_table_fname,
-                        const string& size_table_fname,
                         const string& taxonomy_fname,
+                        const string& size_table_fname,
+                        const string& name_table_fname,
 	                    bool useBlockwise,
 	                    index_t bmax,
 	                    index_t bmaxSqrtMult,
@@ -1239,50 +1259,8 @@ public:
                 writeIndex<uint64_t>(fout3, 0, this->toBe());
             }
         }
-        
-        {
-            _size.clear();
-            
-            // Calculate contig (or genome) sizes corresponding to each taxonomic ID
-            for(size_t i = 0; i < _refnames.size(); i++) {
-                string uid = get_uid(_refnames[i]);
-                if(uid_to_tid.find(uid) == uid_to_tid.end())
-                    continue;
-                uint64_t tid = uid_to_tid[uid];
-                uint64_t contig_size = plen()[i];
-                if(_size.find(tid) == _size.end()) {
-                    _size[tid] = contig_size;
-                } else {
-                    _size[tid] += contig_size;
-                }
-            }
-            
-            if(size_table_fname != "") {
-                ifstream table_file(size_table_fname.c_str(), ios::in);
-                if(table_file.is_open()) {
-                    while(!table_file.eof()) {
-                        string stid;
-                        table_file >> stid;
-                        if(stid.length() == 0 || stid[0] == '#') continue;
-                        uint64_t tid = get_tid(stid);
-                        uint64_t size;
-                        table_file >> size;
-                        _size[tid] = size;
-                    }
-                    table_file.close();
-                } else {
-                    cerr << "Error: " << size_table_fname << " doesn't exist!" << endl;
-                    throw 1;
-                }
-            }
-            
-            writeIndex<uint64_t>(fout3, _size.size(), this->toBe());
-            for(std::map<uint64_t, uint64_t>::const_iterator itr = _size.begin(); itr != _size.end(); itr++) {
-                writeIndex<uint64_t>(fout3, itr->first, this->toBe());
-                writeIndex<uint64_t>(fout3, itr->second, this->toBe());
-            }
-        }
 
+        // Read taxonomy
         {
             std::map<uint64_t, TaxonomyNode> tree;
             std::set<uint64_t> tree_color;
@@ -1389,6 +1367,89 @@ public:
                 const TaxonomyNode& node = tree[tid];
                 writeIndex<uint64_t>(fout3, node.parent_tid, this->toBe());
                 writeIndex<uint16_t>(fout3, node.rank, this->toBe());
+            }
+        
+            // Read name table
+            _name.clear();
+            if(name_table_fname != "") {
+                ifstream table_file(name_table_fname.c_str(), ios::in);
+                if(table_file.is_open()) {
+                    char line[1024];
+                    while(!table_file.eof()) {
+                        line[0] = 0;
+                        table_file.getline(line, sizeof(line));
+                        if(line[0] == 0 || line[0] == '#') continue;
+                        if(!strstr(line, "scientific name")) continue;
+                        istringstream cline(line);
+                        uint64_t tid;
+                        char dummy;
+                        string scientific_name;
+                        cline >> tid >> dummy >> scientific_name;
+                        if(tree_color.find(tid) == tree_color.end()) continue;
+                        string temp;
+                        while(true) {
+                            cline >> temp;
+                            if(temp == "|") break;
+                            scientific_name.push_back('@');
+                            scientific_name += temp;
+                        }
+                        _name[tid] = scientific_name;
+                    }
+                    table_file.close();
+                } else {
+                    cerr << "Error: " << name_table_fname << " doesn't exist!" << endl;
+                    throw 1;
+                }
+            }
+            
+            writeIndex<uint64_t>(fout3, _name.size(), this->toBe());
+            for(std::map<uint64_t, string>::const_iterator itr = _name.begin(); itr != _name.end(); itr++) {
+                writeIndex<uint64_t>(fout3, itr->first, this->toBe());
+                fout3 << itr->second << endl;
+            }
+        }
+        
+        // Read size table
+        {
+            _size.clear();
+            
+            // Calculate contig (or genome) sizes corresponding to each taxonomic ID
+            for(size_t i = 0; i < _refnames.size(); i++) {
+                string uid = get_uid(_refnames[i]);
+                if(uid_to_tid.find(uid) == uid_to_tid.end())
+                    continue;
+                uint64_t tid = uid_to_tid[uid];
+                uint64_t contig_size = plen()[i];
+                if(_size.find(tid) == _size.end()) {
+                    _size[tid] = contig_size;
+                } else {
+                    _size[tid] += contig_size;
+                }
+            }
+            
+            if(size_table_fname != "") {
+                ifstream table_file(size_table_fname.c_str(), ios::in);
+                if(table_file.is_open()) {
+                    while(!table_file.eof()) {
+                        string stid;
+                        table_file >> stid;
+                        if(stid.length() == 0 || stid[0] == '#') continue;
+                        uint64_t tid = get_tid(stid);
+                        uint64_t size;
+                        table_file >> size;
+                        _size[tid] = size;
+                    }
+                    table_file.close();
+                } else {
+                    cerr << "Error: " << size_table_fname << " doesn't exist!" << endl;
+                    throw 1;
+                }
+            }
+            
+            writeIndex<uint64_t>(fout3, _size.size(), this->toBe());
+            for(std::map<uint64_t, uint64_t>::const_iterator itr = _size.begin(); itr != _size.end(); itr++) {
+                writeIndex<uint64_t>(fout3, itr->first, this->toBe());
+                writeIndex<uint64_t>(fout3, itr->second, this->toBe());
             }
         }
         
@@ -1588,8 +1649,10 @@ public:
 	bool        fw() const           { return fw_; }
     
     const EList<pair<string, uint64_t> >&   uid_to_tid() const { return _uid_to_tid; }
-    const std::map<uint64_t, uint64_t>&     size() const { return _size; }
     const std::map<uint64_t, TaxonomyNode>& tree() const { return _tree; }
+    const std::map<uint64_t, string>&       name() const { return _name; }
+    const std::map<uint64_t, uint64_t>&     size() const { return _size; }
+    
     
 #ifdef POPCNT_CAPABILITY
     bool _usePOPCNTinstruction;
@@ -2934,8 +2997,9 @@ public:
 	bool packed_;
     
     EList<pair<string, uint64_t> >   _uid_to_tid; // table that converts uid to tid
-    std::map<uint64_t, uint64_t>     _size;
     std::map<uint64_t, TaxonomyNode> _tree;
+    std::map<uint64_t, string>       _name;
+    std::map<uint64_t, uint64_t>     _size;
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;
