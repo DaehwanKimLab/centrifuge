@@ -52,10 +52,10 @@
     <table width="100%">
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37.tar.gz"><i>Bacteria, Viruses, and human genome</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37_snp.tar.gz"><i>Bacterial genomes (Compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>8.4 GB</b>
+	  <b>4.2 GB</b>
         </td>
       </tr>
       <tr>
@@ -68,10 +68,10 @@
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37_snp.tar.gz"><i>Bacterial genomes (Compressed)</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37.tar.gz"><i>Bacteria, Viruses, and human genome</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>4.2 GB</b>
+	  <b>8.4 GB</b>
         </td>
       </tr>
     </table>

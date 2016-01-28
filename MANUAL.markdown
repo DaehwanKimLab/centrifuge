@@ -151,8 +151,11 @@ TODO
 Inspecting the database
 -----------------------
 
-The database can be inspected with `centrifuge-inspect`. To extract
-the sequence ID to taxonomy ID conversion table from the database
+The database can be inspected with `centrifuge-inspect`.  To extract raw sequences:
+
+    centrifuge-inspect <centrifuge database>
+
+Extract the sequence ID to taxonomy ID conversion table from the database
 
     centrifuge-inspect --conversion-table <centrifuge database>
 
@@ -160,13 +163,9 @@ Extract the taxonomy tree from the index:
 
     centrifuge-inspect --taxonomy-tree <centrifuge database>
 
-Extract the lengths of the sequences from the index:
+Extract the lengths of the sequences from the index (each row has two columns: taxonomic ID and length):
 
     centrifuge-inspect --size-table <centrifuge database>
-
-Extract raw sequences:
-
-    centrifuge-inspect <centrifuge database>
 
 
 Wrapper
@@ -979,7 +978,7 @@ Taxonomic tree.
 
 </td><td>
 
-Llist of UIDs (unique ID) and lengths of sequences.
+List of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.
 
 </td></tr><tr><td id="centrifuge-build-options-bmax">
 
@@ -1227,7 +1226,7 @@ Print a taxonomic tree.
 
 </td><td>
 
-Print a list of UIDs (unique ID) and lengths of sequences.
+Print a list of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.
 
 </td></tr><tr><td>
 
