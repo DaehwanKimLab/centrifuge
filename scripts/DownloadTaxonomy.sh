@@ -32,12 +32,12 @@ done
 shift $((OPTIND-1))
 
 ## Taxonomy
-if check_or_mkdir "$BASE_DIR"; then
+if check_or_mkdir_no_fail "$BASE_DIR"; then
     cd "$BASE_DIR"
     wget $FTP/pub/taxonomy/taxdump.tar.gz
     tar -zxvf taxdump.tar.gz nodes.dmp
     tar -zxvf taxdump.tar.gz names.dmp
-    rm tardump.tar.gz
+    rm taxdump.tar.gz
     if [[ "$DOWNLOAD_GI_MAP" == "1" ]]; then
         wget $FTP/pub/taxonomy/gi_taxid_nucl.dmp.gz
         gunzip gi_taxid_nucl.dmp.gz
