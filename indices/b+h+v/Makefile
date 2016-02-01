@@ -9,7 +9,7 @@ all: index-build.complete clean
 
 library-download.complete:
 	## Downloading and dusting archaeal, bacterial, and viral genomes
-	../../scripts/DownloadGenomes.sh -d -l library archaea bacteria viruses
+	../../scripts/DownloadGenomes.sh -d -l library archaea bacteria viral
 	## Downloading (and not dusting) human and mouse genomes
 	../../scripts/DownloadGenomes.sh -l library -a 'Chromosome' -t 9606,10090 -c 'reference genome' vertebrate_mammalian
 	## Downloading contaminant sequences
@@ -32,9 +32,9 @@ index-build.complete: input-sequences.fna taxonomy.complete
 
 clean:
 	# Removing input sequences (not needed anymore)
-	rm -rf taxonomy
-	rm -rf library
-	rm input-sequences.fna
+	rm -fr taxonomy
+	rm -fr library
+	rm -f input-sequences.fna
 
 # vim:ft=make
 #

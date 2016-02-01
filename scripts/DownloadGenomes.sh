@@ -17,7 +17,9 @@ function download_n_process() {
     fi
 
     if [[ "$DO_DUST" == "1" ]]; then
-      dustmasker -infmt fasta -in - -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $BASEDIR/$DOMAIN/$NAME
+      ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
+      dustmasker -infmt fasta -in $BASEDIR/$DOMAIN/$NAME -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $BASEDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna
+      rm $BASEDIR/$DOMAIN/$NAME
     fi
 
 }
