@@ -1,24 +1,24 @@
 #!/bin/bash
 
 function check_or_mkdir {
-    echo -n "Creating $1 ... "
+    echo -n "Creating $1 ... " >&2
     if [[ -d $1 && ! -n `find $1 -prune -empty -type d` ]]; then
-        echo "Directory exists - skipping it!"
+        echo "Directory exists - skipping it!" >&2
         return `false`
     else 
-        echo "Done"
+        echo "Done" >&2
         mkdir -p $1
         return `true`
     fi
 }
 
 function check_or_mkdir_no_fail {
-    echo -n "Creating $1 ... "
+    echo -n "Creating $1 ... " >&2
     if [[ -d $1 && ! -n `find $1 -prune -empty -type d` ]]; then
-        echo "Directory exists already! Continuing"
+        echo "Directory exists already! Continuing" >&2
         return `true`
     else 
-        echo "Done"
+        echo "Done" >&2
         mkdir -p $1
         return `true`
     fi
