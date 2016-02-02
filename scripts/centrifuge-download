@@ -1,0 +1,234 @@
+#!/bin/bash
+
+set -eu -o pipefail
+source `dirname $0`/functions.sh
+
+#########################################################
+
+function download_n_process() {
+    IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
+
+    NAME=`basename $FILEPATH .gz`
+    wget --reject="*index.html*" -nc -qO- $FILEPATH | gunzip -c > $LIBDIR/$DOMAIN/$NAME || exit 255
+    if [[ "$CHANGE_HEADER" == "1" ]]; then
+        sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
+    else 
+        sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1 $TAXID/p" $LIBDIR/$DOMAIN/$NAME
+    fi
+
+    if [[ "$DO_DUST" == "1" ]]; then
+      ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
+      dustmasker -infmt fasta -in $LIBDIR/$DOMAIN/$NAME -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna
+      rm $LIBDIR/$DOMAIN/$NAME
+    fi
+
+}
+export -f download_n_process
+
+function count {
+   typeset C=0
+   while read L; do
+      C=$(( C + 1 ))
+      if [ $(( $C % $1 )) -eq 0 ]; then
+         echo $C 1>&2
+      fi
+      echo "$L" >&2
+   done
+}
+
+## Check if GNU parallel exists
+command -v parallel >/dev/null 2>&1 && PARALLEL=1 || PARALLEL=0
+
+
+ALL_GENOMES="bacteria viral archaea fungi protozoa invertebrate plant vertebrate_mammalian vertebrate_other"
+ALL_DATABASES="refseq genbank taxonomy contaminants"
+ALL_ASSEMBLY_LEVELS="Complete\ Genome Chromosome Scaffold Contig"
+
+## Option parsing
+DATABASE="refseq"
+ASSEMBLY_LEVEL="Complete Genome"
+REFSEQ_CATEGORY=""
+TAXID=""
+
+BASE_DIR="."
+N_PROC=1
+CHANGE_HEADER=0
+DOWNLOAD_RNA=0
+DO_DUST=0
+
+USAGE="
+`basename $0` [<options>] <database>
+
+ARGUMENT
+ <database>        One of refseq, genbank, contaminants or taxonomy:
+                     - use refseq or genbank for genomic sequences,
+                     - contaminants gets contaminant sequences from UniVec and EmVec,
+                     - taxonomy for taxonomy mappings.
+
+COMMON OPTIONS
+ -f <directory>         Folder to which the files are downloaded. Default: '$BASE_DIR'.
+                        Sequence files go into <directory>/library, taxonomy goes to <directory>/taxonomy.
+ -P <# of threads>      Number of processes when downloading (uses xargs). Default: '$N_PROC'
+
+WHEN USING database refseq OR genbank:
+ -d <domain>            What domain to download. One or more of ${ALL_GENOMES// /, } (comma separated).
+ -a <assembly level>    Only download genomes with the specified assembly level. Default: '$ASSEMBLY_LEVEL'.
+ -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
+ -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
+ -r                     Download RNA sequences, too.
+ -m                     Mask low-complexity regions using dustmasker. Default: off.
+ -l                     Modify header to include taxonomy ID. Default: off.
+"
+
+# arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
+while getopts "f:P:d:a:c:t:rlm" OPT "$@"; do
+    case $OPT in
+        f) BASE_DIR="$OPTARG" ;;
+        P) N_PROC="$OPTARG" ;;
+        d) DOMAINS=${OPTARG//,/ } ;;
+        a) ASSEMBLY_LEVEL="$OPTARG" ;;
+        c) REFSEQ_CATEGORY="$OPTARG" ;;
+        t) TAXID="$OPTARG" ;;
+        r) DOWNLOAD_RNA=1 ;;
+        m) DO_DUST=1 ;;
+        l) CHANGE_HEADER=1 ;;
+        \?) echo "Invalid option: -$OPTARG" >&2 
+            exit 1 
+        ;;
+        :) echo "Option -$OPTARG requires an argument." >&2
+           exit 1
+        ;;
+    esac
+done
+shift $((OPTIND-1))
+
+[[ $# -eq 1 ]] || { printf "$USAGE" && exit 1; };
+DATABASE=$1
+
+#### TAXONOMY DOWNLOAD
+FTP="ftp://ftp.ncbi.nih.gov"
+DOWNLOAD_GI_MAP=0
+if [[ "$DATABASE" == "taxonomy" ]]; then 
+  echo "Downloading NCBI taxonomy ... " >&2
+  if check_or_mkdir_no_fail "$BASE_DIR/taxonomy"; then
+    cd "$BASE_DIR/taxonomy"
+    wget $FTP/pub/taxonomy/taxdump.tar.gz
+    tar -zxvf taxdump.tar.gz nodes.dmp
+    tar -zxvf taxdump.tar.gz names.dmp
+    rm taxdump.tar.gz
+    if [[ "$DOWNLOAD_GI_MAP" == "1" ]]; then
+        wget $FTP/pub/taxonomy/gi_taxid_nucl.dmp.gz
+        gunzip gi_taxid_nucl.dmp.gz
+    fi
+    cd - > /dev/null
+  fi
+  exit 0
+fi
+
+#### CONTAMINANT SEQ DOWNLOAD
+if [[ "$DATABASE" == "contaminants" ]]; then 
+  echo "Downloading contaminant databases ... " >&2
+  CONTAMINANT_TAXID=32630
+  CONTAMINANT_DIR="$BASE_DIR/library/contaminants"
+  if check_or_mkdir_no_fail "$CONTAMINANT_DIR"; then
+    cd "$CONTAMINANT_DIR"
+
+    # copy contaminant sequences to the library
+    #cp -rv $SCRIPTDIR/contaminants/* .
+
+    # download UniVec and EmVec database to the library
+    wget -nv -O UniVec.fa ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
+    wget -nv ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
+    gunzip -c emvec.dat.gz | \
+        sed -n '/^DE/,/^\/\//p' | \
+        grep -E '^DE|^    '  | sed ':a /^DE/ {N; s/\nDE//; ta; p; d}' | \
+        sed '/^  /s/  *[0-9]*$//g; /^  /s/ //g;s/^DE\s*/>/; /^[^>]/s/.*/\U&/' > EmVec.fa
+ 
+    if [[ "$CHANGE_HEADER" == "1" ]]; then
+        sed -i "s/^>/>kraken:taxid|$CONTAMINANT_TAXID /" UniVec.fa
+        sed -i "s/^>/>kraken:taxid|$CONTAMINANT_TAXID /" EmVec.fa
+    else 
+        sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1\t$CONTAMINANT_TAXID/p" UniVec.fa
+        sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1\t$CONTAMINANT_TAXID/p" EmVec.fa
+    fi
+
+   #sed ':a $!N; s/^>.*\n>/>/; P; D' library/Contaminants/emvec.fa  > library/Contaminants/emvec.fa
+    rm emvec.dat.gz
+
+    cd - > /dev/null
+	exit 0;
+  fi
+fi
+
+
+
+#### REFSEQ/GENBANK DOWNLOAD
+
+export LIBDIR="$BASE_DIR/library"
+export DO_DUST="$DO_DUST"
+export CHANGE_HEADER="$CHANGE_HEADER"
+
+## Fields in the assembly_summary.txt file
+REFSEQ_CAT_FIELD=5
+TAXID_FIELD=6
+SPECIES_TAXID_FIELD=7
+VERSION_STATUS_FIELD=11
+ASSEMBLY_LEVEL_FIELD=12
+FTP_PATH_FIELD=20
+
+AWK_QUERY="\$$ASSEMBLY_LEVEL_FIELD==\"$ASSEMBLY_LEVEL\" && \$$VERSION_STATUS_FIELD==\"latest\""
+[[ "$REFSEQ_CATEGORY" != "" ]] && AWK_QUERY="$AWK_QUERY && \$$REFSEQ_CAT_FIELD==\"$REFSEQ_CATEGORY\""
+
+TAXID=${TAXID//,/|}
+[[ "$TAXID" != "" ]] && AWK_QUERY="$AWK_QUERY && match(\$$TAXID_FIELD,\"^($TAXID)\$\")"
+
+echo "$AWK_QUERY" >&2
+
+echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
+wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
+
+
+if [[ "$CHANGE_HEADER" == "1" ]]; then
+    echo "Modifying header to include taxonomy ID" >&2
+fi
+
+
+for DOMAIN in $DOMAINS; do
+    if [[ ! `grep " $DOMAIN" .listing` ]]; then
+        c_echo "$DOMAIN is not a valid domain - use one of the following:" >&2
+        grep '^d' .listing  | sed 's/.* //'
+        exit 1
+    fi
+    
+    if [[ "$CHANGE_HEADER" != "1" ]]; then
+        echo "Writing taxonomy ID to sequence ID map to STDOUT" >&2
+        #[[ -f "$LIBDIR/$DOMAIN.map" ]] && rm "$LIBDIR/$DOMAIN.map"
+    fi
+
+    export DOMAIN=$DOMAIN
+    check_or_mkdir_no_fail $LIBDIR/$DOMAIN
+
+    FULL_ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary.txt"
+    ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary_filtered.txt"
+
+    echo "Downloading and filtering the assembly_summary.txt file ..." >&2
+    wget -qO- -nc ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE"
+    awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"
+
+    N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
+    [[ $N_EXPECTED -gt 0 ]] || { echo "Domain $DOMAIN has no genomes with specified filter." >&2; exit 1; }
+    echo "Downloading $N_EXPECTED $DOMAIN genomes ... (will take a while)" >&2
+    cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' | \
+       tr '\n' '\0' | xargs --verbose -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _
+
+    #N_GENOMIC=`find $LIBDIR/$DOMAIN -maxdepth 1 -type f -name '*_genomic.fna' | wc -l`
+    #c_echo "$DOMAIN: expected $N_EXPECTED files, downloaded $N_GENOMIC" >&2
+
+    if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
+    	echo "Downloadinging rna sequence files" >&2
+        cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
+            tr '\n' '\0' | xargs --verbose -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _
+        #N_RNA=`find $LIBDIR/$DOMAIN -maxdepth 1 -type f -name '*_rna.fna' | wc -l`
+        #c_echo "$DOMAIN: further downloaded $N_RNA RNAs" >&2
+    fi
+done
