@@ -261,16 +261,35 @@ centrifuge-build --ftabchars 14 -bmax 2147483648 --conversion-table seqid-to-tax
 
 </table>
 
-<h4 id="paired-end-options">Paired-end options</h4>
+<!--
+#### Paired-end options
+
 <table>
 
 <tr><td id="centrifuge-options-fr">
 
-<pre><code>--fr/--rf/--ff</code></pre>
+[`--fr`/`--rf`/`--ff`]: #centrifuge-options-fr
+[`--fr`]: #centrifuge-options-fr
+[`--rf`]: #centrifuge-options-fr
+[`--ff`]: #centrifuge-options-fr
+
+    --fr/--rf/--ff
+
 </td><td>
 
-<p>The upstream/downstream mate orientations for a valid paired-end alignment against the forward reference strand. E.g., if <code>--fr</code> is specified and there is a candidate paired-end alignment where mate 1 appears upstream of the reverse complement of mate 2 and the fragment length constraints ([<code>-I</code>] and <a href="#centrifuge-options-x"><code>-X</code></a>) are met, that alignment is valid. Also, if mate 2 appears upstream of the reverse complement of mate 1 and all other constraints are met, that too is valid. <code>--rf</code> likewise requires that an upstream mate1 be reverse-complemented and a downstream mate2 be forward-oriented. <code>--ff</code> requires both an upstream mate 1 and a downstream mate 2 to be forward-oriented. Default: <code>--fr</code> (appropriate for Illumina's Paired-end Sequencing Assay).</p>
+The upstream/downstream mate orientations for a valid paired-end alignment
+against the forward reference strand.  E.g., if `--fr` is specified and there is
+a candidate paired-end alignment where mate 1 appears upstream of the reverse
+complement of mate 2 and the fragment length constraints ([`-I`] and [`-X`]) are
+met, that alignment is valid.  Also, if mate 2 appears upstream of the reverse
+complement of mate 1 and all other constraints are met, that too is valid.
+`--rf` likewise requires that an upstream mate1 be reverse-complemented and a
+downstream mate2 be forward-oriented. ` --ff` requires both an upstream mate 1
+and a downstream mate 2 to be forward-oriented.  Default: `--fr` (appropriate
+for Illumina's Paired-end Sequencing Assay).
+
 </td></tr></table>
+-->
 
 <h4 id="output-options">Output options</h4>
 <table>
@@ -431,7 +450,7 @@ in the same order as they did in the inputs.
 <pre><code>--reorder</code></pre>
 </td><td>
 
-<p>Guarantees that output SAM records are printed in an order corresponding to the order of the reads in the original input file, even when <a href="#centrifuge-build-options-p"><code>-p</code></a> is set greater than 1. Specifying <code>--reorder</code> and setting <a href="#centrifuge-build-options-p"><code>-p</code></a> greater than 1 causes Centrifuge to run somewhat slower and use somewhat more memory then if <code>--reorder</code> were not specified. Has no effect if <a href="#centrifuge-build-options-p"><code>-p</code></a> is set to 1, since output order will naturally correspond to input order in that case.</p>
+<p>Guarantees that output records are printed in an order corresponding to the order of the reads in the original input file, even when <a href="#centrifuge-build-options-p"><code>-p</code></a> is set greater than 1. Specifying <code>--reorder</code> and setting <a href="#centrifuge-build-options-p"><code>-p</code></a> greater than 1 causes Centrifuge to run somewhat slower and use somewhat more memory then if <code>--reorder</code> were not specified. Has no effect if <a href="#centrifuge-build-options-p"><code>-p</code></a> is set to 1, since output order will naturally correspond to input order in that case.</p>
 </td></tr>
 <tr><td id="centrifuge-options-mm">
 
@@ -462,7 +481,7 @@ in the same order as they did in the inputs.
 <pre><code>--non-deterministic</code></pre>
 </td><td>
 
-<p>Normally, Centrifuge re-initializes its pseudo-random generator for each read. It seeds the generator with a number derived from (a) the read name, (b) the nucleotide sequence, (c) the quality sequence, (d) the value of the <a href="#centrifuge-options-seed"><code>--seed</code></a> option. This means that if two reads are identical (same name, same nucleotides, same qualities) Centrifuge will find and report the same alignment(s) for both, even if there was ambiguity. When <code>--non-deterministic</code> is specified, Centrifuge re-initializes its pseudo-random generator for each read using the current time. This means that Centrifuge will not necessarily report the same alignment for two identical reads. This is counter-intuitive for some users, but might be more appropriate in situations where the input consists of many identical reads.</p>
+<p>Normally, Centrifuge re-initializes its pseudo-random generator for each read. It seeds the generator with a number derived from (a) the read name, (b) the nucleotide sequence, (c) the quality sequence, (d) the value of the <a href="#centrifuge-options-seed"><code>--seed</code></a> option. This means that if two reads are identical (same name, same nucleotides, same qualities) Centrifuge will find and report the same classification(s) for both, even if there was ambiguity. When <code>--non-deterministic</code> is specified, Centrifuge re-initializes its pseudo-random generator for each read using the current time. This means that Centrifuge will not necessarily report the same classification for two identical reads. This is counter-intuitive for some users, but might be more appropriate in situations where the input consists of many identical reads.</p>
 </td></tr>
 <tr><td id="centrifuge-options-version">
 

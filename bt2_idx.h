@@ -550,9 +550,115 @@ enum {
     RANK_VARIETAS,
 };
 
+inline static string get_tax_rank(int rank) {
+    string rank_str;
+    switch(rank) {
+        case RANK_STRAIN:        rank_str = "strain";       break;
+        case RANK_SPECIES:       rank_str = "species";      break;
+        case RANK_GENUS:         rank_str = "genus";        break;
+        case RANK_FAMILY:        rank_str = "family";       break;
+        case RANK_ORDER:         rank_str = "order";        break;
+        case RANK_CLASS:         rank_str = "class";        break;
+        case RANK_PHYLUM:        rank_str = "phylum";       break;
+        case RANK_KINGDOM:       rank_str = "kingdom";      break;
+        case RANK_FORMA:         rank_str = "forma";        break;
+        case RANK_INFRA_CLASS:   rank_str = "infraclass";   break;
+        case RANK_INFRA_ORDER:   rank_str = "infraorder";   break;
+        case RANK_PARV_ORDER:    rank_str = "parvorder";    break;
+        case RANK_SUB_CLASS:     rank_str = "subclass";     break;
+        case RANK_SUB_FAMILY:    rank_str = "subfamily";    break;
+        case RANK_SUB_GENUS:     rank_str = "subgenus";     break;
+        case RANK_SUB_KINGDOM:   rank_str = "subkingdom";   break;
+        case RANK_SUB_ORDER:     rank_str = "suborder";     break;
+        case RANK_SUB_PHYLUM:    rank_str = "subphylum";    break;
+        case RANK_SUB_SPECIES:   rank_str = "subspecies";   break;
+        case RANK_SUB_TRIBE:     rank_str = "subtribe";     break;
+        case RANK_SUPER_CLASS:   rank_str = "superclass";   break;
+        case RANK_SUPER_FAMILY:  rank_str = "superfamily";  break;
+        case RANK_SUPER_KINGDOM: rank_str = "superkingdom"; break;
+        case RANK_SUPER_ORDER:   rank_str = "superorder";   break;
+        case RANK_SUPER_PHYLUM:  rank_str = "superphylum";  break;
+        case RANK_TRIBE:         rank_str = "tribe";        break;
+        case RANK_VARIETAS:      rank_str = "varietas";     break;
+        default:                 rank_str = "no rank";      break;
+    };
+    return rank_str;
+}
+
 struct TaxonomyNode {
     uint64_t parent_tid;
     uint8_t  rank;
+};
+
+struct TaxonomyPathTable {
+    const size_t nranks = 7;
+    
+    map<uint64_t, uint32_t> tid_to_pid;  // from taxonomic ID to path ID
+    ELList<uint64_t> paths;
+    
+    void buildPaths(const EList<pair<string, uint64_t> >& uid_to_tid,
+                    const std::map<uint64_t, TaxonomyNode>& tree)
+    {
+        map<uint32_t, uint32_t> rank_map;
+        rank_map[RANK_STRAIN]      = 0;
+        rank_map[RANK_SUB_SPECIES] = 0;
+        rank_map[RANK_SPECIES]     = 1;
+        rank_map[RANK_GENUS]       = 2;
+        rank_map[RANK_FAMILY]      = 3;
+        rank_map[RANK_ORDER]       = 4;
+        rank_map[RANK_CLASS]       = 5;
+        rank_map[RANK_PHYLUM]     = 6;
+        
+        tid_to_pid.clear();
+        paths.clear();
+        for(size_t i = 0; i < uid_to_tid.size(); i++) {
+            uint64_t tid = uid_to_tid[i].second;
+            if(tid_to_pid.find(tid) != tid_to_pid.end())
+                continue;
+            if(tree.find(tid) == tree.end())
+                continue;
+            
+            tid_to_pid[tid] = (uint32_t)paths.size();
+            paths.expand();
+            EList<uint64_t>& path = paths.back();
+            path.resizeExact(nranks);
+            path.fillZero();
+            bool first = true;
+            while(true) {
+                std::map<uint64_t, TaxonomyNode>::const_iterator itr = tree.find(tid);
+                if(itr == tree.end()) {
+                    break;
+                }
+                const TaxonomyNode& node = itr->second;
+                uint32_t rank = std::numeric_limits<uint32_t>::max();
+                if(first && node.rank == RANK_UNKNOWN) {
+                    rank = rank_map[RANK_STRAIN];
+                } else if(rank_map.find(node.rank) != rank_map.end()) {
+                    rank = rank_map[node.rank];
+                }
+                if(rank < path.size()) {
+                    path[rank] = tid;
+                }
+
+                first = false;
+                if(node.parent_tid == tid) {
+                    break;
+                }
+                tid = node.parent_tid;
+            }
+        }
+    }
+    
+    void getPath(uint64_t tid, EList<uint64_t>& path) const {
+        map<uint64_t, uint32_t>::const_iterator itr = tid_to_pid.find(tid);
+        if(itr != tid_to_pid.end()) {
+            uint32_t pid = itr->second;
+            assert_lt(pid, paths.size());
+            path = paths[pid];
+        } else {
+            path.clear();
+        }
+    }
 };
 
 /**
@@ -726,6 +832,8 @@ public:
                     break;
             }
         }
+        
+        _paths.buildPaths(_uid_to_tid, _tree);
         
         in3.close();
 	}
@@ -1650,6 +1758,7 @@ public:
     
     const EList<pair<string, uint64_t> >&   uid_to_tid() const { return _uid_to_tid; }
     const std::map<uint64_t, TaxonomyNode>& tree() const { return _tree; }
+    const TaxonomyPathTable&                paths() const { return _paths; }
     const std::map<uint64_t, string>&       name() const { return _name; }
     const std::map<uint64_t, uint64_t>&     size() const { return _size; }
     
@@ -2998,6 +3107,7 @@ public:
     
     EList<pair<string, uint64_t> >   _uid_to_tid; // table that converts uid to tid
     std::map<uint64_t, TaxonomyNode> _tree;
+    TaxonomyPathTable                _paths;
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
 

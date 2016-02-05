@@ -355,9 +355,7 @@ static void print_index_summary(
 	ostream& fout)
 {
 	int32_t flags = Ebwt<index_t>::readFlags(fname);
-	int32_t flagsr = Ebwt<index_t>::readFlags(fname + ".rev");
 	bool color = readEbwtColor(fname);
-	bool entireReverse = readEntireReverse(fname + ".rev");
 	Ebwt<index_t> ebwt(
 					   fname,
 					   color,                // index is colorspace
@@ -379,9 +377,6 @@ static void print_index_summary(
 	EList<string> p_refnames;
 	readEbwtRefnames<index_t>(fname, p_refnames);
 	cout << "Flags" << '\t' << (-flags) << endl;
-	cout << "Reverse flags" << '\t' << (-flagsr) << endl;
-	cout << "Colorspace" << '\t' << (color ? "1" : "0") << endl;
-	cout << "2.0-compatible" << '\t' << (entireReverse ? "1" : "0") << endl;
 	cout << "SA-Sample" << "\t1 in " << (1 << ebwt.eh().offRate()) << endl;
 	cout << "FTab-Chars" << '\t' << ebwt.eh().ftabChars() << endl;
 	assert_eq(ebwt.nPat(), p_refnames.size());
@@ -445,37 +440,7 @@ static void driver(
         } else if(taxonomy_tree) {
             const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
             for(map<uint64_t, TaxonomyNode>::const_iterator itr = tree.begin(); itr != tree.end(); itr++) {
-                string rank;
-                switch(itr->second.rank) {
-                    case RANK_STRAIN:        rank = "strain";       break;
-                    case RANK_SPECIES:       rank = "species";      break;
-                    case RANK_GENUS:         rank = "genus";        break;
-                    case RANK_FAMILY:        rank = "family";       break;
-                    case RANK_ORDER:         rank = "order";        break;
-                    case RANK_CLASS:         rank = "class";        break;
-                    case RANK_PHYLUM:        rank = "phylum";       break;
-                    case RANK_KINGDOM:       rank = "kingdom";      break;
-                    case RANK_FORMA:         rank = "forma";        break;
-                    case RANK_INFRA_CLASS:   rank = "infraclass";   break;
-                    case RANK_INFRA_ORDER:   rank = "infraorder";   break;
-                    case RANK_PARV_ORDER:    rank = "parvorder";    break;
-                    case RANK_SUB_CLASS:     rank = "subclass";     break;
-                    case RANK_SUB_FAMILY:    rank = "subfamily";    break;
-                    case RANK_SUB_GENUS:     rank = "subgenus";     break;
-                    case RANK_SUB_KINGDOM:   rank = "subkingdom";   break;
-                    case RANK_SUB_ORDER:     rank = "suborder";     break;
-                    case RANK_SUB_PHYLUM:    rank = "subphylum";    break;
-                    case RANK_SUB_SPECIES:   rank = "subspecies";   break;
-                    case RANK_SUB_TRIBE:     rank = "subtribe";     break;
-                    case RANK_SUPER_CLASS:   rank = "superclass";   break;
-                    case RANK_SUPER_FAMILY:  rank = "superfamily";  break;
-                    case RANK_SUPER_KINGDOM: rank = "superkingdom"; break;
-                    case RANK_SUPER_ORDER:   rank = "superorder";   break;
-                    case RANK_SUPER_PHYLUM:  rank = "superphylum";  break;
-                    case RANK_TRIBE:         rank = "tribe";        break;
-                    case RANK_VARIETAS:      rank = "varietas";     break;
-                    default:                 rank = "no rank";      break;
-                };
+                string rank = get_tax_rank(itr->second.rank);
                 cout << itr->first << "\t|\t" << itr->second.parent_tid << "\t|\t" << rank << endl;
             }
         } else if(name_table) {

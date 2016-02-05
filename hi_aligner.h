@@ -113,7 +113,7 @@ struct BWTHit {
     }
     
     index_t len() const {
-        assert_gt(_len, 0);
+        // assert_gt(_len, 0);
         return _len;
     }
 	
@@ -813,9 +813,7 @@ public:
                          size_t&                 mineFw,  // minimum # edits for forward read
                          size_t&                 mineRc,  // minimum # edits for revcomp read
                          ReadBWTHit<index_t>&    hit,     // holds all the seed hits (and exact hit)
-                         RandomSource&           rnd,
-                         bool&                   pseudogeneStop,  // stop if mapped to multiple locations due to processed pseudogenes
-                         bool&                   anchorStop);
+                         RandomSource&           rnd);
     
 protected:
   
@@ -911,12 +909,9 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
                                                          size_t&                   mineFw,  // minimum # edits for forward read
                                                          size_t&                   mineRc,  // minimum # edits for revcomp read
                                                          ReadBWTHit<index_t>&      hit,     // holds all the seed hits (and exact hit)
-                                                         RandomSource&             rnd,     // pseudo-random source
-                                                         bool&                     pseudogeneStop,
-                                                         bool&                     anchorStop)
+                                                         RandomSource&             rnd)     // pseudo-random source
+
 {
-    bool pseudogeneStop_ = pseudogeneStop, anchorStop_ = anchorStop;
-    pseudogeneStop = anchorStop = false;
 	const index_t ftabLen = ebwt.eh().ftabChars();
 	SideLocus<index_t> tloc, bloc;
 	const index_t len = (index_t)read.length();
@@ -981,7 +976,6 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
         }
         return 0;
     }
-    index_t same_range = 0, similar_range = 0;
     HIER_INIT_LOCS(top, bot, tloc, bloc, ebwt);
     // Keep going
     while(dep < len) {
@@ -1006,51 +1000,9 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
         if(botTemp <= topTemp) {
             break;
         }
-
-        if(pseudogeneStop_) {
-            if(botTemp - topTemp < bot - top && bot - top <= 5) {
-                static const index_t minLenForPseudogene = _minK + 6;
-                if(dep - offset >= minLenForPseudogene && similar_range >= 5) {
-                    hit._numUniqueSearch++;
-                    pseudogeneStop = true;
-                    break;
-                }
-            }
-            if(botTemp - topTemp != 1) {
-                if(botTemp - topTemp + 2 >= bot - top) similar_range++;
-                else if(botTemp - topTemp + 4 < bot - top) similar_range = 0;
-            } else {
-                pseudogeneStop_ = false;
-            }
-        }
-        
-        if(anchorStop_) {
-            if(botTemp - topTemp != 1 && bot - top == botTemp - topTemp) {
-                same_range++;
-                if(same_range >= 5) {
-                    anchorStop_ = false;
-                }
-            } else {
-                same_range = 0;
-            }
-        
-            if(dep - offset >= _minK + 8 && botTemp - topTemp >= 4) {
-                anchorStop_ = false;
-            }
-        }
-        
         top = topTemp;
         bot = botTemp;
         dep++;
-
-        if(anchorStop_) {
-            if(dep - offset >= _minK + 12 && bot - top == 1) {
-                hit._numUniqueSearch++;
-                anchorStop = true;
-                break;
-            }
-        }
-        
         HIER_INIT_LOCS(top, bot, tloc, bloc, ebwt);
     }
     
@@ -1061,8 +1013,6 @@ size_t HI_Aligner<index_t, local_index_t>::partialSearch(
         assert_leq(dep, len);
         partialHits.expand();
         index_t hit_type = CANDIDATE_HIT;
-        if(anchorStop) hit_type = ANCHOR_HIT;
-        else if(pseudogeneStop) hit_type = PSEUDOGENE_HIT;
         partialHits.back().init(top,
                                 bot,
                                 fw,

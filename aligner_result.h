@@ -214,6 +214,7 @@ public:
     AlnRes(const AlnRes& other)
     {
         score_ = other.score_;
+        max_score_ = other.max_score_;
         uid_ = other.uid_;
         tid_ = other.tid_;
         summedHitLen_ = other.summedHitLen_;
@@ -224,6 +225,7 @@ public:
     AlnRes& operator=(const AlnRes& other) {
         if(this == &other) return *this;
         score_ = other.score_;
+        max_score_ = other.max_score_;
         uid_ = other.uid_;
         tid_ = other.tid_;
         summedHitLen_ = other.summedHitLen_;
@@ -238,7 +240,8 @@ public:
 	 * Clear all contents.
 	 */
 	void reset() {
-        score_.invalidate();
+        score_ = 0;
+        max_score_ = 0;
         uid_ = "";
         tid_ = 0;
         summedHitLen_ = 0.0;
@@ -248,11 +251,12 @@ public:
 	/**
 	 * Set alignment score for this alignment.
 	 */
-	void setScore(AlnScore score) {
+	void setScore(TAlScore score) {
 		score_ = score;
 	}
 
-	AlnScore           score()          const { return score_;     }
+	TAlScore           score()          const { return score_;     }
+    TAlScore           max_score()      const { return max_score_; }
     string             uid()            const { return uid_;   }
     uint64_t           taxID()          const { return tid_;   }
     double             summedHitLen()   const { return summedHitLen_; }
@@ -313,7 +317,8 @@ public:
 	 * Initialize new AlnRes.
 	 */
 	void init(
-              AlnScore score,           // alignment score
+              TAlScore score,           // alignment score
+              TAlScore max_score,
               const string& uniqueID,
               uint64_t taxID,
 			  double summedHitLen,
@@ -321,6 +326,7 @@ public:
 			  bool isFw)
     {
         score_  = score;
+        max_score_ = max_score;
         uid_ = uniqueID;
         tid_ = taxID;
         summedHitLen_ = summedHitLen;
@@ -329,7 +335,8 @@ public:
     }
 
 protected:
-	AlnScore     score_;        // best SW score found
+	TAlScore     score_;        //
+    TAlScore     max_score_;
     string       uid_;
     uint64_t     tid_;
     double       summedHitLen_; // sum of the length of all partial hits, divided by the number of genome matches

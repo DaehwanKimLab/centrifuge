@@ -499,6 +499,7 @@ paired-end configurations corresponding to fragments from the reverse-complement
 
 </table>
 
+<!--
 #### Paired-end options
 
 <table>
@@ -526,6 +527,7 @@ and a downstream mate 2 to be forward-oriented.  Default: `--fr` (appropriate
 for Illumina's Paired-end Sequencing Assay).
 
 </td></tr></table>
+-->
 
 #### Output options
 
@@ -742,7 +744,7 @@ not specified at build time).
 
 </td><td>
 
-Guarantees that output SAM records are printed in an order corresponding to the
+Guarantees that output records are printed in an order corresponding to the
 order of the reads in the original input file, even when [`-p`] is set greater
 than 1.  Specifying `--reorder` and setting [`-p`] greater than 1 causes Centrifuge
 to run somewhat slower and use somewhat more memory then if `--reorder` were
@@ -804,11 +806,11 @@ Normally, Centrifuge re-initializes its pseudo-random generator for each read.  
 seeds the generator with a number derived from (a) the read name, (b) the
 nucleotide sequence, (c) the quality sequence, (d) the value of the [`--seed`]
 option.  This means that if two reads are identical (same name, same
-nucleotides, same qualities) Centrifuge will find and report the same alignment(s)
+nucleotides, same qualities) Centrifuge will find and report the same classification(s)
 for both, even if there was ambiguity.  When `--non-deterministic` is specified,
 Centrifuge re-initializes its pseudo-random generator for each read using the
 current time.  This means that Centrifuge will not necessarily report the same
-alignment for two identical reads.  This is counter-intuitive for some users,
+classification for two identical reads.  This is counter-intuitive for some users,
 but might be more appropriate in situations where the input consists of many
 identical reads.
 

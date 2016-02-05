@@ -29,6 +29,7 @@
 #include "outq.h"
 #include "aligner_result.h"
 #include "hyperloglogplus.h"
+#include "timer.h"
 
 
 // Forward decl
@@ -63,6 +64,14 @@ struct SpeciesMetrics {
                 if(ids[i] != o.ids[i]) return ids[i] < o.ids[i];
             }
             return false;
+        }
+        
+        IDs& operator=(const IDs& other) {
+            if(this == &other)
+                return *this;
+            
+            ids = other.ids;
+            return *this;
         }
     };
 
@@ -129,27 +138,32 @@ struct SpeciesMetrics {
 
 	void addSpeciesCounts(
                           uint64_t taxID,
-                          uint32_t score,
+                          int64_t score,
+                          int64_t max_score,
                           double summed_hit_len,
                           double weighted_read,
-                          uint32_t nresult) {
+                          uint32_t nresult)
+    {
 		species_counts[taxID].n_reads += 1;
-		species_counts[taxID].sum_score += score;
+		species_counts[taxID].sum_score += 1;
 		species_counts[taxID].weighted_reads += weighted_read;
 		species_counts[taxID].summed_hit_len += summed_hit_len;
 		if(nresult == 1) {
 			species_counts[taxID].n_unique_reads += 1;
 		}
-        
-        cur_ids.ids.push_back(taxID);
-        if(cur_ids.ids.size() == nresult) {
-            cur_ids.ids.sort();
-            if(observed.find(cur_ids) == observed.end()) {
-                observed[cur_ids] = 1;
-            } else {
-                observed[cur_ids] += 1;
+
+        // Only consider good hits for abundance analysis
+        if(score >= max_score) {
+            cur_ids.ids.push_back(taxID);
+            if(cur_ids.ids.size() == nresult) {
+                cur_ids.ids.sort();
+                if(observed.find(cur_ids) == observed.end()) {
+                    observed[cur_ids] = 1;
+                } else {
+                    observed[cur_ids] += 1;
+                }
+                cur_ids.ids.clear();
             }
-            cur_ids.ids.clear();
         }
 	}
 
@@ -188,7 +202,7 @@ struct SpeciesMetrics {
             }
         }
         
-        map<uint64_t, uint64_t> id_to_num; // species id to corresponding element of a list
+        map<uint64_t, uint64_t> id_to_num; // id to corresponding element of a list
         EList<double> p;
         for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
             const IDs& ids = itr->first;
@@ -215,12 +229,14 @@ struct SpeciesMetrics {
                 p[i] /= sum;
             }
         }
-
+        
         EList<double> p_next;
         p_next.resizeExact(p.size());
         size_t num_iteration = 0;
+        double diff = 0.0;
         while(true) {
             // E step
+            p_next.fill(0.0);
             for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
                 const EList<uint64_t, 5>& ids = itr->first.ids;
                 uint64_t count = itr->second;
@@ -249,14 +265,23 @@ struct SpeciesMetrics {
                 p_next[i] /= sum;
             }
             
-            double diff = 0.0;
+            diff = 0.0;
             for(size_t i = 0; i < p.size(); i++) {
                 diff += (p[i] > p_next[i] ? p[i] - p_next[i] : p_next[i] - p[i]);
             }
+            // daehwan - for debugging purposes
+#if 1
+            if(diff < 0.0000000001) break;
+            if(++num_iteration >= 10000) break;
+#else
             if(diff < 0.00001) break;
-            if(++num_iteration > 1000) break;
+            if(++num_iteration >= 1000) break;
+#endif
             p = p_next;
         }
+        
+        cerr << "Number of iterations in EM algorithm: " << num_iteration << endl;
+        cerr << "Probability diff. (P - P_prev) in the last iteration: " << diff << endl;
         
         EList<double>& p_len = p_next;
         // Calculate abundance without genome size taken into account
@@ -377,7 +402,8 @@ struct ReportingParams {
 	void init(
 		THitInt khits_)
 	{
-		khits   = khits_;     // -k (or high if -a)
+		khits = khits_;     // -k (or high if -a)
+        ihits = khits * 2;
 	}
 	
 #ifndef NDEBUG
@@ -394,8 +420,11 @@ struct ReportingParams {
 		return khits;
 	}
 
-	// Number of alignments to report
+	// Number of assignments to report
 	THitInt khits;
+    
+    // Number of internal assignments
+    THitInt ihits;
 };
 
 /**
@@ -1623,7 +1652,7 @@ bool AlnSinkWrap<index_t>::report(int stage,
     rs_.push_back(*rs);
 
 	// Tally overall alignment score
-	TAlScore score = rs->score().score();
+	TAlScore score = rs->score();
 	// Update best score so far
     if(score > bestPair_) {
         best2Pair_ = bestPair_;
@@ -1668,7 +1697,7 @@ const
 	buf.resize(sz);
 	// Sort by score.  If reads are pairs, sort by sum of mate scores.
 	for(size_t i = 0; i < sz; i++) {
-        buf[i].first = (*rs)[i].score().score();
+        buf[i].first = (*rs)[i].score();
 		buf[i].second = i; // original offset
 	}
 	buf.sort(); buf.reverse(); // sort in descending order by score
@@ -1994,9 +2023,16 @@ void AlnSinkSam<index_t>::appendMate(
 	char buf[1024];
 
     // QNAME
-    for(size_t i = 0; i < rd.name.length(); i++) {
+    size_t namelen = rd.name.length();
+    if(namelen >= 2 &&
+       rd.name[namelen-2] == '/' &&
+       (rd.name[namelen-1] == '1' || rd.name[namelen-1] == '2' || rd.name[namelen-1] == '3'))
+    {
+        namelen -= 2;
+    }
+    for(size_t i = 0; i < namelen; i++) {
         if(isspace(rd.name[i])) {
-            break;
+            return;
         }
         o.append(rd.name[i]);
     }
@@ -2004,7 +2040,8 @@ void AlnSinkSam<index_t>::appendMate(
 
 	sm.addSpeciesCounts(
                         rs->taxID(),
-                        1,
+                        rs->score(),
+                        rs->max_score(),
                         rs->summedHitLen(),
                         1.0 / n_results,
                         (uint32_t)n_results);
@@ -2039,7 +2076,7 @@ void AlnSinkSam<index_t>::appendMate(
     o.append('\t');
     
     // score
-    itoa10<int64_t>(rs->score().score(), buf);
+    itoa10<int64_t>(rs->score(), buf);
     o.append(buf);
     o.append('\t');
     

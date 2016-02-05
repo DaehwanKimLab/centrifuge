@@ -2236,6 +2236,8 @@ static void multiseedSearchWorker(void *vp) {
                                                   ebwtFw,
                                                   multiseed_refnames,
                                                   hostGenomes,
+                                                  gMate1fw,
+                                                  gMate2fw,
                                                   minHitLen);
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
@@ -2925,35 +2927,51 @@ static void driver(
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics& spm = metrics.spmu;
             if(abundance_analysis) {
+                Timer timer(cerr, "Calculating abundance: ");
                 spm.calculateAbundance(ebwt);
             }
-            map<uint64_t, double>& abundance = spm.abundance;
-            map<uint64_t, double>& abundance_len = spm.abundance_len;
-			reportOfb << "name" << '\t' << "taxid" << '\t' << "n_genomes" << '\t'
-					  << "idx_size" << '\t'  << "avg_genome_size" << '\t'
-					  << "n_reads" << '\t' << "n_unique_reads" << '\t'
-					  << "summed_hit_len" << '\t'
-					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << '\t'
+            const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+            const std::map<uint64_t, string>& name_map = ebwt.name();
+            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
+            const map<uint64_t, double>& abundance = spm.abundance;
+            const map<uint64_t, double>& abundance_len = spm.abundance_len;
+			reportOfb << "name" << '\t' << "taxid" << '\t' << "taxrank" << '\t'
+					  << "genome_size" << '\t' << "n_reads" << '\t' << "n_unique_reads" << '\t'
+					  << "summed_hit_len" << '\t' << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << '\t'
                       << "abundance" << '\t' << "abundance_normalized_by_genome_size" << endl;
-			for(map<uint64_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
-				uint64_t taxid = it->first;
-
-				// extract name, average genome size, and number of genomes from istringstream
-                reportOfb << "name" << '\t' << taxid;
-                if(taxid && false) {
-                    reportOfb << "." << taxid;
+			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
+                uint64_t taxid = it->first;
+                std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
+                if(name_itr != name_map.end()) {
+                    reportOfb << name_itr->second;
+                } else {
+                    reportOfb << taxid;
                 }
-                reportOfb << '\t'  << "n_genomes" << '\t'
-						  << "genome_size" << '\t' << "avg_size" << '\t'
+                reportOfb << '\t' << taxid << '\t';
+                uint8_t rank = 0;
+                std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
+                if(tree_itr != tree.end()) {
+                    rank = tree_itr->second.rank;
+                }
+                string rank_str = get_tax_rank(rank);
+                reportOfb << rank_str << '\t';
+                
+                std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
+                uint64_t genome_size = 0;
+                if(size_itr != size_map.end()) {
+                    genome_size = size_itr->second;
+                }
+                
+                reportOfb << genome_size << '\t'
 						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t'
 						  << it->second.summed_hit_len << '\t'
 						  << it->second.weighted_reads << '\t'
                           << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
-                if(abundance_analysis) {
-                    assert(abundance.find(taxid) != abundance.end());
-                    assert(abundance_len.find(taxid) != abundance_len.end());
-                    reportOfb << abundance[taxid] << '\t'
-                              << abundance_len[taxid];
+                
+                map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
+                map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
+                if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
+                    reportOfb << ab_itr->second << '\t' << ab_len_itr->second;
                 } else {
                     reportOfb << "0\t0";
                 }
