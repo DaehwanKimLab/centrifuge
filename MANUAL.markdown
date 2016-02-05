@@ -109,12 +109,30 @@ nodes.dmp file from the NCBI taxonomy dump to build the taxonomy tree,
 as well as a sequence ID to taxonomy ID map. The map is a tab-separated
 file with the sequence ID to taxonomy ID map.
 
-### Getting taxonomy
+To download all complete archaeal, viral and bacterial genomes from RefSeq, and
+build the index
 
-    mkdir taxonomy && cd taxonomy
-    wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
-    tar xvvf taxdump.tar.gz
-    cd ..
+    ## download nodes.dmp and names.dmp to taxonomy/
+    centrifuge-download taxonomy
+    ## download all archaeal, viral and bacterial genomes from RefSeq to library/. Also, dust them.
+    centrifuge-download -m -d "archaea,bacteria,viral" -P $(THREADS) refseq > microbial_seqid2taxid.map
+    ## concatenate all the downloaded sequences to build the index
+    cat library/*/*.fna > input-sequences.fna
+    ## build centrifuge index with 5 threads
+    centrifuge-build -p 5 --conversion-table microbial_seqid2taxid.map \
+      --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+      input-sequences.fna a+b+v
+
+After the index building, all files but the *.[123].cf files may be removed.
+If you also want to include the human and/or the mouse genome, add their sequences to 
+the library folder before index building with one of the following commands:
+
+    ## download mouse and human reference genomes
+    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome'
+    ## only human
+    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome'
+    ## only mouse
+    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome'
 
 ### nt database
 
@@ -132,15 +150,6 @@ map that can be generated from a GI taxid dump:
 
     # build index using 16 cores and a small bucket size, which will require less memory
     centrifuge-build -p 16 --bmax 1342177280 --conversion-table gi_taxid_nucl.map --taxonomy-tree taxonomy/nodes.dmp nt.fa nt
-
-### Refseq database
-
-TODO
-
-    scripts/DownloadTaxonomy.sh -l taxonomy
-    scripts/DownloadGenomes.sh -g refseq -a 'Complete Genome' -l library bacteria archaea viral
-
-    centrifuge-build --ftabchars 14 -bmax 2147483648 --conversion-table seqid-to-taxid.map --taxonomy-tree nodes.dmp sequences.fa 
 
 
 Reporting

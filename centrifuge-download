@@ -1,15 +1,16 @@
 #!/bin/bash
 
 set -eu -o pipefail
-source `dirname $0`/functions.sh
 
 #########################################################
+## Functions
 
 function download_n_process() {
     IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
 
     NAME=`basename $FILEPATH .gz`
-    wget --reject="*index.html*" -nc -qO- $FILEPATH | gunzip -c > $LIBDIR/$DOMAIN/$NAME || exit 255
+    wget --reject="*index.html*" -nc -qO "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 255; }
+    gunzip "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
     if [[ "$CHANGE_HEADER" == "1" ]]; then
         sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
     else 
@@ -21,20 +22,53 @@ function download_n_process() {
       dustmasker -infmt fasta -in $LIBDIR/$DOMAIN/$NAME -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna
       rm $LIBDIR/$DOMAIN/$NAME
     fi
-
+    echo done
 }
 export -f download_n_process
+
+ceol=`tput el` # terminfo clr_eol
 
 function count {
    typeset C=0
    while read L; do
-      C=$(( C + 1 ))
-      if [ $(( $C % $1 )) -eq 0 ]; then
-         echo $C 1>&2
+      if [[ "$L" == "done" ]]; then
+        C=$(( C + 1 ))
+        _progress=$(( (${C}*100/${1}*100)/100 ))
+        _done=$(( (${_progress}*4)/10 ))
+        _left=$(( 40-$_done ))
+        # Build progressbar string lengths
+        _done=$(printf "%${_done}s")
+        _left=$(printf "%${_left}s")
+
+        printf "\rProgress : [${_done// /#}${_left// /-}] ${_progress}%% $C/$1"  1>&2
+      else
+        echo "$L"
       fi
-      echo "$L" >&2
    done
 }
+
+function check_or_mkdir_no_fail {
+    echo -n "Creating $1 ... " >&2
+    if [[ -d $1 && ! -n `find $1 -prune -empty -type d` ]]; then
+        echo "Directory exists already! Continuing" >&2
+        return `true`
+    else 
+        echo "Done" >&2
+        mkdir -p $1
+        return `true`
+    fi
+}
+
+function validate_url(){
+  if [[ `wget --reject="index.html*" -S --spider $1  2>&1 | egrep 'HTTP/1.1 200 OK|File .* exists.'` ]]; then echo "true"; fi
+}
+export -f validate_url
+
+function c_echo() {
+        printf "\033[34m$*\033[0m\n"
+}
+
+
 
 ## Check if GNU parallel exists
 command -v parallel >/dev/null 2>&1 && PARALLEL=1 || PARALLEL=0
@@ -102,7 +136,7 @@ while getopts "f:P:d:a:c:t:rlm" OPT "$@"; do
 done
 shift $((OPTIND-1))
 
-[[ $# -eq 1 ]] || { printf "$USAGE" && exit 1; };
+[[ $# -eq 1 ]] || { printf "$USAGE" >&2 && exit 1; };
 DATABASE=$1
 
 #### TAXONOMY DOWNLOAD
@@ -218,17 +252,14 @@ for DOMAIN in $DOMAINS; do
     N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
     [[ $N_EXPECTED -gt 0 ]] || { echo "Domain $DOMAIN has no genomes with specified filter." >&2; exit 1; }
     echo "Downloading $N_EXPECTED $DOMAIN genomes ... (will take a while)" >&2
-    cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' | \
-       tr '\n' '\0' | xargs --verbose -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _
-
-    #N_GENOMIC=`find $LIBDIR/$DOMAIN -maxdepth 1 -type f -name '*_genomic.fna' | wc -l`
-    #c_echo "$DOMAIN: expected $N_EXPECTED files, downloaded $N_GENOMIC" >&2
+    cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+       tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _ | count $N_EXPECTED
+    echo >&2
 
     if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
     	echo "Downloadinging rna sequence files" >&2
         cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
-            tr '\n' '\0' | xargs --verbose -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _
-        #N_RNA=`find $LIBDIR/$DOMAIN -maxdepth 1 -type f -name '*_rna.fna' | wc -l`
-        #c_echo "$DOMAIN: further downloaded $N_RNA RNAs" >&2
+            tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _ | count $N_EXPECTED
+        echo >&2
     fi
 done
