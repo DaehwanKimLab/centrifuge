@@ -198,13 +198,13 @@ if ( $noCompress == 1 )
 # Remove the Ns from the file
 	if ( $noDustmasker == 1 )
 	{
-		system_call("$bssPath/RemoveN tmp_output.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
+		system_call("$bssPath/centrifuge-RemoveN tmp_output.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 	}
 	else
 	{
-		system_call("$bssPath/RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
+		system_call("$bssPath/centrifuge-RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
 		system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
-		system_call("$bssPath/RemoveN tmp_output_dustmasker.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
+		system_call("$bssPath/centrifuge-RemoveN tmp_output_dustmasker.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 	}
 }
 
@@ -547,13 +547,13 @@ foreach $i ( keys %fileUsed )
 # Remove the Ns from the file
 if ( $noDustmasker == 1 )
 {
-	system_call("$bssPath/RemoveN tmp_output.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
+	system_call("$bssPath/centrifuge-RemoveN tmp_output.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 }
 else
 {
-	system_call("$bssPath/RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
+	system_call("$bssPath/centrifuge-RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
 	system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
-	system_call("$bssPath/RemoveN tmp_output_dustmasker.fa | perl $bssPath/RemoveEmptySequence.pl > $output.fa") ;
+	system_call("$bssPath/centrifuge-RemoveN tmp_output_dustmasker.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 }
 
 # Output the mapping of the ids to species
