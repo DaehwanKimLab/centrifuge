@@ -1221,7 +1221,10 @@ public:
                     uint64_t tid = get_tid(stid);
                     if(uids.find(uid) == uids.end()) continue;
                     if(uid_to_tid.find(uid) != uid_to_tid.end()) {
-                        cerr << "Warning: " << uid << " already exists!" << endl;
+						if (uid_to_tid.find(uid) != tid) {
+							cerr << "Warning: Diverging taxonomy IDs for " << uid << " in " << conversion_table_fname << ": " 
+								uid_to_tid.find(uid) << " and " tid << ". Taking first. " << endl;
+						}
                         continue;
                     }
                     uid_to_tid[uid] = tid;
