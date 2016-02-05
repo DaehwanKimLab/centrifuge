@@ -84,7 +84,7 @@ Adding to PATH
 --------------
 
 By adding your new Centrifuge directory to your [PATH environment variable], you
-ensure that whenever you run `centrifuge`, `centrifuge-build` or `centrifuge-inspect`
+ensure that whenever you run `centrifuge`, `centrifuge-build`, `centrifuge-download` or `centrifuge-inspect`
 from the command line, you will get the version you just installed without
 having to specify the entire path.  This is recommended for most users.  To do
 this, follow your operating system's instructions for adding the directory to
@@ -92,14 +92,14 @@ your [PATH].
 
 If you would like to install Centrifuge by copying the Centrifuge executable files
 to an existing directory in your [PATH], make sure that you copy all the
-executables, including `centrifuge`, `centrifuge-class`, `centrifuge-build`, `centrifuge-build-bin`, `centrifuge-inspect`
-and `centrifuge-inspect-bin`. Furthermore you need the files
-in the scripts/ folder for genome downloading and compression.
+executables, including `centrifuge`, `centrifuge-class`, `centrifuge-build`, `centrifuge-build-bin`, `centrifuge-download` `centrifuge-inspect`
+and `centrifuge-inspect-bin`. Furthermore you need the programs
+in the scripts/ folder if you opt for genome compression in the database construction.
 
 [PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
 [PATH]: http://en.wikipedia.org/wiki/PATH_(variable)
 
-Database building
+Index building
 -----------------
 
 Centrifuge can be build with arbritary sequences. Standard choices are
