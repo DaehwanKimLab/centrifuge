@@ -8,10 +8,8 @@
 </ul></li>
 <li><a href="#running-centrifuge">Running Centrifuge</a><ul>
 <li><a href="#adding-to-path">Adding to PATH</a></li>
-<li><a href="#database-building">Database building</a><ul>
-<li><a href="#getting-taxonomy">Getting taxonomy</a></li>
+<li><a href="#index-building">Index building</a><ul>
 <li><a href="#nt-database">nt database</a></li>
-<li><a href="#refseq-database">Refseq database</a></li>
 </ul></li>
 <li><a href="#reporting">Reporting</a></li>
 <li><a href="#inspecting-the-database">Inspecting the database</a></li>
@@ -59,15 +57,28 @@
 <p>Centrifuge is using the multithreading software model in order to speed up execution times on SMP architectures where this is possible. On POSIX platforms (like linux, Mac OS, etc) it needs the pthread library. Although it is possible to use pthread library on non-POSIX platform like Windows, due to performance reasons Centrifuge will try to use Windows native multithreading if possible.</p>
 <h1 id="running-centrifuge">Running Centrifuge</h1>
 <h2 id="adding-to-path">Adding to PATH</h2>
-<p>By adding your new Centrifuge directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>, you ensure that whenever you run <code>centrifuge</code>, <code>centrifuge-build</code> or <code>centrifuge-inspect</code> from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>.</p>
-<p>If you would like to install Centrifuge by copying the Centrifuge executable files to an existing directory in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>, make sure that you copy all the executables, including <code>centrifuge</code>, <code>centrifuge-class</code>, <code>centrifuge-build</code>, <code>centrifuge-build-bin</code>, <code>centrifuge-inspect</code> and <code>centrifuge-inspect-bin</code>. Furthermore you need the files in the scripts/ folder for genome downloading and compression.</p>
-<h2 id="database-building">Database building</h2>
+<p>By adding your new Centrifuge directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>, you ensure that whenever you run <code>centrifuge</code>, <code>centrifuge-build</code>, <code>centrifuge-download</code> or <code>centrifuge-inspect</code> from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>.</p>
+<p>If you would like to install Centrifuge by copying the Centrifuge executable files to an existing directory in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>, make sure that you copy all the executables, including <code>centrifuge</code>, <code>centrifuge-class</code>, <code>centrifuge-build</code>, <code>centrifuge-build-bin</code>, <code>centrifuge-download</code> <code>centrifuge-inspect</code> and <code>centrifuge-inspect-bin</code>. Furthermore you need the programs in the scripts/ folder if you opt for genome compression in the database construction.</p>
+<h2 id="index-building">Index building</h2>
 <p>Centrifuge can be build with arbritary sequences. Standard choices are all complete bacterial and viral genomes, or using the sequences that are part of the BLAST nt database. Centrifuge always needs the nodes.dmp file from the NCBI taxonomy dump to build the taxonomy tree, as well as a sequence ID to taxonomy ID map. The map is a tab-separated file with the sequence ID to taxonomy ID map.</p>
-<h3 id="getting-taxonomy">Getting taxonomy</h3>
-<pre><code>mkdir taxonomy &amp;&amp; cd taxonomy
-wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
-tar xvvf taxdump.tar.gz
-cd ..</code></pre>
+<p>To download all complete archaeal, viral and bacterial genomes from RefSeq, and build the index</p>
+<pre><code>## download nodes.dmp and names.dmp to taxonomy/
+centrifuge-download taxonomy
+## download all archaeal, viral and bacterial genomes from RefSeq to library/. Also, dust them.
+centrifuge-download -m -d &quot;archaea,bacteria,viral&quot; -P $(THREADS) refseq &gt; microbial_seqid2taxid.map
+## concatenate all the downloaded sequences to build the index
+cat library/*/*.fna &gt; input-sequences.fna
+## build centrifuge index with 5 threads
+centrifuge-build -p 5 --conversion-table microbial_seqid2taxid.map \
+  --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+  input-sequences.fna a+b+v</code></pre>
+<p>After the index building, all files but the *.[123].cf files may be removed. If you also want to include the human and/or the mouse genome, add their sequences to the library folder before index building with one of the following commands:</p>
+<pre><code>## download mouse and human reference genomes
+centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot; -t 9606,10090 -c &#39;reference genome&#39;
+## only human
+centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot; -t 9606 -c &#39;reference genome&#39;
+## only mouse
+centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot; -t 10090 -c &#39;reference genome&#39;</code></pre>
 <h3 id="nt-database">nt database</h3>
 <p>NCBI BLAST's nt database contains all spliced non-redundant coding sequences from multiplpe databases, infered from genommic sequences. Traditionally used with BLAST, a download of the FASTA is provided on the NCBI homepage. Further we need a sequence ID to taxonomy ID map that can be generated from a GI taxid dump:</p>
 <pre><code>wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
@@ -78,12 +89,6 @@ gunzip -c gi_taxid_nucl.dmp.gz | sed &#39;s/^/gi|/&#39; &gt; gi_taxid_nucl.map
 
 # build index using 16 cores and a small bucket size, which will require less memory
 centrifuge-build -p 16 --bmax 1342177280 --conversion-table gi_taxid_nucl.map --taxonomy-tree taxonomy/nodes.dmp nt.fa nt</code></pre>
-<h3 id="refseq-database">Refseq database</h3>
-<p>TODO</p>
-<pre><code>scripts/DownloadTaxonomy.sh -l taxonomy
-scripts/DownloadGenomes.sh -g refseq -a &#39;Complete Genome&#39; -l library bacteria archaea viral
-
-centrifuge-build --ftabchars 14 -bmax 2147483648 --conversion-table seqid-to-taxid.map --taxonomy-tree nodes.dmp sequences.fa </code></pre>
 <h2 id="reporting">Reporting</h2>
 <p>TODO</p>
 <h2 id="inspecting-the-database">Inspecting the database</h2>

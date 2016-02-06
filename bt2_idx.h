@@ -591,7 +591,7 @@ struct TaxonomyNode {
 };
 
 struct TaxonomyPathTable {
-    const size_t nranks = 7;
+    static const size_t nranks = 7;
     
     map<uint64_t, uint32_t> tid_to_pid;  // from taxonomic ID to path ID
     ELList<uint64_t> paths;
@@ -607,7 +607,7 @@ struct TaxonomyPathTable {
         rank_map[RANK_FAMILY]      = 3;
         rank_map[RANK_ORDER]       = 4;
         rank_map[RANK_CLASS]       = 5;
-        rank_map[RANK_PHYLUM]     = 6;
+        rank_map[RANK_PHYLUM]      = 6;
         
         tid_to_pid.clear();
         paths.clear();
@@ -1329,7 +1329,10 @@ public:
                     uint64_t tid = get_tid(stid);
                     if(uids.find(uid) == uids.end()) continue;
                     if(uid_to_tid.find(uid) != uid_to_tid.end()) {
-                        cerr << "Warning: " << uid << " already exists!" << endl;
+						if(uid_to_tid.find(uid) != uid_to_tid.end()) {
+							cerr << "Warning: Diverging taxonomy IDs for " << uid << " in " << conversion_table_fname << ": "
+                                 << uid_to_tid[uid] << " and " << tid << ". Taking first. " << endl;
+						}
                         continue;
                     }
                     uid_to_tid[uid] = tid;

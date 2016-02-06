@@ -403,7 +403,7 @@ struct ReportingParams {
 		THitInt khits_)
 	{
 		khits = khits_;     // -k (or high if -a)
-        ihits = khits * 2;
+        ihits = khits * 4;
 	}
 	
 #ifndef NDEBUG
@@ -2059,7 +2059,11 @@ void AlnSinkSam<index_t>::appendMate(
 //    (sc[rs->speciesID_])++;
 
     // unique ID
-    o.append(rs->uid().c_str());
+    if(rs->leaf()) {
+        o.append(rs->uid().c_str());
+    } else {
+        o.append(get_tax_rank(rs->taxRank()).c_str());
+    }
     o.append('\t');
     
     // tax ID

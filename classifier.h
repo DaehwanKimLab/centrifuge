@@ -34,10 +34,11 @@ struct HitCount {
     uint32_t count;
     uint32_t score;
     uint32_t scores[2][2];      // scores[rdi][fwi]
-    double summedHitLen;
-    double summedHitLens[2][2]; // summedHitLens[rdi][fwi]
+    double   summedHitLen;
+    double   summedHitLens[2][2]; // summedHitLens[rdi][fwi]
     uint32_t timeStamp;
     EList<pair<uint32_t,uint32_t> > readPositions;
+    bool     leaf;
     
     uint32_t rank;
     EList<uint64_t> path;
@@ -48,6 +49,9 @@ struct HitCount {
         summedHitLen = 0.0;
         summedHitLens[0][0] = summedHitLens[0][1] = summedHitLens[1][0] = summedHitLens[1][1] = 0.0;
         readPositions.clear();
+        rank = 0;
+        path.clear();
+        leaf = true;
     }
     
     HitCount& operator=(const HitCount& o) {
@@ -360,30 +364,39 @@ public:
         
         // If the number of hits is more than -k,
         //   traverse up the taxonomy tree to reduce the number
-        if(_hitMap.size() > 0) {
-            uint32_t score = _hitMap[0].score;
-            size_t count = 1;
+        if(_hitMap.size() > (size_t)rp.khits) {
+            // Count the number of the best hits
+            uint32_t best_score = _hitMap[0].score;
             for(size_t i = 1; i < _hitMap.size(); i++) {
-                if(score < _hitMap[i].score) {
-                    score = _hitMap[i].score;
-                    count = 1;
-                } else if(score == _hitMap[i].score) {
-                    count += 1;
+                if(best_score < _hitMap[i].score) {
+                    best_score = _hitMap[i].score;
                 }
             }
             
-            // daehwan - in the middle of implementation
-#if 0
-            if(count > (index_t)rp.khits) {
-                return 0;
+            // Remove secondary hits
+            for(int i = 0; i < (int)_hitMap.size(); i++) {
+                if(_hitMap[i].score < best_score) {
+                    if(i + 1 < _hitMap.size()) {
+                        _hitMap[i] = _hitMap.back();
+                    }
+                    _hitMap.pop_back();
+                    i--;
+                }
             }
-#else
             uint8_t rank = 0;
-            while(count > (index_t)rp.khits) {
+            while(_hitMap.size() > (size_t)rp.khits) {
                 _hitTaxCount.clear();
                 for(size_t i = 0; i < _hitMap.size(); i++) {
-                    assert_geq(_hitMap[i].rank, rank);
-                    if(_hitMap[i].rank != rank) continue;
+                    while(_hitMap[i].rank < rank) {
+                        if(_hitMap[i].rank + 1 >= _hitMap[i].path.size()) {
+                            _hitMap[i].rank = std::numeric_limits<uint32_t>::max();
+                            break;
+                        }
+                        _hitMap[i].rank += 1;
+                        _hitMap[i].taxID = _hitMap[i].path[_hitMap[i].rank];
+                        _hitMap[i].leaf = false;
+                    }
+                    if(_hitMap[i].rank > rank) continue;
                     if(rank + 1 >= _hitMap[i].path.size()) continue;
                     uint64_t parent_taxID = _hitMap[i].path[rank + 1];
                     if(parent_taxID == 0) continue;
@@ -401,51 +414,52 @@ public:
                         _hitTaxCount.back().second = parent_taxID;
                     }
                 }
+                if(_hitTaxCount.size() <= 0) break;
                 _hitTaxCount.sort();
-                if(_hitTaxCount.size() >= 1) {
-                    size_t j = _hitTaxCount.size();
-                    while(j-- > 0) {
-                        uint64_t parent_taxID = _hitTaxCount[j].second;
-                        int64_t max_score = 0;
-                        for(size_t i = 0; i < _hitMap.size(); i++) {
-                            assert_geq(_hitMap[i].rank, rank);
-                            if(_hitMap[i].rank != rank) continue;
-                            if(rank + 1 >= _hitMap[i].path.size()) continue;
-                            if(parent_taxID == _hitMap[i].path[rank + 1]) {
-                                _hitMap[i].uniqueID = 0;
-                                _hitMap[i].taxID = parent_taxID;
-                                _hitMap[i].rank = rank + 1;
-                            }
-                            if(parent_taxID == _hitMap[i].taxID) {
-                                if(_hitMap[i].score > max_score) {
-                                    max_score = _hitMap[i].score;
-                                }
+                size_t j = _hitTaxCount.size();
+                while(j-- > 0) {
+                    uint64_t parent_taxID = _hitTaxCount[j].second;
+                    int64_t max_score = 0;
+                    for(size_t i = 0; i < _hitMap.size(); i++) {
+                        assert_geq(_hitMap[i].rank, rank);
+                        if(_hitMap[i].rank != rank) continue;
+                        if(rank + 1 >= _hitMap[i].path.size()) continue;
+                        if(parent_taxID == _hitMap[i].path[rank + 1]) {
+                            _hitMap[i].uniqueID = 0;
+                            _hitMap[i].rank = rank + 1;
+                            _hitMap[i].taxID = parent_taxID;
+                            _hitMap[i].leaf = false;
+                        }
+                        if(parent_taxID == _hitMap[i].taxID) {
+                            if(_hitMap[i].score > max_score) {
+                                max_score = _hitMap[i].score;
                             }
                         }
-                        
-                        bool first = true;
-                        for(size_t i = 0; i < _hitMap.size(); i++) {
-                            if(parent_taxID == _hitMap[i].taxID) {
-                                bool del = _hitMap[i].score < max_score;
-                                del |= (!first && _hitMap[i].score == max_score);
-                                if(del) {
-                                    if(i + 1 < _hitMap.size()) {
-                                        _hitMap.back() = _hitMap[i];
-                                    }
-                                    _hitMap.pop_back();
-                                    i--;
-                                } else {
-                                    first = false;
-                                }
-                            }
-                        }
-                        
-                        int kk = 20;
                     }
+                    
+                    bool first = true;
+                    for(size_t i = 0; i < _hitMap.size(); i++) {
+                        if(parent_taxID == _hitMap[i].taxID) {
+                            if(!first) {
+                                if(i + 1 < _hitMap.size()) {
+                                    _hitMap[i] = _hitMap.back();
+                                }
+                                _hitMap.pop_back();
+                                i--;
+                            } else {
+                                first = false;
+                            }
+                        }
+                    }
+                    
+                    if(_hitMap.size() <= (size_t)rp.khits)
+                        break;
                 }
+                rank += 1;
             }
-#endif
         }
+        if(_hitMap.size() > (size_t)rp.khits)
+            return 0;
        
 #if 0
        	// boost up the score if the assignment is unique
@@ -468,6 +482,12 @@ public:
             if(human_genusID != 0 && human_genusID != hitCount.taxID) continue;
             const EList<pair<string, uint64_t> >& uid_to_tid = ebwtFw.uid_to_tid();
             assert_lt(hitCount.uniqueID, uid_to_tid.size());
+            const std::map<uint64_t, TaxonomyNode>& tree = ebwtFw.tree();
+            uint8_t taxRank = RANK_UNKNOWN;
+            std::map<uint64_t, TaxonomyNode>::const_iterator itr = tree.find(hitCount.taxID);
+            if(itr != tree.end()) {
+                taxRank = itr->second.rank;
+            }
             // report
             AlnRes rs;
             rs.init(
@@ -475,6 +495,8 @@ public:
                     max_score,
                     uid_to_tid[hitCount.uniqueID].first,
                     hitCount.taxID,
+                    hitCount.leaf,
+                    taxRank,
                     hitCount.summedHitLen,
                     hitCount.readPositions,
                     isFw);

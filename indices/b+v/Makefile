@@ -4,8 +4,7 @@
 #
 
 THREADS?=1
-IDX_NAME?=$(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
-
+IDX_NAME := $(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
 PATH_OK  := $(shell command -v centrifuge-build 2> /dev/null && command -v centrifuge-download 2> /dev/null )
 CF_BASE_DIR := $(shell dirname $(shell dirname $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))))
 
@@ -44,13 +43,11 @@ index-size:
 index: $(IDX_NAME).1.cf
 
 seqid2taxid.map: library
-	cat microbial_seqid2taxid.map host_seqid2taxid.map contaminant_seqid2taxid.map > seqid2taxid.map
+	cat microbial_seqid2taxid.map contaminant_seqid2taxid.map > seqid2taxid.map
 
 library: .path-ok .no-tmp
 	## Download and dust archaeal, bacterial, and viral genomes
 	centrifuge-download -f tmp -m -d "archaea,bacteria,viral" -P $(THREADS) refseq > microbial_seqid2taxid.map
-	## Downloading (and not dusting) human and mouse reference genomes and transcript sequences
-	centrifuge-download -f tmp -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome' -r -P $(THREADS) refseq > host_seqid2taxid.map
 	## Downloading contaminant sequences
 	centrifuge-download -f tmp contaminants > contaminant_seqid2taxid.map
 	mv tmp/library . && rmdir tmp
