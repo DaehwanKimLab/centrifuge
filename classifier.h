@@ -385,6 +385,10 @@ public:
             }
             uint8_t rank = 0;
             while(_hitMap.size() > (size_t)rp.khits) {
+                
+                // daehwan - for debugging purposes
+                return 0;
+                
                 _hitTaxCount.clear();
                 for(size_t i = 0; i < _hitMap.size(); i++) {
                     while(_hitMap[i].rank < rank) {

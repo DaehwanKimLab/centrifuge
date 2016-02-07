@@ -86,6 +86,7 @@ struct SpeciesMetrics {
 		//	it->second.reset();
 		//} //TODO: is this required?
 		species_kmers.clear();
+        num_non_leaves = 0;
 	}
 
 	void init(
@@ -96,6 +97,7 @@ struct SpeciesMetrics {
 		species_counts = species_counts_;
 		species_kmers = species_kmers_;
         observed = observed_;
+        num_non_leaves = 0;
     }
 
 	/**
@@ -138,6 +140,7 @@ struct SpeciesMetrics {
 
 	void addSpeciesCounts(
                           uint64_t taxID,
+                          bool leaf,
                           int64_t score,
                           int64_t max_score,
                           double summed_hit_len,
@@ -154,8 +157,12 @@ struct SpeciesMetrics {
 
         // Only consider good hits for abundance analysis
         if(score >= max_score) {
-            cur_ids.ids.push_back(taxID);
-            if(cur_ids.ids.size() == nresult) {
+            if(leaf) {
+                cur_ids.ids.push_back(taxID);
+            } else {
+                num_non_leaves++;
+            }
+            if(cur_ids.ids.size() == nresult - num_non_leaves) {
                 cur_ids.ids.sort();
                 if(observed.find(cur_ids) == observed.end()) {
                     observed[cur_ids] = 1;
@@ -163,6 +170,7 @@ struct SpeciesMetrics {
                     observed[cur_ids] += 1;
                 }
                 cur_ids.ids.clear();
+                num_non_leaves = 0;
             }
         }
 	}
@@ -321,6 +329,7 @@ struct SpeciesMetrics {
     
     map<IDs, uint64_t>     observed;
     IDs                    cur_ids;
+    uint32_t               num_non_leaves;
     map<uint64_t, double>  abundance;      // abundance without genome size taken into consideration
     map<uint64_t, double>  abundance_len;  // abundance normalized by genome size
 
@@ -2040,6 +2049,7 @@ void AlnSinkSam<index_t>::appendMate(
 
 	sm.addSpeciesCounts(
                         rs->taxID(),
+                        rs->leaf(),
                         rs->score(),
                         rs->max_score(),
                         rs->summedHitLen(),
@@ -2094,7 +2104,7 @@ void AlnSinkSam<index_t>::appendMate(
     o.append('\t');
     
     // confidence
-    sprintf(buf,"%.2f",rs->summedHitLen());
+    sprintf(buf, "%d",(int)rs->summedHitLen());
     o.append(buf);
     o.append('\t');
 

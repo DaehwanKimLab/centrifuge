@@ -328,7 +328,7 @@ public:
               const string& uniqueID,
               uint64_t taxID,
               bool leaf,
-              uint8_t taxRank,              
+              uint8_t taxRank,
 			  double summedHitLen,
 			  const EList<pair<uint32_t, uint32_t> >& readPositions,
 			  bool isFw)

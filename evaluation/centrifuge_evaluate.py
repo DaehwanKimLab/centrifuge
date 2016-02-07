@@ -1,324 +1,77 @@
 #!/usr/bin/env python
 
-import sys, os, subprocess
-import multiprocessing
+import sys, os, subprocess, inspect
+import platform, multiprocessing
 import string, re
-import platform
 from datetime import datetime, date, time
 import copy
 from argparse import ArgumentParser, FileType
 
-def extract_single(infilename, outfilename, chr_dic, aligner):
-    infile = open(infilename)
-    outfile = open(outfilename, "w")
-    for line in infile:
-        if line[0] == '@':
+
+def compare_scm(centrifuge_out, true_out):
+    db_dic = {}
+    first = True
+    for line in open(centrifuge_out):
+        if first:
+            first = False
             continue
-
-        cols = line[:-1].split()
-        read_id, flag, chr, pos, mapQ, cigar_str = cols[:6]
-        read_seq = cols[9]
-        if len(read_id) >= 3 and read_id[-2] == "/":
-            read_id = read_id[:-2]
-
-        if read_id.find("seq.") == 0:
-            read_id = read_id[4:]
-
-        if aligner == "gsnap":
-            chr = chr.replace("_", ":")
-
-        flag = int(flag)
-        pos = int(pos)
-
-        if flag & 0x4 != 0:
-            continue
-
-        NM = ""
-        for i in range(11, len(cols)):
-            col = cols[i]
-            # "nM" from STAR
-            if col[:2] == "NM" or col[:2] == "nM":
-                NM = col
-        assert NM != ""
-        NM = int(NM[5:])
-
-        read_pos, right_pos = 0, pos - 1
-        cigars = cigar_re.findall(cigar_str)
-        cigars = [[cigar[-1], int(cigar[:-1])] for cigar in cigars]
-        for i in range(len(cigars)):
-            cigar_op, length = cigars[i]
-            
-            if cigar_op == "S":
-                assert i == 0 or i == len(cigars) - 1
-                if i == 0:
-                    assert cigars[i+1][0] == "M"
-                    ref_seq = chr_dic[chr][right_pos-length:right_pos]
-                else:
-                    assert cigars[i-1][0] == "M"
-                    ref_seq = chr_dic[chr][right_pos:right_pos+length]
-
-                ref_seq = ref_seq.upper()
-                if length == len(ref_seq):
-                    for j in range(length):
-                        if ref_seq[j] != "N" and read_seq[read_pos+j] != ref_seq[j]:
-                            NM += 1
-                else:
-                    NM += length
-
-            if cigar_op in "MND":
-                right_pos += length
-
-            if cigar_op in "MIS":
-                read_pos += length
-
-        if cigars[0][0] == "S":
-            assert cigars[1][0] == "M"
-            pos -= cigars[0][1]
-            cigars[1][1] += cigars[0][1]
-            cigars = cigars[1:]
-        if cigars[-1][0] == "S":
-            assert cigars[-2][0] == "M"
-            cigars[-2][1] += cigars[-1][1]
-            cigars = cigars[:-1]
-
-        cigar_str = ""
-        for cigar in cigars:
-            cigar_op, length = cigar
-            cigar_str += ("%d%s" % (length, cigar_op))
-
-        p_str = "%s\t%s\t%d\t%s\tNM:i:%d" % \
-            (read_id, chr, pos, cigar_str, NM)
-        
-        print >> outfile, p_str
-
-    outfile.close()
-    infile.close()
-
-    
-def compare_single_sam(RNA, reference_sam, query_sam, mapped_fname, chr_dic, gtf_junctions, gtf_junctions_set, ex_gtf_junctions):
-    aligned, multi_aligned = 0, 0
-    db_dic, db_junction_dic = {}, {}
-    mapped_file = open(mapped_fname, "w")
-    file = open(reference_sam, "r")
-    junction_read_dic = {}
-    for line in file:
-        if line[0] == '@':
-            continue
-
-        read_name, chr, pos, cigar, NM = line[:-1].split()
-        pos = int(pos)
-                
-        if read_name.find("seq.") == 0:
-            read_name = read_name[4:]
-
-        if len(read_name) > 2 and read_name[-2] == '/':
-            read_name = read_name[:-2]
-
-        multi_aligned += 1
+        read_name, seq_id, tax_id, score, _, _, _ = line.strip().split('\t')
         if read_name not in db_dic:
             db_dic[read_name] = []
-            aligned += 1
+        db_dic[read_name].append(tax_id)
 
-        pos2 = get_right(pos, cigar)
-        db_dic[read_name].append([chr, pos, pos2, cigar])
-
-        read_junctions = is_junction_read(gtf_junctions_set, chr, pos, cigar)
-        if len(read_junctions) > 0:
-            if read_name not in db_junction_dic:
-                db_junction_dic[read_name] = []
-
-            for junction_str, is_gtf_junction in read_junctions:
-                db_junction_dic[read_name].append([junction_str, is_gtf_junction])
-
-                if junction_str not in junction_read_dic:
-                    junction_read_dic[junction_str] = []
-                junction_read_dic[junction_str].append(line[:-1])
-
-    file.close()
-
-    temp_junctions, temp_gtf_junctions = set(), set()
-    for read_name, can_junctions in db_junction_dic.items():
-        if len(can_junctions) <= 0:
+    classified, unclassified, unique_classified = 0, 0, 0
+    for line in open(true_out):
+        if line.startswith('@'):
             continue
-
-        # daehwan - for debugging purposes
-        # 1. select the best candidate among spliced alignments if multiple
-
-        def pickup_junction(can_junctions):
-            junctions = [can_junctions[0]]
-            for i in range(1, len(can_junctions)):
-                def get_intron_len(can_junction):
-                    chr, left, right = to_junction(can_junction)
-                    return right - left - 1
-
-                intron, intron_cmp = get_intron_len(junctions[0][0]), get_intron_len(can_junctions[i][0])
-
-                if intron > intron_cmp:
-                    junctions = [can_junctions[i]]
-                elif intron == intron_cmp:
-                    junctions.append(can_junctions[i])
-
-            return junctions
-
-        # can_junctions = pickup_junction(can_junctions)
-
-        for can_junction in can_junctions:
-            found_junction_str = None
-            junction_str, is_gtf_junction = can_junction
-            if is_gtf_junction:
-                found_junction_str = junction_str
-
-            if not found_junction_str:
-                junction = to_junction(junction_str)
-                gtf_index = find_in_gtf_junctions(chr_dic, gtf_junctions, junction)
-
-                if gtf_index >= 0:
-                    is_gtf_junction = True
-                    found_junction_str = to_junction_str(gtf_junctions[gtf_index])
-
-            if found_junction_str:
-                temp_gtf_junctions.add(found_junction_str)
-                temp_junctions.add(found_junction_str)
-            else:
-                if junction_str not in temp_junctions:
-                    None
-                    # assert junction_str in junction_read_dic
-                    # daehwan - for debugging purposes
-                    """
-                    if len(junction_read_dic[junction_str]) <= 2:
-                        canonical = is_canonical_junction(chr_dic, to_junction(junction_str))
-                        if not canonical:
-                            print >> sys.stdout, read_name, junction_str, len(junction_read_dic[junction_str]), can_junctions
-                            for line in junction_read_dic[junction_str]:
-                                print >> sys.stdout, "\t", line
-                    """
-                temp_junctions.add(junction_str)
-
-
-    temp2_junctions = []
-    for junction in temp_junctions:
-        temp2_junctions.append(to_junction(junction))
-    temp_junctions = sorted(list(temp2_junctions), cmp=junction_cmp)
-    temp2_junctions = []
-    for can_junction in temp_junctions:
-        if len(temp2_junctions) <= 0:
-            temp2_junctions.append(can_junction)
-        else:
-            chr, left, right = temp2_junctions[-1]
-            chr2, left2, right2 = can_junction
-            if chr == chr2 and \
-                    abs(left - left2) == abs(right - right2) and \
-                    abs(left - left2) <= 10 and \
-                    not to_junction_str(can_junction) in temp_gtf_junctions:
-                continue
-            temp2_junctions.append(can_junction)
-
-    temp_junctions = set()
-    for junction in temp2_junctions:
-        temp_junctions.add(to_junction_str(junction))
-
-    file = open(query_sam)
-    mapped, unmapped, unique_mapped, mapping_point = 0, 0, 0, 0.0
-    for line in file:
-        if line[0] == '@':
-            continue
-        if RNA:
-            read_name, chr, pos, cigar, trans_id, NM = line[:-1].split()
-        else:
-            read_name, chr, pos, cigar, NM = line[:-1].split()
-        pos = int(pos)
-        pos2 = get_right(pos, cigar)
+        
+        read_name, tax_id = line.strip().split('\t')[:2]
         if read_name not in db_dic:
-            unmapped += 1
+            unclassified += 1
             continue
 
         maps = db_dic[read_name]
-        found = False
-        if [chr, pos, pos2, cigar] in maps:
-            found = True
-
-        if not found:
-            for map in maps:
-                if chr == map[0] and \
-                       pos == map[1] and \
-                       pos2 == map[2] and \
-                       get_cigar_chars(cigar) == get_cigar_chars(map[3]):
-
-                    read_junctions = is_junction_read(gtf_junctions_set, map[0], map[1], map[3])
-                    if True:
-                        found_list = [False for i in range(len(read_junctions))]
-                        for j in  range(len(read_junctions)):
-                            junction_str, is_gtf_junction = read_junctions[j]
-                            junction = to_junction(junction_str)
-                            gtf_index = find_in_gtf_junctions(chr_dic, gtf_junctions, junction)
-                            if gtf_index >= 0:
-                                found_list[j] = True
-                        found = not (False in found_list)
-                    else:
-                        found = False
-                    break
-
-        if found:
-            print >> mapped_file, read_name
-            mapped += 1
+        if tax_id in maps:
+            classified += 1
             if len(maps) == 1:
-                unique_mapped += 1
-            mapping_point += (1.0 / len(maps))
+                unique_classified += 1
         else:
-            unmapped += 1
-            
-    file.close()
-    mapped_file.close()
+            unclassified += 1
 
-    # daehwan - for debugging purposes
-    false_can_junctions, false_noncan_junctions = 0, 0
-    for junction_str in temp_junctions:
-        if junction_str in temp_gtf_junctions:
+    raw_unique_classified = 0
+    for value in db_dic.values():
+        if len(value) == 1:
+            raw_unique_classified += 1
+    return classified, unique_classified, unclassified, len(db_dic), raw_unique_classified
+
+
+def compare_abundance(centrifuge_out, true_out, debug):
+    db_dic = {}
+    first = True
+    for line in open(centrifuge_out):
+        if first:
+            first = False
             continue
-        if junction_str in ex_gtf_junctions:
+        genome_name, tax_id, tax_rank, genome_len, num_reads, num_unique_reads, abundance = line.strip().split('\t')
+        db_dic[tax_id] = float(abundance)
+
+    SSR = 0.0 # Sum of squared residuals
+    first = True
+    for line in open(true_out):
+        if first:
+            first = False
             continue
-        if is_canonical_junction(chr_dic, to_junction(junction_str)):
-            false_can_junctions += 1
+        
+        tax_id, genome_len, num_reads, abundance, genome_name = line.strip().split('\t')
+        abundance = float(abundance)
+        if tax_id in db_dic:
+            SSR += (abundance - db_dic[tax_id]) ** 2;
+            if debug:
+                print >> sys.stderr, "\t\t\t{:<10}: {:.6} vs. {:.6} (truth vs. centrifuge)".format(tax_id, abundance, db_dic[tax_id])
         else:
-            false_noncan_junctions += 1
-    print >> sys.stderr, "\t\t\tfalse junctions: %d (canonical), %d (non-canonical)" % (false_can_junctions, false_noncan_junctions)
-    
-    return mapped, unique_mapped, unmapped, aligned, multi_aligned, len(temp_junctions), len(temp_gtf_junctions), mapping_point
+            SSR += (abundance) ** 2
 
-
-def extract_mapped_unmapped(read_fname, mapped_id_fname, mapped_fname, unmapped_fname, read2_fname = "", mapped2_fname = "", unmapped2_fname = ""):
-    mapped_ids = set()
-    mapped_id_file = open(mapped_id_fname)
-    for line in mapped_id_file:
-        read_id = int(line[:-1])
-        mapped_ids.add(read_id)
-                              
-    mapped_id_file.close()
-
-    def write_reads(read_fname, mapped_fname, unmapped_fname):
-        mapped_file = open(mapped_fname, "w")
-        unmapped_file = open(unmapped_fname, "w")
-        read_file = open(read_fname)
-        write = False
-        for line in read_file:
-            if line[0] == "@":
-                read_id = int(line[1:-1])
-                write = read_id in mapped_ids
-
-            if write:
-                print >> mapped_file, line[:-1]
-            else:
-                print >> unmapped_file, line[:-1]
-
-        read_file.close()
-        mapped_file.close()
-        unmapped_file.close()
-
-    write_reads(read_fname, mapped_fname, unmapped_fname)
-    if read2_fname != "":
-        assert mapped2_fname != ""
-        assert unmapped2_fname != ""
-        write_reads(read2_fname, mapped2_fname, unmapped2_fname)
+    return SSR
 
 
 def sql_execute(sql_db, sql_query):
@@ -340,27 +93,23 @@ def create_sql_db(sql_db):
     
     columns = [
         ["id", "integer primary key autoincrement"],
-        ["genome", "text"],
+        ["index", "text"],
         ["head", "text"],
-        ["end_type", "text"],
+        ["endType", "text"],
         ["type", "text"],
         ["aligner", "text"],
         ["version", "text"],
-        ["num_reads", "integer"],
-        ["mapped_reads", "integer"],
-        ["unique_mapped_reads", "integer"],
-        ["unmapped_reads", "integer"],
-        ["mapping_point", "real"],
+        ["numReads", "integer"],
+        ["mappedReads", "integer"],
+        ["uniqueMappedReads", "integer"],
+        ["unmappedReads", "integer"],
         ["time", "real"],
-        ["true_gtf_junctions", "integer"],
-        ["temp_junctions", "integer"],
-        ["temp_gtf_junctions", "integer"],
         ["host", "text"],
         ["created", "text"],
         ["cmd", "text"]
         ]
     
-    sql_create_table = "CREATE TABLE ReadCosts ("
+    sql_create_table = "CREATE TABLE Classification ("
     for i in range(len(columns)):
         name, type = columns[i]
         if i != 0:
@@ -412,10 +161,18 @@ def write_analysis_data(sql_db, genome_name, database_name):
         database_file.close()
 
 
-def evaluate():
+def evaluate(index_base,
+             num_fragment,
+             paired,
+             error_rate,
+             programs,
+             runtime_only,
+             sql,
+             verbose,
+             debug):
     # Current script directory
     curr_script = os.path.realpath(inspect.getsourcefile(evaluate))
-    ex_path = os.path.dirname(curr_script)
+    path_base = os.path.dirname(curr_script)
 
     sql_db_name = "analysis.db"
     if not os.path.exists(sql_db_name):
@@ -429,544 +186,220 @@ def evaluate():
         num_threads = min(3, num_cpus)
         desktop = True
 
-    data_base = "sim"
-    test_large_index = False
-    verbose = False
-    just_runtime = False
-    sql_write = True
-    aligners = [
-        ["hisat2", "", "", ""],
-        ["hisat2", "", "snp", ""],
-        ["hisat2", "", "snp_tran", ""],
-        ["hisat", "x1", "", ""],
-        ["hisat", "", "", ""],
-        ["hisat", "x2", "", ""],
-        ["tophat2", "", "", ""],
-        ["star", "", "", ""],
-        ["gsnap", "", "", ""],
-        ["bowtie", "", "", ""],
-        ["bowtie2", "", "", ""],
-        ["bwa", "mem", "", ""]
-        ]
-    readtypes = ["all", "M", "2M_gt_15", "2M_8_15", "2M_1_7", "gt_2M"]
-     
-    aligners = [
-        ["hisat2", "x1", "snp_tran", "201b"],
-        ["hisat2", "x1", "snp_tran", ""],
-        ]
-    readtypes = ["all"]
-    verbose = True
-    debug = False
-    # sql_write = False
-    # just_runtime = True
+    def check_files(fnames):
+        for fname in fnames:
+            if not os.path.exists(fname):
+                return False
+        return True
 
-    cwd = os.getcwd()
-    if len(cwd.split("reads_")) > 1:
-        genome = cwd.split("reads_")[1]
-    else:
-        genome = "genome"
-    RNA = (cwd.find("RNA") != -1)
+    # Check if indexes exists, otherwise create indexes
+    index_path = "%s/indexes/Centrifuge" % path_base
+    if not os.path.exists(path_base + "/indexes"):
+        os.mkdir(path_base + "/indexes")
+    if not os.path.exists(index_path):
+        os.mkdir(index_path)
+    index_fnames = ["%s/%s.%d.cf" % (index_path, index_base, i+1) for i in range(3)]
+    assert check_files(index_fnames)
+    
+        
+    # Check if simulated reads exist, otherwise simulate reads
+    read_path = "%s/reads" % path_base
+    if not os.path.exists(read_path):
+        os.mkdir(read_path)
+    read_base = "%s_%dM" % (index_base, num_fragment / 1000000)
+    if error_rate > 0.0:
+        read_base += "%.2fe" % error_rate
 
-    test_small = (genome != "genome")
+    read1_fname = "%s/%s_1.fa" % (read_path, read_base)
+    read2_fname = "%s/%s_2.fa" % (read_path, read_base)
+    truth_fname = "%s/%s.truth" % (read_path, read_base)
+    scm_fname = "%s/%s.scm" % (read_path, read_base)
+    read_fnames = [read1_fname, read2_fname, truth_fname, scm_fname]
+    if not check_files(read_fnames):
+        print >> sys.stderr, "Simulating reads %s_1.fq %s_2.fq ..." % (read_base, read_base)
+        centrifuge_simulate = os.path.join(path_base, "centrifuge_simulate_reads.py")
+        simulate_cmd = [centrifuge_simulate,
+                        "--num-fragment", str(num_fragment)]
+        if error_rate > 0.0:
+            simulate_cmd += ["--error-rate", str(error_rate)]
+        simulate_cmd += ["%s/%s" % (index_path, index_base),
+                         "%s/%s" % (read_path, read_base)]
+        
+        simulate_proc = subprocess.Popen(simulate_cmd, stdout=open("/dev/null", 'w'), stderr=open("/dev/null", 'w'))
+        simulate_proc.communicate()
+        assert check_files(read_fnames)
 
-    if just_runtime:
+    if runtime_only:
         verbose = True
 
-    chr_dic = read_genome("../../data/" + genome + ".fa")
-    gtf_junctions = extract_splice_sites("../../data/genome.gtf")
-    align_stat = []
-    # for paired in [False, True]:
-    for paired in [False]:
-        for readtype in readtypes:
+    if paired:
+        base_fname = read_base + "_paired"
+    else:
+        base_fname = read_base + "_single"
+
+    print >> sys.stderr, "Database: %s" % (index_base)
+    if paired:
+        print >> sys.stderr, "\t%d million pairs" % (num_fragment / 1000000)
+    else:
+        print >> sys.stderr, "\t%d million reads" % (num_fragment / 1000000)
+
+    aligner_bin_base = "%s/.." % path_base
+    def get_aligner_version(aligner, version):
+        version = ""
+        if aligner == "centrifuge":
+            if version:
+                cmd = ["%s/%s_%s/%s" % (aligner_bin_base, aligner, version, aligner)]
+            else:
+                cmd = ["%s/%s" % (aligner_bin_base, aligner)]
+            cmd += ["--version"]                    
+            cmd_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+            version = cmd_process.communicate()[0][:-1].split("\n")[0]
+            version = version.split()[-1]
+        else:
+            assert False
+
+        return version
+
+    def get_aligner_cmd(aligner, version, read1_fname, read2_fname, out_fname):
+        cmd = []
+        if aligner == "centrifuge":
+            if version:
+                cmd = ["%s/centrifuge_%s/centrifuge" % (aligner_bin_base, version)]
+            else:
+                cmd = ["%s/centrifuge" % (aligner_bin_base)]
+            cmd += ["-f",
+                    "-p", str(num_threads),
+                    "%s/%s" % (index_path, index_base)]
+            # cmd += ["-k", "5"]
             if paired:
-                base_fname = data_base + "_paired"
-                type_sam_fname = base_fname + "_" + readtype + ".sam"
-                type_read1_fname = base_fname +  "_1_" + readtype + ".fa"
-                type_read2_fname = base_fname +  "_2_" + readtype + ".fa"
-                type_junction_fname = base_fname + "_" + readtype + ".junc"
+                cmd += ["-1", read1_fname,
+                        "-2", read2_fname]
             else:
-                base_fname = data_base + "_single"
-                type_sam_fname = base_fname + "_" + readtype + ".sam"
-                type_read1_fname = base_fname + "_" + readtype + ".fa"
-                type_read2_fname = ""
-                type_junction_fname = base_fname + "_" + readtype + ".junc"
+                cmd += ["-U", read1_fname]                        
+        else:
+            assert False
 
-            assert os.path.exists(type_sam_fname) and os.path.exists(type_junction_fname)
-            numreads = 0
-            type_sam_file = open(type_sam_fname)
-            for line in type_sam_file:
-                numreads += 1
-            type_sam_file.close()
-            if numreads <= 0:
-                continue
-            print >> sys.stderr, "%s\t%d" % (readtype, numreads)
+        return cmd
 
-            junctions, junctions_set = [], set()
-            type_junction_file = open(type_junction_fname)
-            for line in type_junction_file:
-                chr, left, right = line[:-1].split()
-                left, right = int(left), int(right)
-                junctions.append([chr, left, right])
-                junctions_set.add(to_junction_str([chr, left, right]))
-                
-            type_junction_file.close()
+    init_time = {"centrifuge" : 0.0}
+    for program, version in programs:
+        program_name = program
+        if version:
+            program_name += ("_%s" % version)
 
-            aligner_bin_base = "../../../aligners/bin"
-            def get_aligner_version(aligner, version):
-                version = ""
-                if aligner == "hisat2" or \
-                        aligner == "hisat" or \
-                        aligner == "bowtie" or \
-                        aligner == "bowtie2":
-                    if version:
-                        cmd = ["%s/%s_%s/%s" % (aligner_bin_base, aligner, version, aligner)]
-                    else:
-                        cmd = ["%s/%s" % (aligner_bin_base, aligner)]
-                    cmd += ["--version"]                    
-                    cmd_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-                    version = cmd_process.communicate()[0][:-1].split("\n")[0]
-                    version = version.split()[-1]
-                elif aligner == "tophat2":
-                    cmd = ["%s/tophat" % (aligner_bin_base)]
-                    cmd += ["--version"]
-                    cmd_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-                    version = cmd_process.communicate()[0][:-1].split()[-1]
-                elif aligner in ["star", "starx2"]:
-                    version = "2.4.2a"
-                elif aligner == "gsnap":
-                    cmd = ["%s/gsnap" % (aligner_bin_base)]
-                    cmd_process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
-                    version = cmd_process.communicate()[1][:-1].split("\n")[0]
-                    version = version.split()[2]
-                elif aligner == "bwa":
-                    cmd = ["%s/bwa" % (aligner_bin_base)]
-                    cmd_process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
-                    version = cmd_process.communicate()[1][:-1].split("\n")[2]
-                    version = version.split()[1]
-                    
-                return version
+        print >> sys.stderr, "\t%s\t%s" % (program_name, str(datetime.now()))
+        if paired:
+            program_dir = program_name + "_paired"
+        else:
+            program_dir = program_name + "_single"
+            
+        if not os.path.exists(program_dir):
+            os.mkdir(program_dir)
+        os.chdir(program_dir)
 
-            index_base = "../../../indexes"
-            index_add = ""
-            if genome != "genome":
-                index_add = "_" + genome
-            def get_aligner_cmd(RNA, aligner, type, index_type, version, read1_fname, read2_fname, out_fname, cmd_idx = 0):
-                cmd = []
-                if aligner == "hisat2":
-                    if version:
-                        cmd = ["%s/hisat2_%s/hisat2" % (aligner_bin_base, version)]
-                    else:
-                        cmd = ["%s/hisat2" % (aligner_bin_base)]
-                    if num_threads > 1:
-                        cmd += ["-p", str(num_threads)]
-                    cmd += ["-f"]
-                    # cmd += ["-k", "5"]
-                    # cmd += ["--score-min", "C,-18"]
-                    # cmd += ["--pen-cansplice", "0"]
-                    # cmd += ["--pen-noncansplice", "12"]
-                    # cmd += ["--pen-intronlen", "G,-8,1"]
-                    # cmd += ["--metrics", "1",
-                    #        "--metrics-file", "metrics.out"]
+        out_fname = "centrifuge.output"
+        if runtime_only:
+            out_fname = "/dev/null"
 
-                    if not RNA:
-                        cmd += ["--no-spliced-alignment"]
-
-                    if type in ["x1", "x2"]:
-                        cmd += ["--no-temp-splicesite"]
-
-                    # cmd += ["--no-anchorstop"]
-                    # cmd += ["--sp", "1000,1000"]
-
-                    # daehwan - for debugging purposes
-                    # cmd += ["--dta"]
-                    # cmd += ["--dta-cufflinks"]
-
-                    if type == "x2":
-                        if cmd_idx == 0:
-                            cmd += ["--novel-splicesite-outfile"]
-                        else:
-                            cmd += ["--novel-splicesite-infile"]
-                        cmd += ["splicesites.txt"]
-                    
-                    # "--novel-splicesite-infile",
-                    # "../splicesites.txt",
-                    # "--rna-strandness",
-                    # "FR",
-                    index_cmd = "%s/HISAT2%s/" % (index_base, index_add) + genome
-                    if index_type:
-                        index_cmd += ("_" + index_type)
-                    cmd += [index_cmd]
-                    if paired:
-                        cmd += ["-1", read1_fname,
-                                "-2", read2_fname]
-                    else:
-                        cmd += [read1_fname]                        
-                elif aligner == "hisat":
-                    cmd = ["%s/hisat" % (aligner_bin_base)]
-                    if num_threads > 1:
-                        cmd += ["-p", str(num_threads)]
-                    cmd += ["-f"]
-                    # cmd += ["-k", "5"]
-                    # cmd += ["--score-min", "C,-18"]
-                    if version != "":
-                        version = int(version)
-                    else:
-                        version = sys.maxint
-
-                    if not RNA:
-                        cmd += ["--no-spliced-alignment"]
-
-                    if type in ["x1", "x2"]:
-                        cmd += ["--no-temp-splicesite"]
-
-                    """
-                    cmd += ["--rdg", "100,100",
-                            "--rfg", "100,100"]
-                    """
-
-                    if type == "x2":
-                        if cmd_idx == 0:
-                            cmd += ["--novel-splicesite-outfile"]
-                        else:
-                            cmd += ["--novel-splicesite-infile"]
-                        cmd += ["splicesites.txt"]
-                    
-                    # "--novel-splicesite-infile",
-                    # "../splicesites.txt",
-                    # "--rna-strandness",
-                    # "FR",
-                    cmd += ["%s/HISAT%s/" % (index_base, index_add) + genome]
-                    if paired:
-                        cmd += ["-1", read1_fname,
-                                "-2", read2_fname]
-                    else:
-                        cmd += [read1_fname]                        
-                elif aligner == "tophat2":
-                    cmd = ["%s/tophat" % (aligner_bin_base)]
-                    if num_threads > 1:
-                        cmd += ["-p", str(num_threads)]
-                    if type.find("gtf") != -1:
-                        cmd += ["--transcriptome-index=%s/HISAT%s/gtf/%s" % (index_base, index_add, genome)]
-                    if type == "gtfonly":
-                        cmd += ["--transcriptome-only"]
-                    cmd += ["--read-edit-dist", "3"]
-                    cmd += ["--no-sort-bam"]
-                    cmd += ["--read-realign-edit-dist", "0"]
-                    cmd += ["--keep-tmp",
-                            "%s/HISAT%s/" % (index_base, index_add) + genome,
-                            read1_fname]
-                    if paired:
-                        cmd += [read2_fname]
-                elif aligner == "star":
-                    cmd = ["%s/STAR" % (aligner_bin_base)]
-                    if num_threads > 1:
-                        cmd += ["--runThreadN", str(num_threads)]
-                    cmd += ["--genomeDir"]
-                    if type == "gtf":
-                        cmd += ["%s/STAR%s/gtf" % (index_base, index_add)]
-                    else:
-                        cmd += ["%s/STAR%s" % (index_base, index_add)]
-                    if desktop:
-                        cmd += ["--genomeLoad", "NoSharedMemory"]
-                    else:
-                        cmd += ["--genomeLoad", "LoadAndKeep"]
-                    if type == "x2":
-                        if cmd_idx == 1:
-                            cmd += ["--alignSJDBoverhangMin", "1"]
-                    cmd += ["--readFilesIn",
-                            read1_fname]
-                    if paired:
-                        cmd += [read2_fname]
-                    if paired:
-                        cmd += ["--outFilterMismatchNmax", "6"]
-                    else:
-                        cmd += ["--outFilterMismatchNmax", "3"]
-                elif aligner == "bowtie":
-                    cmd = ["%s/bowtie" % (aligner_bin_base)]
-                    if num_threads > 1:
-                        cmd += ["-p", str(num_threads)]
-                    cmd += ["-f", 
-                            "--sam",
-                            "-k", "10"]
-                    cmd += ["-n", "3"]
-                    if paired:
-                        cmd += ["-X", "500"]
-                    cmd += ["%s/Bowtie%s/" % (index_base, index_add) + genome]
-                    if paired:
-                        cmd += ["-1", read1_fname,
-                                "-2", read2_fname]
-                    else:
-                        cmd += [read1_fname]
-                elif aligner == "bowtie2":
-                    cmd = ["%s/bowtie2" % (aligner_bin_base)]
-                    if num_threads > 1:
-                        cmd += ["-p", str(num_threads)]
-                    cmd += ["-f", "-k", "10"]
-                    cmd += ["--score-min", "C,-18"]
-                    cmd += ["-x %s/HISAT%s/" % (index_base, index_add) + genome]
-                    if paired:
-                        cmd += ["-1", read1_fname,
-                                "-2", read2_fname]
-                    else:
-                        cmd += [read1_fname]
-                elif aligner == "gsnap":
-                    cmd = ["%s/gsnap" % (aligner_bin_base),
-                           "-A",
-                           "sam"]
-                    if num_threads > 1:
-                        cmd += ["-t", str(num_threads)]
-                    cmd += ["--max-mismatches=3",
-                            "-D", "%s/GSNAP%s" % (index_base, index_add),
-                            "-N", "1",
-                            "-d", genome,
-                            read1_fname]
-                    if paired:
-                        cmd += [read2_fname]
-                elif aligner == "bwa":
-                    cmd = ["%s/bwa" % (aligner_bin_base)]
-                    if type in ["mem", "aln"]:
-                        cmd += [type]
-                    elif type == "sw":
-                        cmd += ["bwa" + type]
-                    if num_threads > 1:
-                        cmd += ["-t", str(num_threads)]
-                    cmd += ["%s/BWA%s/%s.fa" % (index_base, index_add, genome)]
-                    cmd += [read1_fname]
-                    if paired:
-                        cmd += [read2_fname]
-                    else:
-                        assert False
-
-                return cmd
-
-            if test_small:
-                init_time = {"hisat2" : 0.2, "hisat" : 0.1, "bowtie" : 0.1, "bowtie2" : 0.2, "gsnap" : 0.0, "bwa" : 0.0}
-                if desktop:
-                    init_time["star"] = 1.7
-                else:
-                    init_time["star"] = 0.0
+        duration = -1.0
+        if not os.path.exists(out_fname):
+            # Classify all reads
+            program_cmd = get_aligner_cmd(program, version, read1_fname, read2_fname, out_fname)
+            start_time = datetime.now()
+            if verbose:
+                print >> sys.stderr, "\t", start_time, " ".join(program_cmd)
+            if program in ["centrifuge"]:
+                proc = subprocess.Popen(program_cmd, stdout=open(out_fname, "w"), stderr=subprocess.PIPE)
             else:
-                if desktop:
-                    init_time = {"hisat2" : 3.0, "hisat" : 3.0, "bowtie" : 1.3, "bowtie2" : 1.9, "star" : 27.0, "gsnap" : 12, "bwa" : 1.3}
-                else:
-                    init_time = {"hisat2" : 9.5, "hisat" : 9.5, "bowtie" : 3.3, "bowtie2" : 4.1, "star" : 1.7, "gsnap" : 0.1, "bwa" : 3.3}
-                    
-            init_time["tophat2"] = 0.0
-            for aligner, type, index_type, version in aligners:
-                aligner_name = aligner + type
-                if version:
-                    aligner_name += ("_%s" % version)
-                if aligner == "hisat2" and index_type != "":
-                    aligner_name += ("_" + index_type)
-                two_step = (aligner == "tophat2" or type == "x2" or (aligner in ["hisat2", "hisat"] and type == ""))
-                if RNA and readtype != "M":
-                    if aligner in ["bowtie", "bowtie2", "bwa"]:
-                        continue
-                if readtype != "all":
-                    if two_step:
-                        continue
-                if not RNA and readtype != "all":
-                    continue
+                proc = subprocess.Popen(program_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc.communicate()
+            finish_time = datetime.now()
+            duration = finish_time - start_time
+            assert program in init_time
+            duration = duration.total_seconds() - init_time[program]
+            if duration < 0.1:
+                duration = 0.1
+            if verbose:
+                print >> sys.stderr, "\t", finish_time, "finished:", duration
 
-                print >> sys.stderr, "\t%s\t%s" % (aligner_name, str(datetime.now()))
+        if runtime_only:
+            os.chdir("..")
+            continue
+
+        classified, unique_classified, unclassified, raw_classified, raw_unique_classified = compare_scm(out_fname, scm_fname)
+        assert classified + unclassified == num_fragment
+
+        print >> sys.stderr, "\t\tclassified: {:,}, multi classified: {:,}".format(raw_unique_classified, raw_classified)
+        print >> sys.stderr, "\t\tcorrectly classified: {:,} ({:.2}%%)".format(classified, float(classified) * 100.0 / num_fragment)
+        print >> sys.stderr, "\t\tuniquely and correctly classified: {:,} ({:.2}%%)".format(unique_classified, float(unique_classified) * 100.0 / num_fragment)
+
+        # Calculate sum of squared residuals in abundance
+        abundance_SSR = compare_abundance("centrifuge_report.csv", truth_fname, debug)
+        print >> sys.stderr, "\t\tsum of squared residuals in abundance: {}".format(abundance_SSR)
+
+        """
+        if duration > 0.0:
+            if sql and os.path.exists("../" + sql_db_name):
                 if paired:
-                    aligner_dir = aligner_name + "_paired"
+                    end_type = "paired"
                 else:
-                    aligner_dir = aligner_name + "_single"
-                if not os.path.exists(aligner_dir):
-                    os.mkdir(aligner_dir)
-                os.chdir(aligner_dir)
+                    end_type = "single"
+                sql_insert = "INSERT INTO \"ReadCosts\" VALUES(NULL, '%s', '%s', '%s', '%s', '%s', '%s', %d, %d, %d, %d, %f, %f, %d, %d, %d, '%s', datetime('now', 'localtime'), '%s');" % \
+                    (genome, data_base, end_type, readtype2, aligner_name, get_aligner_version(aligner, version), numreads, mapped, unique_mapped, unmapped, mapping_point, duration, len(junctions), temp_junctions, temp_gtf_junctions, platform.node(), " ".join(aligner_cmd))
+                sql_execute("../" + sql_db_name, sql_insert)     
 
-                out_fname = base_fname + "_" + readtype + ".sam"
-                out_fname2 = out_fname + "2"
-                duration = -1.0
-                if not os.path.exists(out_fname):
-                    if not os.path.exists("../one.fa") or not os.path.exists("../two.fa"):
-                        os.system("head -400 ../%s_1.fa > ../one.fa" % (data_base))
-                        os.system("head -400 ../%s_2.fa > ../two.fa" % (data_base))
+            if two_step:
+                align_stat.append([readtype2, aligner_name, numreads, duration, mapped, unique_mapped, unmapped, mapping_point, len(junctions), temp_junctions, temp_gtf_junctions])
+            else:
+                align_stat[-1].extend([numreads, duration, mapped, unique_mapped, unmapped, mapping_point, len(junctions), temp_junctions, temp_gtf_junctions])
+ 
+        os.system("touch %s.done" % type_sam_fname2)
+        """
 
-                    if just_runtime:
-                        out_fname = "/dev/null"
-                        out_fname2 = "/dev/null"
+        os.chdir("..")
 
-                    if not two_step:
-                        align_stat.append([readtype, aligner_name])
-
-                    # dummy commands for caching
-                    if aligner != "tophat2":
-                        dummy_cmd = get_aligner_cmd(RNA, aligner, type, index_type, version, "../one.fa", "../two.fa", "/dev/null")
-                        if verbose:
-                            print >> sys.stderr, "\t", datetime.now(), " ".join(dummy_cmd)
-                        if aligner in ["hisat2", "hisat", "bowtie", "bowtie2", "gsnap", "bwa"]:
-                            proc = subprocess.Popen(dummy_cmd, stdout=open("/dev/null", "w"), stderr=subprocess.PIPE)
-                        else:
-                            proc = subprocess.Popen(dummy_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        proc.communicate()
-                        if verbose:
-                            print >> sys.stderr, "\t", datetime.now(), "finished"
-
-                    # align all reads
-                    aligner_cmd = get_aligner_cmd(RNA, aligner, type, index_type, version, "../" + type_read1_fname, "../" + type_read2_fname, out_fname)
-                    start_time = datetime.now()
-                    if verbose:
-                        print >> sys.stderr, "\t", start_time, " ".join(aligner_cmd)
-                    if aligner in ["hisat2", "hisat", "bowtie", "bowtie2", "gsnap", "bwa"]:
-                        proc = subprocess.Popen(aligner_cmd, stdout=open(out_fname, "w"), stderr=subprocess.PIPE)
-                    else:
-                        proc = subprocess.Popen(aligner_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    proc.communicate()
-                    finish_time = datetime.now()
-                    duration = finish_time - start_time
-                    assert aligner in init_time
-                    duration = duration.total_seconds() - init_time[aligner]
-                    if duration < 0.1:
-                        duration = 0.1
-                    if verbose:
-                        print >> sys.stderr, "\t", finish_time, "finished:", duration
-
-                    if debug and aligner == "hisat2":
-                        os.system("cat metrics.out")
-                        print >> sys.stderr, "\ttime: %.4f" % (duration)
-
-                    if aligner == "star" and type in ["", "gtf"]:
-                        os.system("mv Aligned.out.sam %s" % out_fname)
-                    elif aligner in ["hisat2", "hisat"] and type == "x2":
-                        aligner_cmd = get_aligner_cmd(RNA, aligner, type, index_type, version, "../" + type_read1_fname, "../" + type_read2_fname, out_fname, 1)
-                        start_time = datetime.now()
-                        if verbose:
-                            print >> sys.stderr, "\t", start_time, " ".join(aligner_cmd)
-                        proc = subprocess.Popen(aligner_cmd, stdout=open(out_fname, "w"), stderr=subprocess.PIPE)
-                        proc.communicate()
-                        finish_time = datetime.now()
-                        duration += (finish_time - start_time).total_seconds()
-                        assert aligner in init_time
-                        duration -= init_time[aligner]
-                        if duration < 0.1:
-                            duration = 0.1
-                        if verbose:
-                            print >> sys.stderr, "\t", finish_time, "finished:", duration
-                    elif aligner == "star" and type == "x2":
-                        assert os.path.exists("SJ.out.tab")
-                        os.system("awk 'BEGIN {OFS=\"\t\"; strChar[0]=\".\"; strChar[1]=\"+\"; strChar[2]=\"-\";} {if($5>0){print $1,$2,$3,strChar[$4]}}' SJ.out.tab > SJ.out.tab.Pass1.sjdb")
-                        for file in os.listdir("."):
-                            if file in ["SJ.out.tab.Pass1.sjdb", "genome.fa"]:
-                                continue
-                            os.remove(file)
-                        star_index_cmd = "STAR --genomeDir ./ --runMode genomeGenerate --genomeFastaFiles genome.fa --sjdbFileChrStartEnd SJ.out.tab.Pass1.sjdb --sjdbOverhang 99 --runThreadN %d" % (num_threads)
-                        if verbose:
-                            print >> sys.stderr, "\t", datetime.now(), star_index_cmd
-                        os.system(star_index_cmd)
-                        if verbose:
-                            print >> sys.stderr, "\t", datetime.now(), " ".join(dummy_cmd)
-                        proc = subprocess.Popen(dummy_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        proc.communicate()
-                        if verbose:
-                            print >> sys.stderr, "\t", datetime.now(), "finished"
-                        aligner_cmd = get_aligner_cmd(RNA, aligner, type, index_type, version, "../" + type_read1_fname, "../" + type_read2_fname, out_fname, 1)
-                        start_time = datetime.now()
-                        if verbose:
-                            print >> sys.stderr, "\t", start_time, " ".join(aligner_cmd)
-                        proc = subprocess.Popen(aligner_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                        proc.communicate()
-                        finish_time = datetime.now()
-                        duration += (finish_time - start_time).total_seconds()
-                        assert aligner in init_time
-                        duration -= init_time[aligner]
-                        if duration < 0.1:
-                            duration = 0.1
-                        if verbose:
-                            print >> sys.stderr, "\t", finish_time, "finished:", duration
-                        os.system("mv Aligned.out.sam %s" % out_fname)
-                    elif aligner == "tophat2":
-                        os.system("samtools sort -n tophat_out/accepted_hits.bam accepted_hits; samtools view -h accepted_hits.bam > %s" % out_fname)
-
-                    if aligner in ["gsnap", "tophat2"]:
-                        os.system("tar cvzf %s.tar.gz %s &> /dev/null" % (out_fname, out_fname))
-
-                if just_runtime:
-                    os.chdir("..")
-                    continue
-
-                if not os.path.exists(out_fname2):
-                    if paired:
-                        extract_pair(out_fname, out_fname2, chr_dic, aligner)
-                    else:
-                        extract_single(out_fname, out_fname2, chr_dic, aligner)
-
-                for readtype2 in readtypes:
-                    if not two_step and readtype != readtype2:
-                        continue
-
-                    type_sam_fname2 = base_fname + "_" + readtype2 + ".sam"
-                    if os.path.exists(type_sam_fname2 + ".done"):
-                        continue
-                    
-                    if paired:
-                        type_read_fname2 = base_fname + "_1_" + readtype2 + ".fa"
-                    else:
-                        type_read_fname2 = base_fname + "_" + readtype2 + ".fa"
-                    mapped_id_fname = base_fname + "_" + readtype2 + ".read_id"
-                    if paired:
-                        mapped, unique_mapped, unmapped, aligned, multi_aligned, temp_junctions, temp_gtf_junctions, mapping_point = compare_paired_sam(RNA, out_fname2, "../" + type_sam_fname2, mapped_id_fname, chr_dic, junctions, junctions_set, gtf_junctions)
-                    else:
-                        mapped, unique_mapped, unmapped, aligned, multi_aligned, temp_junctions, temp_gtf_junctions, mapping_point = compare_single_sam(RNA, out_fname2, "../" + type_sam_fname2, mapped_id_fname, chr_dic, junctions, junctions_set, gtf_junctions)
-                    proc = subprocess.Popen(["wc", "-l", "../" + type_read_fname2], stdout=subprocess.PIPE)
-                    out = proc.communicate()[0]
-                    numreads = int(out.split()[0]) / 2
-                    assert mapped + unmapped == numreads
-                    
-                    if two_step:
-                        print >> sys.stderr, "\t\t%s" % readtype2
-                    print >> sys.stderr, "\t\taligned: %d, multi aligned: %d" % (aligned, multi_aligned)
-                    print >> sys.stderr, "\t\tcorrectly mapped: %d (%.2f%%) mapping_point: %.2f" % (mapped, float(mapped) * 100.0 / numreads, mapping_point * 100.0 / numreads)
-                    print >> sys.stderr, "\t\tuniquely and correctly mapped: %d (%.2f%%)" % (unique_mapped, float(unique_mapped) * 100.0 / numreads)
-                    if readtype == readtype2:
-                        print >> sys.stderr, "\t\t\t%d reads per sec (all)" % (numreads / max(1.0, duration))
-                    print >> sys.stderr, "\t\tjunc. sensitivity %d / %d (%.2f%%), junc. accuracy: %d / %d (%.2f%%)" % \
-                        (temp_gtf_junctions, len(junctions), float(temp_gtf_junctions) * 100.0 / max(1, len(junctions)), \
-                             temp_gtf_junctions, temp_junctions, float(temp_gtf_junctions) * 100.0 / max(1, temp_junctions))
-
-                    if duration > 0.0:
-                        if sql_write and os.path.exists("../" + sql_db_name):
-                            if paired:
-                                end_type = "paired"
-                            else:
-                                end_type = "single"
-                            sql_insert = "INSERT INTO \"ReadCosts\" VALUES(NULL, '%s', '%s', '%s', '%s', '%s', '%s', %d, %d, %d, %d, %f, %f, %d, %d, %d, '%s', datetime('now', 'localtime'), '%s');" % \
-                                (genome, data_base, end_type, readtype2, aligner_name, get_aligner_version(aligner, version), numreads, mapped, unique_mapped, unmapped, mapping_point, duration, len(junctions), temp_junctions, temp_gtf_junctions, platform.node(), " ".join(aligner_cmd))
-                            sql_execute("../" + sql_db_name, sql_insert)     
-
-                        if two_step:
-                            align_stat.append([readtype2, aligner_name, numreads, duration, mapped, unique_mapped, unmapped, mapping_point, len(junctions), temp_junctions, temp_gtf_junctions])
-                        else:
-                            align_stat[-1].extend([numreads, duration, mapped, unique_mapped, unmapped, mapping_point, len(junctions), temp_junctions, temp_gtf_junctions])
-
-                    os.system("touch %s.done" % type_sam_fname2)                    
-
-                os.chdir("..")
-
-    print >> sys.stdout, "\t".join(["type", "aligner", "all", "all_time", "mapped", "unique_mapped", "unmapped", "mapping point", "true_gtf_junctions", "temp_junctions", "temp_gtf_junctions"])
-    for line in align_stat:
-        outstr = ""
-        for item in line:
-            if outstr != "":
-                outstr += "\t"
-            outstr += str(item)
-        print >> sys.stdout, outstr
-
-    if os.path.exists(sql_db_name):
-        write_analysis_data(sql_db_name, genome, data_base)
+        """
+        if os.path.exists(sql_db_name):
+            write_analysis_data(sql_db_name, genome, data_base)
+        """
         
-
 
 if __name__ == "__main__":
     parser = ArgumentParser(
         description='Centrifuge evaluation')
-    parser.add_argument("--reference-type",
-                        dest="reference_type",
+    parser.add_argument('index_base',
+                        nargs='?',
                         type=str,
-                        default="gene",
-                        help="Reference type: gene, chromosome, and genome (default: gene)")
+                        help='Centrifuge index')
+    parser.add_argument('--num-fragment',
+                        dest="num_fragment",
+                        action='store',
+                        type=int,
+                        default=1,
+                        help='Number of fragments in millions (default: 1)')
+    parser.add_argument('--paired',
+                        dest='paired',
+                        action='store_true',
+                        help='Paired-end reads')
+    parser.add_argument('--error-rate',
+                        dest='error_rate',
+                        action='store',
+                        type=float,
+                        default=0.0,
+                        help='per-base sequencing error rate (%%) (default: 0.0)')    
+    parser.add_argument("--program-list",
+                        dest="programs",
+                        type=str,
+                        default="centrifuge",
+                        help="A comma-separated list of aligners (default: centrifuge)")
+    parser.add_argument('--runtime-only',
+                        dest='runtime_only',
+                        action='store_true',
+                        help='Just check runtime without evaluation')    
+    parser.add_argument('--no-sql',
+                        dest='sql',
+                        action='store_false',
+                        help='Do not write results into a sqlite database')
     parser.add_argument("--simulate-interval",
                         dest="simulate_interval",
                         type=int,
@@ -976,6 +409,29 @@ if __name__ == "__main__":
                         dest='verbose',
                         action='store_true',
                         help='also print some statistics to stderr')
+    parser.add_argument('--debug',
+                        dest='debug',
+                        action='store_true',
+                        help='Debug')
 
     args = parser.parse_args()
-    evaluate()
+    if not args.index_base:
+        parser.print_help()
+        exit(1)
+
+    programs = []
+    for program in args.programs.split(','):
+        if '_' in program:
+            programs.append(program.split('_'))
+        else:
+            programs.append([program, ""])
+            
+    evaluate(args.index_base,
+             args.num_fragment * 1000000,
+             args.paired,
+             args.error_rate,
+             programs,
+             args.runtime_only,
+             args.sql,
+             args.verbose,
+             args.debug)
