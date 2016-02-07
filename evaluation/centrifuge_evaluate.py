@@ -8,7 +8,22 @@ import copy
 from argparse import ArgumentParser, FileType
 
 
-def compare_scm(centrifuge_out, true_out):
+"""
+"""
+def read_taxonomy_tree(tax_file):
+    taxonomy_tree = {}
+    for line in tax_file:
+        fields = line.strip().split('\t')
+        assert len(fields) == 5
+        tax_id, parent_tax_id, rank = fields[0], fields[2], fields[4]
+        assert tax_id not in taxonomy_tree
+        taxonomy_tree[tax_id] = [parent_tax_id, rank]        
+    return taxonomy_tree
+
+
+"""
+"""
+def compare_scm(centrifuge_out, true_out, taxonomy_tree, rank):
     db_dic = {}
     first = True
     for line in open(centrifuge_out):
@@ -16,9 +31,27 @@ def compare_scm(centrifuge_out, true_out):
             first = False
             continue
         read_name, seq_id, tax_id, score, _, _, _ = line.strip().split('\t')
+        # Traverse up taxonomy tree to match the given rank parameter
+        rank_tax_id = tax_id
+        if rank != "strain":
+            while True:
+                if tax_id not in taxonomy_tree:
+                    rank_tax_id = ""
+                    break
+                parent_tax_id, cur_rank = taxonomy_tree[tax_id]
+                if cur_rank == rank:
+                    rank_tax_id = tax_id
+                    break
+                if tax_id == parent_tax_id:
+                    rank_tax_id = ""
+                    break
+                tax_id = parent_tax_id
+                
+        if rank_tax_id == "":
+            continue            
         if read_name not in db_dic:
-            db_dic[read_name] = []
-        db_dic[read_name].append(tax_id)
+            db_dic[read_name] = set()
+        db_dic[read_name].add(rank_tax_id)
 
     classified, unclassified, unique_classified = 0, 0, 0
     for line in open(true_out):
@@ -26,12 +59,29 @@ def compare_scm(centrifuge_out, true_out):
             continue
         
         read_name, tax_id = line.strip().split('\t')[:2]
+        # Traverse up taxonomy tree to match the given rank parameter
+        rank_tax_id = tax_id
+        if rank != "strain":
+            while True:
+                if tax_id not in taxonomy_tree:
+                    rank_tax_id = ""
+                    break
+                parent_tax_id, cur_rank = taxonomy_tree[tax_id]
+                if cur_rank == rank:
+                    rank_tax_id = tax_id
+                    break
+                if tax_id == parent_tax_id:
+                    rank_tax_id = ""
+                    break
+                tax_id = parent_tax_id
+        if rank_tax_id == "":
+            continue
         if read_name not in db_dic:
             unclassified += 1
             continue
 
         maps = db_dic[read_name]
-        if tax_id in maps:
+        if rank_tax_id in maps:
             classified += 1
             if len(maps) == 1:
                 unique_classified += 1
@@ -45,6 +95,8 @@ def compare_scm(centrifuge_out, true_out):
     return classified, unique_classified, unclassified, len(db_dic), raw_unique_classified
 
 
+"""
+"""
 def compare_abundance(centrifuge_out, true_out, debug):
     db_dic = {}
     first = True
@@ -67,13 +119,17 @@ def compare_abundance(centrifuge_out, true_out, debug):
         if tax_id in db_dic:
             SSR += (abundance - db_dic[tax_id]) ** 2;
             if debug:
-                print >> sys.stderr, "\t\t\t{:<10}: {:.6} vs. {:.6} (truth vs. centrifuge)".format(tax_id, abundance, db_dic[tax_id])
+                print >> sys.stderr, "\t\t\t\t{:<10}: {:.6} vs. {:.6} (truth vs. centrifuge)".format(tax_id, abundance, db_dic[tax_id])
         else:
             SSR += (abundance) ** 2
 
     return SSR
 
 
+"""
+e.g.
+     sqlite3 analysis.db --header --separator $'\t' "select * from Classification;"
+"""
 def sql_execute(sql_db, sql_query):
     sql_cmd = [
         "sqlite3", sql_db,
@@ -86,6 +142,8 @@ def sql_execute(sql_db, sql_query):
     return output
 
 
+"""
+"""
 def create_sql_db(sql_db):
     if os.path.exists(sql_db):
         print >> sys.stderr, sql_db, "already exists!"
@@ -93,16 +151,33 @@ def create_sql_db(sql_db):
     
     columns = [
         ["id", "integer primary key autoincrement"],
-        ["index", "text"],
-        ["head", "text"],
-        ["endType", "text"],
-        ["type", "text"],
-        ["aligner", "text"],
+        ["centrifutgeIndex", "text"],
+        ["readBase", "text"],
+        ["readType", "text"],
+        ["program", "text"],
         ["version", "text"],
-        ["numReads", "integer"],
-        ["mappedReads", "integer"],
-        ["uniqueMappedReads", "integer"],
-        ["unmappedReads", "integer"],
+        ["numFragments", "integer"],
+        ["strain_classified", "integer"],
+        ["strain_uniqueclassified", "integer"],
+        ["strain_unclassified", "integer"],
+        ["species_classified", "integer"],
+        ["species_uniqueclassified", "integer"],
+        ["species_unclassified", "integer"],
+        ["genus_classified", "integer"],
+        ["genus_uniqueclassified", "integer"],
+        ["genus_unclassified", "integer"],
+        ["family_classified", "integer"],
+        ["family_uniqueclassified", "integer"],
+        ["family_unclassified", "integer"],
+        ["order_classified", "integer"],
+        ["order_uniqueclassified", "integer"],
+        ["order_unclassified", "integer"],
+        ["class_classified", "integer"],
+        ["class_uniqueclassified", "integer"],
+        ["class_unclassified", "integer"],
+        ["phylum_classified", "integer"],
+        ["phylum_uniqueclassified", "integer"],
+        ["phylum_unclassified", "integer"],
         ["time", "real"],
         ["host", "text"],
         ["created", "text"],
@@ -119,11 +194,13 @@ def create_sql_db(sql_db):
     sql_execute(sql_db, sql_create_table)
 
 
+"""
+"""
 def write_analysis_data(sql_db, genome_name, database_name):
     if not os.path.exists(sql_db):
         return
     
-    aligners = []
+    programs = []
     sql_aligners = "SELECT aligner FROM ReadCosts GROUP BY aligner"
     output = sql_execute(sql_db, sql_aligners)
     aligners = output.split()
@@ -161,10 +238,13 @@ def write_analysis_data(sql_db, genome_name, database_name):
         database_file.close()
 
 
+"""
+"""
 def evaluate(index_base,
              num_fragment,
              paired,
              error_rate,
+             ranks,
              programs,
              runtime_only,
              sql,
@@ -200,8 +280,26 @@ def evaluate(index_base,
         os.mkdir(index_path)
     index_fnames = ["%s/%s.%d.cf" % (index_path, index_base, i+1) for i in range(3)]
     assert check_files(index_fnames)
-    
-        
+
+    # Read taxonomic IDs
+    centrifuge_inspect = os.path.join(path_base, "../centrifuge-inspect")
+    tax_ids = set()
+    tax_cmd = [centrifuge_inspect,
+               "--conversion-table",
+               "%s/%s" % (index_path, index_base)]
+    tax_proc = subprocess.Popen(tax_cmd, stdout=subprocess.PIPE)
+    for line in tax_proc.stdout:
+        _, tax_id = line.strip().split()
+        tax_ids.add(tax_id)
+    tax_ids = list(tax_ids)
+
+    # Read taxonomic tree
+    tax_tree_cmd = [centrifuge_inspect,
+                    "--taxonomy-tree",
+                    "%s/%s" % (index_path, index_base)]    
+    tax_tree_proc = subprocess.Popen(tax_tree_cmd, stdout=subprocess.PIPE, stderr=open("/dev/null", 'w'))
+    taxonomy_tree = read_taxonomy_tree(tax_tree_proc.stdout)
+
     # Check if simulated reads exist, otherwise simulate reads
     read_path = "%s/reads" % path_base
     if not os.path.exists(read_path):
@@ -243,14 +341,14 @@ def evaluate(index_base,
     else:
         print >> sys.stderr, "\t%d million reads" % (num_fragment / 1000000)
 
-    aligner_bin_base = "%s/.." % path_base
-    def get_aligner_version(aligner, version):
+    program_bin_base = "%s/.." % path_base
+    def get_program_version(program, version):
         version = ""
-        if aligner == "centrifuge":
+        if program == "centrifuge":
             if version:
-                cmd = ["%s/%s_%s/%s" % (aligner_bin_base, aligner, version, aligner)]
+                cmd = ["%s/%s_%s/%s" % (program_bin_base, program, version, program)]
             else:
-                cmd = ["%s/%s" % (aligner_bin_base, aligner)]
+                cmd = ["%s/%s" % (program_bin_base, program)]
             cmd += ["--version"]                    
             cmd_process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
             version = cmd_process.communicate()[0][:-1].split("\n")[0]
@@ -260,13 +358,13 @@ def evaluate(index_base,
 
         return version
 
-    def get_aligner_cmd(aligner, version, read1_fname, read2_fname, out_fname):
+    def get_program_cmd(program, version, read1_fname, read2_fname, out_fname):
         cmd = []
-        if aligner == "centrifuge":
+        if program == "centrifuge":
             if version:
-                cmd = ["%s/centrifuge_%s/centrifuge" % (aligner_bin_base, version)]
+                cmd = ["%s/centrifuge_%s/centrifuge" % (program_bin_base, version)]
             else:
-                cmd = ["%s/centrifuge" % (aligner_bin_base)]
+                cmd = ["%s/centrifuge" % (program_bin_base)]
             cmd += ["-f",
                     "-p", str(num_threads),
                     "%s/%s" % (index_path, index_base)]
@@ -301,10 +399,9 @@ def evaluate(index_base,
         if runtime_only:
             out_fname = "/dev/null"
 
-        duration = -1.0
+        # Classify all reads
         if not os.path.exists(out_fname):
-            # Classify all reads
-            program_cmd = get_aligner_cmd(program, version, read1_fname, read2_fname, out_fname)
+            program_cmd = get_program_cmd(program, version, read1_fname, read2_fname, out_fname)
             start_time = datetime.now()
             if verbose:
                 print >> sys.stderr, "\t", start_time, " ".join(program_cmd)
@@ -320,42 +417,59 @@ def evaluate(index_base,
             if duration < 0.1:
                 duration = 0.1
             if verbose:
-                print >> sys.stderr, "\t", finish_time, "finished:", duration
+                print >> sys.stderr, "\t", finish_time, "finished:", duration            
+
+        results = {"strain"  : [0, 0, 0],
+                   "species" : [0, 0, 0],
+                   "genus"   : [0, 0, 0],
+                   "family"  : [0, 0, 0],
+                   "order"   : [0, 0, 0],
+                   "class"   : [0, 0, 0],
+                   "phylum"  : [0, 0, 0]}
+        for rank in ranks:
+            if runtime_only:
+                break
+
+            classified, unique_classified, unclassified, raw_classified, raw_unique_classified = \
+                compare_scm(out_fname, scm_fname, taxonomy_tree, rank)
+            results[rank] = [classified, unique_classified, unclassified]
+            num_cases = classified + unclassified
+            # if rank == "strain":
+            #    assert num_cases == num_fragment
+
+            print >> sys.stderr, "\t\t%s" % rank
+            print >> sys.stderr, "\t\t\tclassified: {:,}, uniquely classified: {:,}".format(raw_classified, raw_unique_classified)
+            print >> sys.stderr, "\t\t\tcorrectly classified: {:,} ({:.2%})".format(classified, float(classified) / num_cases)
+            print >> sys.stderr, "\t\t\tuniquely and correctly classified: {:,} ({:.2%})".format(unique_classified, float(unique_classified) / num_cases)
+
+            # Calculate sum of squared residuals in abundance
+            if rank == "strain":
+                abundance_SSR = compare_abundance("centrifuge_report.csv", truth_fname, debug)
+                print >> sys.stderr, "\t\t\tsum of squared residuals in abundance: {}".format(abundance_SSR)
 
         if runtime_only:
             os.chdir("..")
             continue
 
-        classified, unique_classified, unclassified, raw_classified, raw_unique_classified = compare_scm(out_fname, scm_fname)
-        assert classified + unclassified == num_fragment
-
-        print >> sys.stderr, "\t\tclassified: {:,}, multi classified: {:,}".format(raw_unique_classified, raw_classified)
-        print >> sys.stderr, "\t\tcorrectly classified: {:,} ({:.2}%%)".format(classified, float(classified) * 100.0 / num_fragment)
-        print >> sys.stderr, "\t\tuniquely and correctly classified: {:,} ({:.2}%%)".format(unique_classified, float(unique_classified) * 100.0 / num_fragment)
-
-        # Calculate sum of squared residuals in abundance
-        abundance_SSR = compare_abundance("centrifuge_report.csv", truth_fname, debug)
-        print >> sys.stderr, "\t\tsum of squared residuals in abundance: {}".format(abundance_SSR)
-
-        """
-        if duration > 0.0:
-            if sql and os.path.exists("../" + sql_db_name):
-                if paired:
-                    end_type = "paired"
-                else:
-                    end_type = "single"
-                sql_insert = "INSERT INTO \"ReadCosts\" VALUES(NULL, '%s', '%s', '%s', '%s', '%s', '%s', %d, %d, %d, %d, %f, %f, %d, %d, %d, '%s', datetime('now', 'localtime'), '%s');" % \
-                    (genome, data_base, end_type, readtype2, aligner_name, get_aligner_version(aligner, version), numreads, mapped, unique_mapped, unmapped, mapping_point, duration, len(junctions), temp_junctions, temp_gtf_junctions, platform.node(), " ".join(aligner_cmd))
-                sql_execute("../" + sql_db_name, sql_insert)     
-
-            if two_step:
-                align_stat.append([readtype2, aligner_name, numreads, duration, mapped, unique_mapped, unmapped, mapping_point, len(junctions), temp_junctions, temp_gtf_junctions])
+        if sql and os.path.exists("../" + sql_db_name):
+            if paired:
+                end_type = "paired"
             else:
-                align_stat[-1].extend([numreads, duration, mapped, unique_mapped, unmapped, mapping_point, len(junctions), temp_junctions, temp_gtf_junctions])
- 
-        os.system("touch %s.done" % type_sam_fname2)
-        """
+                end_type = "single"
+            sql_insert = "INSERT INTO \"Classification\" VALUES(NULL, '%s', '%s', '%s', '%s', '%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %f, '%s', datetime('now', 'localtime'), '%s');" % \
+                (index_base, read_base, end_type, program_name, get_program_version(program, version), num_fragment, \
+                     results["strain"][0],  results["strain"][1],  results["strain"][2], \
+                     results["species"][0], results["species"][1], results["species"][2], \
+                     results["genus"][0],   results["genus"][1],   results["genus"][2], \
+                     results["family"][0],  results["family"][1],  results["family"][2], \
+                     results["order"][0],   results["order"][1],   results["order"][2], \
+                     results["class"][0],   results["class"][1],   results["class"][2], \
+                     results["phylum"][0],  results["phylum"][1],  results["phylum"][2], \
+                     duration, platform.node(), " ".join(program_cmd))
+            sql_execute("../" + sql_db_name, sql_insert)     
 
+ 
+        os.system("touch done")
         os.chdir("..")
 
         """
@@ -386,7 +500,13 @@ if __name__ == "__main__":
                         action='store',
                         type=float,
                         default=0.0,
-                        help='per-base sequencing error rate (%%) (default: 0.0)')    
+                        help='per-base sequencing error rate (%%) (default: 0.0)')
+    rank_list_default = "strain,species,genus,family,order,class,phylum"
+    parser.add_argument("--rank-list",
+                        dest="ranks",
+                        type=str,
+                        default=rank_list_default,
+                        help="A comma-separated list of ranks (default: %s)" % rank_list_default)
     parser.add_argument("--program-list",
                         dest="programs",
                         type=str,
@@ -419,6 +539,7 @@ if __name__ == "__main__":
         parser.print_help()
         exit(1)
 
+    ranks = args.ranks.split(',')
     programs = []
     for program in args.programs.split(','):
         if '_' in program:
@@ -430,6 +551,7 @@ if __name__ == "__main__":
              args.num_fragment * 1000000,
              args.paired,
              args.error_rate,
+             ranks,
              programs,
              args.runtime_only,
              args.sql,

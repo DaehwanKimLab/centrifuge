@@ -637,7 +637,7 @@ def simulate_reads(index_fname, base_fname, \
         sanity_check_input(genomes_seq, genes, transcripts, frag_len)
 
     if dna:
-        expr_profile = generate_dna_expr_profile(expr_profile_type, len(genome_seqs))
+        expr_profile = generate_dna_expr_profile(expr_profile_type, min(len(genome_seqs), 100))
     else:
         num_transcripts = min(len(transcripts), 10000)
         expr_profile = generate_rna_expr_profile(expr_profile_type, num_transcripts)
@@ -678,9 +678,12 @@ def simulate_reads(index_fname, base_fname, \
     assert debug_num_frag == num_frag
     for truth in truth_list:
         tax_id, genome_len, t_num_frags, raw_abundance = truth
-        name = ""
-        if tax_id in names:
-            name = names[tax_id]
+        can_tax_id = tax_id
+        if '.' in can_tax_id:
+            can_tax_id = can_tax_id.split('.')[0]
+        name = "N/A"        
+        if can_tax_id in names:
+            name = names[can_tax_id]
         abundance = raw_abundance / genome_len / normalized_sum
         print >> truth_file, "{}\t{}\t{}\t{:.6}\t{}".format(tax_id, genome_len, t_num_frags, abundance, name)
     truth_file.close()

@@ -387,7 +387,7 @@ public:
             while(_hitMap.size() > (size_t)rp.khits) {
                 
                 // daehwan - for debugging purposes
-                return 0;
+                // return 0;
                 
                 _hitTaxCount.clear();
                 for(size_t i = 0; i < _hitMap.size(); i++) {
