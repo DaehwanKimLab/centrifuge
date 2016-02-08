@@ -170,6 +170,7 @@ enum {
     ARG_HOST_GENOMES,            // --host-genomes
 	ARG_REPORT_FILE,             // --report
     ARG_NO_ABUNDANCE,            // --no-abundance
+    ARG_NO_TRAVERSE,             // --no-traverse
 };
 
 #endif

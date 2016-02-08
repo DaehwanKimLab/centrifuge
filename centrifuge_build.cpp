@@ -125,6 +125,7 @@ enum {
 	ARG_REVERSE_EACH,
     ARG_SA,
 	ARG_WRAPPER,
+    ARG_THREADS,
     ARG_LOCAL_OFFRATE,
     ARG_LOCAL_FTABCHARS,
     ARG_CONVERSION_TABLE,
@@ -168,7 +169,7 @@ static void printUsage(ostream& out) {
         << "    --size-table       <file name>  table of contig (or genome) sizes" << endl
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
-        << "    -p <int>                number of alignment threads to launch (1)" << endl
+        << "    -p/--threads <int>      number of alignment threads to launch (1)" << endl
 	    << "    -h/--help               print detailed description of tool and its options" << endl
 	    << "    --usage                 print this usage message" << endl
 	    << "    --version               print version information and quit" << endl
@@ -201,6 +202,7 @@ static struct option long_options[] = {
 	{(char*)"version",        no_argument,       &showVersion, 1},
 	{(char*)"noauto",         no_argument,       0,            'a'},
 	{(char*)"noblocks",       required_argument, 0,            'n'},
+    {(char*)"threads",        required_argument, 0,            ARG_THREADS},
 	{(char*)"linerate",       required_argument, 0,            'l'},
 	{(char*)"linesperside",   required_argument, 0,            'i'},
 	{(char*)"offrate",        required_argument, 0,            'o'},
@@ -262,6 +264,7 @@ static void parseOptions(int argc, const char **argv) {
 				break;
 			case 'f': format = FASTA; break;
 			case 'c': format = CMDLINE; break;
+            case ARG_THREADS:
 			case 'p': nthreads = parseNumber<int>(1, "-p arg must be at least 1");
                 break;
 			case 'C':

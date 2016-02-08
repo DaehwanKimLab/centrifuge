@@ -7,7 +7,7 @@
   <div id="subheader">
     <table width="100%"><tbody><tr>
 	  <td>
-	    <strong>Centrifuge</strong> is a very rapid and memory-efficient system for the classification of DNA sequences from microbial samples, with better sensitivity than and comparable accuracy to other leading systems. The system uses a novel indexing scheme based on the Burrows-Wheeler transform (BWT) and the Ferragina-Manzini (FM) index, optimized specifically for the metagenomic classification problem. Centrifuge requires a relatively small index (e.g., 2.9 GB for ~2,800 bacterial genomes) yet provides very fast classification speed, allowing it to process a typical DNA sequencing run within an hour. Together these advances enable timely and accurate analysis of large metagenomics data sets on conventional desktop computers.
+	    <strong>Centrifuge</strong> is a very rapid and memory-efficient system for the classification of DNA sequences from microbial samples, with better sensitivity than and comparable accuracy to other leading systems. The system uses a novel indexing scheme based on the Burrows-Wheeler transform (BWT) and the Ferragina-Manzini (FM) index, optimized specifically for the metagenomic classification problem. Centrifuge requires a relatively small index (e.g., 4.2 GB for ~4,100 bacterial genomes) yet provides very fast classification speed, allowing it to process a typical DNA sequencing run within an hour. Together these advances enable timely and accurate analysis of large metagenomics data sets on conventional desktop computers.
 	    <br>
 	  </td>
 	  <td valign="middle" align="right">
@@ -22,6 +22,15 @@
 	<div id="leftside">
 	  <h2>Centrifuge 1.0.0-beta release 2/0X/2016 - first release</h2>
           <ul>
+	    <li>
+	      The first release of Centrifuge comes with three key features: (1) relatively small database size, (2) higher classification accuracy and sensitivity, and (3) fast classification speed.
+	    </li>
+	    <li>
+	      Please refer to the manual for details on how to run Centrifuge and interpret Centrifuge’s classification results.
+	    </li>
+	    <li>
+	      We provide several standard indexes that will meet most of users’ needs (see the side panel - Indexes)
+	    </li>
           </ul>
           <br>
 	  <h2>The Centrifuge source code is available in a <a href="https://github.com/infphilo/centrifuge">public GitHub repository</a> (7/14/2015).</h2>

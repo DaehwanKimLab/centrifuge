@@ -245,6 +245,7 @@ static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
 static EList<uint32_t> hostGenomes;
 static bool abundance_analysis;
+static bool tree_traverse;
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -439,8 +440,9 @@ static void resetOptions() {
     minHitLen = 22;
     minTotalLen = 0;
     hostGenomes.clear();
-    reportFile = "centrifuge-species_report.csv";
+    reportFile = "centrifuge_report.csv";
     abundance_analysis = true;
+    tree_traverse = true;
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -593,11 +595,12 @@ static struct option long_options[] = {
 	{(char*)"desc-landing",     required_argument, 0,        ARG_DESC_LANDING},
 	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
-    {(char*)"min-hitlen",     required_argument, 0,        ARG_MIN_HITLEN},
-    {(char*)"min-totallen",   required_argument, 0,        ARG_MIN_TOTALLEN},
-    {(char*)"host-genomes",   required_argument, 0,        ARG_HOST_GENOMES},
-	{(char*)"report-file",    required_argument, 0,        ARG_REPORT_FILE},
-    {(char*)"no-abundance",   no_argument,       0,        ARG_NO_ABUNDANCE},
+    {(char*)"min-hitlen",       required_argument, 0,        ARG_MIN_HITLEN},
+    {(char*)"min-totallen",     required_argument, 0,        ARG_MIN_TOTALLEN},
+    {(char*)"host-genomes",     required_argument, 0,        ARG_HOST_GENOMES},
+	{(char*)"report-file",      required_argument, 0,        ARG_REPORT_FILE},
+    {(char*)"no-abundance",     no_argument,       0,        ARG_NO_ABUNDANCE},
+    {(char*)"no-traverse",      no_argument,       0,        ARG_NO_TRAVERSE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1342,6 +1345,10 @@ static void parseOption(int next_option, const char *arg) {
         }
         case ARG_NO_ABUNDANCE: {
             abundance_analysis = false;
+            break;
+        }
+        case ARG_NO_TRAVERSE: {
+            tree_traverse = false;
             break;
         }
 		default:
@@ -2236,7 +2243,10 @@ static void multiseedSearchWorker(void *vp) {
                                                   ebwtFw,
                                                   multiseed_refnames,
                                                   hostGenomes,
-                                                  minHitLen);
+                                                  gMate1fw,
+                                                  gMate2fw,
+                                                  minHitLen,
+                                                  tree_traverse);
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
@@ -2534,14 +2544,12 @@ static void multiseedSearchWorker(void *vp) {
                 if(filt[0] && filt[1]) {
                     classifier.initReads(rds, nofw, norc, minsc, maxpen);
                 } 
-		else if(filt[0] )//|| filt[1]) 
-		{
+                else if(filt[0]) {
                     classifier.initRead(rds[0], nofw[0], norc[0], minsc[0], maxpen[0], filt[1]);
                 }
-		else if ( filt[1] )
-		{
+                else if(filt[1]) {
                     classifier.initRead(rds[1], nofw[1], norc[1], minsc[1], maxpen[1], filt[1]);
-		}
+                }
                 if(filt[0] || filt[1]) {
                     classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, spm, rnd, msinkwrap);
                     size_t mate = 0;
@@ -2860,15 +2868,16 @@ static void driver(
         switch(outType) {
 			case OUTPUT_SAM: {
 				mssink = new AlnSinkSam<index_t>(
-					oq,           // output queue
-					refnames,     // reference names
-                    gQuiet);      // don't print alignment summary at end
-				if(!samNoHead) {
+                                                 &ebwt,
+                                                 oq,           // output queue
+                                                 refnames,     // reference names
+                                                 gQuiet);      // don't print alignment summary at end
+                if(!samNoHead) {
 					BTString buf;
 					fout->writeString(buf);
 				}
 				// Write header for read-results file
-				fout->writeChars("readID\tuniqueID\ttaxID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
+				fout->writeChars("readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
 				break;
 			}
 			default:
@@ -2925,37 +2934,66 @@ static void driver(
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics& spm = metrics.spmu;
             if(abundance_analysis) {
+                Timer timer(cerr, "Calculating abundance: ");
                 spm.calculateAbundance(ebwt);
             }
-            map<uint64_t, double>& abundance = spm.abundance;
-            map<uint64_t, double>& abundance_len = spm.abundance_len;
-			reportOfb << "name" << '\t' << "taxid" << '\t' << "n_genomes" << '\t'
-					  << "idx_size" << '\t'  << "avg_genome_size" << '\t'
-					  << "n_reads" << '\t' << "n_unique_reads" << '\t'
-					  << "summed_hit_len" << '\t'
-					  << "weighted_reads" << '\t' << "n_unique_kmers" << '\t' << "sum_score" << '\t'
-                      << "abundance" << '\t' << "abundance_normalized_by_genome_size" << endl;
-			for(map<uint64_t,ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
-				uint64_t taxid = it->first;
-
-				// extract name, average genome size, and number of genomes from istringstream
-                reportOfb << "name" << '\t' << taxid;
-                if(taxid && false) {
-                    reportOfb << "." << taxid;
-                }
-                reportOfb << '\t'  << "n_genomes" << '\t'
-						  << "genome_size" << '\t' << "avg_size" << '\t'
-						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t'
-						  << it->second.summed_hit_len << '\t'
-						  << it->second.weighted_reads << '\t'
-                          << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
-                if(abundance_analysis) {
-                    assert(abundance.find(taxid) != abundance.end());
-                    assert(abundance_len.find(taxid) != abundance_len.end());
-                    reportOfb << abundance[taxid] << '\t'
-                              << abundance_len[taxid];
+            const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+            const std::map<uint64_t, string>& name_map = ebwt.name();
+            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
+            const map<uint64_t, double>& abundance = spm.abundance;
+            const map<uint64_t, double>& abundance_len = spm.abundance_len;
+			reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
+					  << "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
+            if(false) {
+                reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
+            }
+            reportOfb << "abundance";
+            if(false) {
+                reportOfb << '\t' << "abundance_normalized_by_genome_size";
+            }
+            reportOfb << endl;
+			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
+                uint64_t taxid = it->first;
+                std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
+                if(name_itr != name_map.end()) {
+                    reportOfb << name_itr->second;
                 } else {
-                    reportOfb << "0\t0";
+                    reportOfb << taxid;
+                }
+                reportOfb << '\t' << taxid << '\t';
+                uint8_t rank = 0;
+                std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
+                if(tree_itr != tree.end()) {
+                    rank = tree_itr->second.rank;
+                }
+                string rank_str = get_tax_rank(rank);
+                reportOfb << rank_str << '\t';
+                
+                std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
+                uint64_t genome_size = 0;
+                if(size_itr != size_map.end()) {
+                    genome_size = size_itr->second;
+                }
+                
+                reportOfb << genome_size << '\t'
+						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
+                if(false) {
+                    reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
+                              << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
+                }
+                map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
+                if(ab_len_itr != abundance_len.end()) {
+                    reportOfb << ab_len_itr->second;
+                } else {
+                    reportOfb << "0.0";
+                }
+                map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
+                if(false) {
+                    if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
+                        reportOfb << '\t' << ab_itr->second;
+                    } else {
+                        reportOfb << "\t0.0";
+                    }
                 }
                 reportOfb << endl;
 

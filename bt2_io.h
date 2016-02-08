@@ -675,10 +675,11 @@ done: // Exit hatch for both justHeader and !justHeader
 	// Be kind
 	if(deleteEh) delete eh;
 #ifdef BOWTIE_MM
-	fseek(_in1, 0, SEEK_SET);
-	fseek(_in2, 0, SEEK_SET);
+	if(_in1 != NULL) fseek(_in1, 0, SEEK_SET);
+	if(_in2 != NULL) fseek(_in2, 0, SEEK_SET);
 #else
-	rewind(_in1); rewind(_in2);
+	if(_in1 != NULL) rewind(_in1);
+    if(_in2 != NULL) rewind(_in2);
 #endif
 }
 

@@ -1,0 +1,825 @@
+<div id="TOC">
+<ul>
+<li><a href="#introduction">Introduction</a><ul>
+<li><a href="#what-is-centrifuge">What is Centrifuge?</a></li>
+</ul></li>
+<li><a href="#obtaining-centrifuge">Obtaining Centrifuge</a><ul>
+<li><a href="#building-from-source">Building from source</a></li>
+</ul></li>
+<li><a href="#running-centrifuge">Running Centrifuge</a><ul>
+<li><a href="#adding-to-path">Adding to PATH</a></li>
+<li><a href="#before-running-centrifuge">Before running Centrifuge</a></li>
+<li><a href="#index-building">Index building</a><ul>
+<li><a href="#nt-database">nt database</a></li>
+</ul></li>
+<li><a href="#reporting">Reporting</a><ul>
+<li><a href="#centrifuge-classification-output">Centrifuge classification output</a></li>
+<li><a href="#centrifuge-summary-output-the-default-filename-is-centrifuge_report.csv">Centrifuge summary output (the default filename is centrifuge_report.csv)</a></li>
+</ul></li>
+<li><a href="#inspecting-the-centrifuge-index">Inspecting the Centrifuge index</a></li>
+<li><a href="#wrapper">Wrapper</a></li>
+<li><a href="#performance-tuning">Performance tuning</a></li>
+<li><a href="#command-line">Command Line</a><ul>
+<li><a href="#usage">Usage</a></li>
+<li><a href="#main-arguments">Main arguments</a></li>
+<li><a href="#options">Options</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#the-centrifuge-build-indexer">The <code>centrifuge-build</code> indexer</a><ul>
+<li><a href="#command-line-1">Command Line</a><ul>
+<li><a href="#main-arguments-1">Main arguments</a></li>
+<li><a href="#options-1">Options</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#the-centrifuge-inspect-index-inspector">The <code>centrifuge-inspect</code> index inspector</a><ul>
+<li><a href="#command-line-2">Command Line</a><ul>
+<li><a href="#main-arguments-2">Main arguments</a></li>
+<li><a href="#options-2">Options</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#getting-started-with-centrifuge">Getting started with Centrifuge</a><ul>
+<li><a href="#indexing-a-reference-genome">Indexing a reference genome</a></li>
+<li><a href="#classifying-example-reads">Classifying example reads</a></li>
+</ul></li>
+</ul>
+</div>
+<!--
+ ! This manual is written in "markdown" format and thus contains some
+ ! distracting formatting clutter.  See 'MANUAL' for an easier-to-read version
+ ! of this text document, or see the HTML manual online.
+ ! -->
+
+<h1 id="introduction">Introduction</h1>
+<h2 id="what-is-centrifuge">What is Centrifuge?</h2>
+<p><a href="http://www.ccb.jhu.edu/software/centrifuge">Centrifuge</a> is a novel microbial classification engine that enables rapid, accurate, and sensitive labeling of reads and quantification of species on desktop computers. The system uses a novel indexing scheme based on the Burrows-Wheeler transform (BWT) and the Ferragina-Manzini (FM) index, optimized specifically for the metagenomic classification problem. Centrifuge requires a relatively small index (4.7 GB for all complete bacterial and viral genomes plus the human genome) and classifies sequences at a very high speed, allowing it to process the millions of reads from a typical high-throughput DNA sequencing run within a few minutes. Together these advances enable timely and accurate analysis of large metagenomics data sets on conventional desktop computers.</p>
+<h1 id="obtaining-centrifuge">Obtaining Centrifuge</h1>
+<p>Download Centrifuge and binaries from the Releases sections on the right side. Binaries are available for Intel architectures (<code>x86_64</code>) running Linux, and Mac OS X.</p>
+<h2 id="building-from-source">Building from source</h2>
+<p>Building Centrifuge from source requires a GNU-like environment with GCC, GNU Make and other basics. It should be possible to build Centrifuge on most vanilla Linux installations or on a Mac installation with <a href="http://developer.apple.com/xcode/">Xcode</a> installed. Centrifuge can also be built on Windows using <a href="http://www.cygwin.com/">Cygwin</a> or <a href="http://www.mingw.org/">MinGW</a> (MinGW recommended). For a MinGW build the choice of what compiler is to be used is important since this will determine if a 32 or 64 bit code can be successfully compiled using it. If there is a need to generate both 32 and 64 bit on the same machine then a multilib MinGW has to be properly installed. <a href="http://www.mingw.org/wiki/msys">MSYS</a>, the <a href="http://cygwin.com/packages/mingw-zlib/">zlib</a> library, and depending on architecture <a href="http://sourceware.org/pthreads-win32/">pthreads</a> library are also required. We are recommending a 64 bit build since it has some clear advantages in real life research problems. In order to simplify the MinGW setup it might be worth investigating popular MinGW personal builds since these are coming already prepared with most of the toolchains needed.</p>
+<p>First, download the [source package] from the Releases secion on the right side. Unzip the file, change to the unzipped directory, and build the Centrifuge tools by running GNU <code>make</code> (usually with the command <code>make</code>, but sometimes with <code>gmake</code>) with no arguments. If building with MinGW, run <code>make</code> from the MSYS environment.</p>
+<p>Centrifuge is using the multithreading software model in order to speed up execution times on SMP architectures where this is possible. On POSIX platforms (like linux, Mac OS, etc) it needs the pthread library. Although it is possible to use pthread library on non-POSIX platform like Windows, due to performance reasons Centrifuge will try to use Windows native multithreading if possible.</p>
+<h1 id="running-centrifuge">Running Centrifuge</h1>
+<h2 id="adding-to-path">Adding to PATH</h2>
+<p>By adding your new Centrifuge directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>, you ensure that whenever you run <code>centrifuge</code>, <code>centrifuge-build</code>, <code>centrifuge-download</code> or <code>centrifuge-inspect</code> from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>.</p>
+<p>If you would like to install Centrifuge by copying the Centrifuge executable files to an existing directory in your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>, make sure that you copy all the executables, including <code>centrifuge</code>, <code>centrifuge-class</code>, <code>centrifuge-build</code>, <code>centrifuge-build-bin</code>, <code>centrifuge-download</code> <code>centrifuge-inspect</code> and <code>centrifuge-inspect-bin</code>. Furthermore you need the programs in the scripts/ folder if you opt for genome compression in the database construction.</p>
+<h2 id="before-running-centrifuge">Before running Centrifuge</h2>
+<p>Classification is considerably different from alignment in that classification is performed on a large set of genomes as opposed to on just one reference genome as in alignment. Currently, an enormous number of complete genomes are available at the GenBank (e.g. &gt;4,000 bacterial genomes, &gt;10,000 viral genomes, …). These genomes are organized in a taxonomic tree where each genome is located at the bottom of the tree, at the strain or subspecies level. On the taxonomic tree, genomes have ancestors usually situated at the species level, and those ancestors also have ancestors at the genus level and so on up the family level, the order level, class level, phylum, kingdom, and finally at the root level.</p>
+<p>Given the gigantic number of genomes available, which continues to expand at a rapid rate, and the development of the taxonomic tree, which continues to evolve with new advancements in research, we have designed Centrifuge to be flexible and general enough to reflect this huge database. We provide several standard indexes that will meet most of users’ needs (see the side panel - Indexes). In our approach our indexes not only include raw genome sequences, but also genome names/sizes and taxonomic trees. This enables users to perform additional analyses on Centrifuge’s classification output without the need to download extra database sources. This also eliminates the potential issue of discrepancy between the indexes we provide and the databases users may otherwise download. We plan to provide a couple of additional standard indexes in the near future, and update the indexes on a regular basis.</p>
+<p>We encourage first time users to take a look at and follow a <a href="#centrifuge-example"><code>small example</code></a> that illustrates how to build an index, how to run Centrifuge using the index, how to interpret the classification results, and how to extract additional genomic information from the index. For those who choose to build customized indexes, please take a close look at the following description.</p>
+<h2 id="index-building">Index building</h2>
+<p>Centrifuge indexes can be built with arbritary sequences. Standard choices are all of the complete bacterial and viral genomes, or using the sequences that are part of the BLAST nt database. Centrifuge always needs the nodes.dmp file from the NCBI taxonomy dump to build the taxonomy tree, as well as a sequence ID to taxonomy ID map. The map is a tab-separated file with the sequence ID to taxonomy ID map.</p>
+<p>To download all of the complete archaeal, viral, and bacterial genomes from RefSeq, and build the index:</p>
+<pre><code>## download nodes.dmp and names.dmp to taxonomy/
+centrifuge-download taxonomy
+## download all archaeal, viral and bacterial genomes from RefSeq to library/. Also, dust them.
+centrifuge-download -m -d &quot;archaea,bacteria,viral&quot; -P $(THREADS) refseq &gt; microbial_seqid2taxid.map
+## concatenate all the downloaded sequences to build the index
+cat library/*/*.fna &gt; input-sequences.fna
+## build centrifuge index with 4 threads
+centrifuge-build -p 4 --conversion-table microbial_seqid2taxid.map \
+                 --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+                 input-sequences.fna a+b+v</code></pre>
+<p>After building the index, all files except the index *.[123].cf files may be removed. If you also want to include the human and/or the mouse genome, add their sequences to the library folder before building the index with one of the following commands:</p>
+<pre><code>## download mouse and human reference genomes
+centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot; -t 9606,10090 -c &#39;reference genome&#39;
+## only human
+centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot; -t 9606 -c &#39;reference genome&#39;
+## only mouse
+centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot; -t 10090 -c &#39;reference genome&#39;</code></pre>
+<h3 id="nt-database">nt database</h3>
+<p>NCBI BLAST's nt database contains all spliced non-redundant coding sequences from multiplpe databases, inferred from genommic sequences. Traditionally used with BLAST, a download of the FASTA is provided on the NCBI homepage. Further the user needs a sequence ID to taxonomy ID map that can be generated from a GI taxid dump:</p>
+<pre><code>wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
+gunzip nt.gz &amp;&amp; mv -v nt nt.fa
+
+wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz
+gunzip -c gi_taxid_nucl.dmp.gz | sed &#39;s/^/gi|/&#39; &gt; gi_taxid_nucl.map
+
+# build index using 16 cores and a small bucket size, which will require less memory
+centrifuge-build -p 16 --bmax 1342177280 --conversion-table gi_taxid_nucl.map \
+                 --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \ 
+                 nt.fa nt</code></pre>
+<h2 id="reporting">Reporting</h2>
+<h3 id="centrifuge-classification-output">Centrifuge classification output</h3>
+<p>The following example shows classification assignments for a read. The assignment output has 7 columns.</p>
+<pre><code>readID    seqID   taxID score      2ndBestScore    hitLength    numMatches
+1_1       gi|4    9646  4225       0               80           1
+
+The first column is the read ID from a raw sequencing read (e.g., 1_1 in the example).
+The second column is the sequence ID of the genomic sequence, where the read is classified (e.g., gi|4).
+The third column is the taxonomic ID of the genomic sequence in the second column (e.g., 9646).
+The fourth column is the score for the classification, which is the weighted sum of hits (e.g., 4225)
+The fifth column is the score for the next best classification (e.g., 0).
+The sixth column is an approximate number of base pairs of the read that match the genomic sequence (e.g., 80).
+The seventh column is the number of classifications, indicating how many assignments were made (e.g.,1).</code></pre>
+<h3 id="centrifuge-summary-output-the-default-filename-is-centrifuge_report.csv">Centrifuge summary output (the default filename is centrifuge_report.csv)</h3>
+<p>The following example shows a classification summary for each genome or taxonomic unit. The assignment output has 7 columns.</p>
+<pre><code>name                                                            taxID   taxRank    genomeSize   numReads   numUniqueReads   abundance
+Wigglesworthia glossinidia endosymbiont of Glossina brevipalpis 36870   no rank    703004       5981       5964             0.0152317
+
+The first column is the name of a genome, or the name corresponding to a taxonomic ID (the second column) at a rank higher than the strain (e.g., Wigglesworthia glossinidia endosymbiont of Glossina brevipalpis).
+The second column is the taxonomic ID (e.g., 36870).
+The third column is the taxonomic rank (e.g., no rank).
+The fourth column is the length of the genome sequence (e.g., 703004).
+The fifth column is the number of reads classified to this genomic sequence including multi-classified reads (e.g., 5981).
+The sixth column is the number of reads uniquely classified to this genomic sequence (e.g., 5964).
+The seventh column is the proportion of this genome normalized by its genomic length (e.g., 0.0152317).</code></pre>
+<h2 id="inspecting-the-centrifuge-index">Inspecting the Centrifuge index</h2>
+<p>The index can be inspected with <code>centrifuge-inspect</code>. To extract raw sequences:</p>
+<pre><code>centrifuge-inspect &lt;centrifuge index&gt;</code></pre>
+<p>Extract the sequence ID to taxonomy ID conversion table from the index</p>
+<pre><code>centrifuge-inspect --conversion-table &lt;centrifuge index&gt;</code></pre>
+<p>Extract the taxonomy tree from the index:</p>
+<pre><code>centrifuge-inspect --taxonomy-tree &lt;centrifuge index&gt;</code></pre>
+<p>Extract the lengths of the sequences from the index (each row has two columns: taxonomic ID and length):</p>
+<pre><code>centrifuge-inspect --size-table &lt;centrifuge index&gt;</code></pre>
+<p>Extract the names from the index (each row has two columns: taxonomic ID and name):</p>
+<pre><code>centrifuge-inspect --name-table &lt;centrifuge index&gt;</code></pre>
+<h2 id="wrapper">Wrapper</h2>
+<p>The <code>centrifuge</code>, <code>centrifuge-build</code> and <code>centrifuge-inspect</code> executables are actually wrapper scripts that call binary programs as appropriate. Also, the <code>centrifuge</code> wrapper provides some key functionality, like the ability to handle compressed inputs, and the functionality for [<code>--un</code>], [<code>--al</code>] and related options.</p>
+<p>It is recommended that you always run the centrifuge wrappers and not run the binaries directly.</p>
+<h2 id="performance-tuning">Performance tuning</h2>
+<ol style="list-style-type: decimal">
+<li><p>If your computer has multiple processors/cores, use <code>-p NTHREADS</code></p>
+<p>The <a href="#centrifuge-build-options-p"><code>-p</code></a> option causes Centrifuge to launch a specified number of parallel search threads. Each thread runs on a different processor/core and all threads find alignments in parallel, increasing alignment throughput by approximately a multiple of the number of threads (though in practice, speedup is somewhat worse than linear).</p></li>
+</ol>
+<h2 id="command-line">Command Line</h2>
+<h3 id="usage">Usage</h3>
+<pre><code>centrifuge [options]* -x &lt;centrifuge-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt;}</code></pre>
+<h3 id="main-arguments">Main arguments</h3>
+<table><tr><td>
+
+<pre><code>-x &lt;centrifuge-idx&gt;</code></pre>
+</td><td>
+
+<p>The basename of the index for the reference genomes. The basename is the name of any of the index files up to but not including the final <code>.1.cf</code> / etc.<br /><code>centrifuge</code> looks for the specified index first in the current directory, then in the directory specified in the <code>CENTRIFUGE_INDEXES</code> environment variable.</p>
+</td></tr><tr><td>
+
+<pre><code>-1 &lt;m1&gt;</code></pre>
+</td><td>
+
+<p>Comma-separated list of files containing mate 1s (filename usually includes <code>_1</code>), e.g. <code>-1 flyA_1.fq,flyB_1.fq</code>. Sequences specified with this option must correspond file-for-file and read-for-read with those specified in <code>&lt;m2&gt;</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>centrifuge</code> will read the mate 1s from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
+</td></tr><tr><td>
+
+<pre><code>-2 &lt;m2&gt;</code></pre>
+</td><td>
+
+<p>Comma-separated list of files containing mate 2s (filename usually includes <code>_2</code>), e.g. <code>-2 flyA_2.fq,flyB_2.fq</code>. Sequences specified with this option must correspond file-for-file and read-for-read with those specified in <code>&lt;m1&gt;</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>centrifuge</code> will read the mate 2s from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
+</td></tr><tr><td>
+
+<pre><code>-U &lt;r&gt;</code></pre>
+</td><td>
+
+<p>Comma-separated list of files containing unpaired reads to be aligned, e.g. <code>lane1.fq,lane2.fq,lane3.fq,lane4.fq</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>centrifuge</code> gets the reads from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
+</td></tr><tr><td>
+
+<pre><code>-S &lt;filename&gt;</code></pre>
+</td><td>
+
+<p>File to write classification results to. By default, assignments are written to the &quot;standard out&quot; or &quot;stdout&quot; filehandle (i.e. the console).</p>
+</td></tr><tr><td>
+
+<pre><code>--report-file &lt;filename&gt;</code></pre>
+</td><td>
+
+<p>File to write a classification summary to (default: centrifuge_report.csv).</p>
+</td></tr></table>
+
+<h3 id="options">Options</h3>
+<h4 id="input-options">Input options</h4>
+<table>
+<tr><td id="centrifuge-options-q">
+
+<pre><code>-q</code></pre>
+</td><td>
+
+<p>Reads (specified with <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code>, <code>&lt;s&gt;</code>) are FASTQ files. FASTQ files usually have extension <code>.fq</code> or <code>.fastq</code>. FASTQ is the default format. See also: <a href="#centrifuge-options-solexa-quals"><code>--solexa-quals</code></a> and <a href="#centrifuge-options-int-quals"><code>--int-quals</code></a>.</p>
+</td></tr>
+<tr><td id="centrifuge-options-qseq">
+
+<pre><code>--qseq</code></pre>
+</td><td>
+
+<p>Reads (specified with <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code>, <code>&lt;s&gt;</code>) are QSEQ files. QSEQ files usually end in <code>_qseq.txt</code>. See also: <a href="#centrifuge-options-solexa-quals"><code>--solexa-quals</code></a> and <a href="#centrifuge-options-int-quals"><code>--int-quals</code></a>.</p>
+</td></tr>
+<tr><td id="centrifuge-options-f">
+
+<pre><code>-f</code></pre>
+</td><td>
+
+<p>Reads (specified with <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code>, <code>&lt;s&gt;</code>) are FASTA files. FASTA files usually have extension <code>.fa</code>, <code>.fasta</code>, <code>.mfa</code>, <code>.fna</code> or similar. FASTA files do not have a way of specifying quality values, so when <code>-f</code> is set, the result is as if <code>--ignore-quals</code> is also set.</p>
+</td></tr>
+<tr><td id="centrifuge-options-r">
+
+<pre><code>-r</code></pre>
+</td><td>
+
+<p>Reads (specified with <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code>, <code>&lt;s&gt;</code>) are files with one input sequence per line, without any other information (no read names, no qualities). When <code>-r</code> is set, the result is as if <code>--ignore-quals</code> is also set.</p>
+</td></tr>
+<tr><td id="centrifuge-options-c">
+
+<pre><code>-c</code></pre>
+</td><td>
+
+<p>The read sequences are given on command line. I.e. <code>&lt;m1&gt;</code>, <code>&lt;m2&gt;</code> and <code>&lt;singles&gt;</code> are comma-separated lists of reads rather than lists of read files. There is no way to specify read names or qualities, so <code>-c</code> also implies <code>--ignore-quals</code>.</p>
+</td></tr>
+<tr><td id="centrifuge-options-s">
+
+<pre><code>-s/--skip &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Skip (i.e. do not align) the first <code>&lt;int&gt;</code> reads or pairs in the input.</p>
+</td></tr>
+<tr><td id="centrifuge-options-u">
+
+<pre><code>-u/--qupto &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Align the first <code>&lt;int&gt;</code> reads or read pairs from the input (after the <a href="#centrifuge-options-s"><code>-s</code>/<code>--skip</code></a> reads or pairs have been skipped), then stop. Default: no limit.</p>
+</td></tr>
+<tr><td id="centrifuge-options-5">
+
+<pre><code>-5/--trim5 &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Trim <code>&lt;int&gt;</code> bases from 5' (left) end of each read before alignment (default: 0).</p>
+</td></tr>
+<tr><td id="centrifuge-options-3">
+
+<pre><code>-3/--trim3 &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Trim <code>&lt;int&gt;</code> bases from 3' (right) end of each read before alignment (default: 0).</p>
+</td></tr><tr><td id="centrifuge-options-phred33-quals">
+
+<pre><code>--phred33</code></pre>
+</td><td>
+
+<p>Input qualities are ASCII chars equal to the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> plus 33. This is also called the &quot;Phred+33&quot; encoding, which is used by the very latest Illumina pipelines.</p>
+</td></tr>
+<tr><td id="centrifuge-options-phred64-quals">
+
+<pre><code>--phred64</code></pre>
+</td><td>
+
+<p>Input qualities are ASCII chars equal to the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> plus 64. This is also called the &quot;Phred+64&quot; encoding.</p>
+</td></tr>
+<tr><td id="centrifuge-options-solexa-quals">
+
+<pre><code>--solexa-quals</code></pre>
+</td><td>
+
+<p>Convert input qualities from <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Solexa</a> (which can be negative) to <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred</a> (which can't). This scheme was used in older Illumina GA Pipeline versions (prior to 1.3). Default: off.</p>
+</td></tr>
+<tr><td id="centrifuge-options-int-quals">
+
+<pre><code>--int-quals</code></pre>
+</td><td>
+
+<p>Quality values are represented in the read input file as space-separated ASCII integers, e.g., <code>40 40 30 40</code>..., rather than ASCII characters, e.g., <code>II?I</code>.... Integers are treated as being on the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> scale unless <a href="#centrifuge-options-solexa-quals"><code>--solexa-quals</code></a> is also specified. Default: off.</p>
+</td></tr></table>
+
+<!--
+#### Alignment options
+
+<table>
+
+<tr><td id="centrifuge-options-n-ceil">
+
+[`--n-ceil`]: #centrifuge-options-n-ceil
+
+    --n-ceil <func>
+
+</td><td>
+
+Sets a function governing the maximum number of ambiguous characters (usually
+`N`s and/or `.`s) allowed in a read as a function of read length.  For instance,
+specifying `-L,0,0.15` sets the N-ceiling function `f` to `f(x) = 0 + 0.15 * x`,
+where x is the read length.  See also: [setting function options].  Reads
+exceeding this ceiling are [filtered out].  Default: `L,0,0.15`.
+
+[filtered out]: #filtering
+
+</td></tr>
+
+<tr><td id="centrifuge-options-ignore-quals">
+
+[`--ignore-quals`]: #centrifuge-options-ignore-quals
+
+    --ignore-quals
+
+</td><td>
+
+When calculating a mismatch penalty, always consider the quality value at the
+mismatched position to be the highest possible, regardless of the actual value. 
+I.e. input is treated as though all quality values are high.  This is also the
+default behavior when the input doesn't specify quality values (e.g. in [`-f`],
+[`-r`], or [`-c`] modes).
+
+</td></tr>
+<tr><td id="centrifuge-options-nofw">
+
+[`--nofw`]: #centrifuge-options-nofw
+
+    --nofw/--norc
+
+</td><td>
+
+If `--nofw` is specified, `centrifuge` will not attempt to align unpaired reads to
+the forward (Watson) reference strand.  If `--norc` is specified, `centrifuge` will
+not attempt to align unpaired reads against the reverse-complement (Crick)
+reference strand. In paired-end mode, `--nofw` and `--norc` pertain to the
+fragments; i.e. specifying `--nofw` causes `centrifuge` to explore only those
+paired-end configurations corresponding to fragments from the reverse-complement
+(Crick) strand.  Default: both strands enabled. 
+
+</td></tr>
+
+</table>
+
+#### Paired-end options
+
+<table>
+
+<tr><td id="centrifuge-options-fr">
+
+[`--fr`/`--rf`/`--ff`]: #centrifuge-options-fr
+[`--fr`]: #centrifuge-options-fr
+[`--rf`]: #centrifuge-options-fr
+[`--ff`]: #centrifuge-options-fr
+
+    --fr/--rf/--ff
+
+</td><td>
+
+The upstream/downstream mate orientations for a valid paired-end alignment
+against the forward reference strand.  E.g., if `--fr` is specified and there is
+a candidate paired-end alignment where mate 1 appears upstream of the reverse
+complement of mate 2 and the fragment length constraints ([`-I`] and [`-X`]) are
+met, that alignment is valid.  Also, if mate 2 appears upstream of the reverse
+complement of mate 1 and all other constraints are met, that too is valid.
+`--rf` likewise requires that an upstream mate1 be reverse-complemented and a
+downstream mate2 be forward-oriented. ` --ff` requires both an upstream mate 1
+and a downstream mate 2 to be forward-oriented.  Default: `--fr` (appropriate
+for Illumina's Paired-end Sequencing Assay).
+
+</td></tr></table>
+-->
+
+<h4 id="output-options">Output options</h4>
+<table>
+
+<tr><td id="centrifuge-options-t">
+
+<pre><code>-t/--time</code></pre>
+</td><td>
+
+<p>Print the wall-clock time required to load the index files and align the reads. This is printed to the &quot;standard error&quot; (&quot;stderr&quot;) filehandle. Default: off.</p>
+</td></tr>
+
+<!--
+<tr><td id="centrifuge-options-un">
+
+[`--un`]: #centrifuge-options-un
+[`--un-gz`]: #centrifuge-options-un
+[`--un-bz2`]: #centrifuge-options-un
+
+    --un <path>
+    --un-gz <path>
+    --un-bz2 <path>
+
+</td><td>
+
+Write unpaired reads that fail to align to file at `<path>`.  These reads
+correspond to the SAM records with the FLAGS `0x4` bit set and neither the
+`0x40` nor `0x80` bits set.  If `--un-gz` is specified, output will be gzip
+compressed. If `--un-bz2` is specified, output will be bzip2 compressed.  Reads
+written in this way will appear exactly as they did in the input file, without
+any modification (same sequence, same name, same quality string, same quality
+encoding).  Reads will not necessarily appear in the same order as they did in
+the input.
+
+</td></tr>
+<tr><td id="centrifuge-options-al">
+
+[`--al`]: #centrifuge-options-al
+[`--al-gz`]: #centrifuge-options-al
+[`--al-bz2`]: #centrifuge-options-al
+
+    --al <path>
+    --al-gz <path>
+    --al-bz2 <path>
+
+</td><td>
+
+Write unpaired reads that align at least once to file at `<path>`.  These reads
+correspond to the SAM records with the FLAGS `0x4`, `0x40`, and `0x80` bits
+unset.  If `--al-gz` is specified, output will be gzip compressed. If `--al-bz2`
+is specified, output will be bzip2 compressed.  Reads written in this way will
+appear exactly as they did in the input file, without any modification (same
+sequence, same name, same quality string, same quality encoding).  Reads will
+not necessarily appear in the same order as they did in the input.
+
+</td></tr>
+<tr><td id="centrifuge-options-un-conc">
+
+[`--un-conc`]: #centrifuge-options-un-conc
+[`--un-conc-gz`]: #centrifuge-options-un-conc
+[`--un-conc-bz2`]: #centrifuge-options-un-conc
+
+    --un-conc <path>
+    --un-conc-gz <path>
+    --un-conc-bz2 <path>
+
+</td><td>
+
+Write paired-end reads that fail to align concordantly to file(s) at `<path>`.
+These reads correspond to the SAM records with the FLAGS `0x4` bit set and
+either the `0x40` or `0x80` bit set (depending on whether it's mate #1 or #2).
+`.1` and `.2` strings are added to the filename to distinguish which file
+contains mate #1 and mate #2.  If a percent symbol, `%`, is used in `<path>`,
+the percent symbol is replaced with `1` or `2` to make the per-mate filenames.
+Otherwise, `.1` or `.2` are added before the final dot in `<path>` to make the
+per-mate filenames.  Reads written in this way will appear exactly as they did
+in the input files, without any modification (same sequence, same name, same
+quality string, same quality encoding).  Reads will not necessarily appear in
+the same order as they did in the inputs.
+
+</td></tr>
+<tr><td id="centrifuge-options-al-conc">
+
+[`--al-conc`]: #centrifuge-options-al-conc
+[`--al-conc-gz`]: #centrifuge-options-al-conc
+[`--al-conc-bz2`]: #centrifuge-options-al-conc
+
+    --al-conc <path>
+    --al-conc-gz <path>
+    --al-conc-bz2 <path>
+
+</td><td>
+
+Write paired-end reads that align concordantly at least once to file(s) at
+`<path>`. These reads correspond to the SAM records with the FLAGS `0x4` bit
+unset and either the `0x40` or `0x80` bit set (depending on whether it's mate #1
+or #2). `.1` and `.2` strings are added to the filename to distinguish which
+file contains mate #1 and mate #2.  If a percent symbol, `%`, is used in
+`<path>`, the percent symbol is replaced with `1` or `2` to make the per-mate
+filenames. Otherwise, `.1` or `.2` are added before the final dot in `<path>` to
+make the per-mate filenames.  Reads written in this way will appear exactly as
+they did in the input files, without any modification (same sequence, same name,
+same quality string, same quality encoding).  Reads will not necessarily appear
+in the same order as they did in the inputs.
+
+</td></tr>
+-->
+
+<tr><td id="centrifuge-options-quiet">
+
+<pre><code>--quiet</code></pre>
+</td><td>
+
+<p>Print nothing besides alignments and serious errors.</p>
+</td></tr>
+<tr><td id="centrifuge-options-met-file">
+
+<pre><code>--met-file &lt;path&gt;</code></pre>
+</td><td>
+
+<p>Write <code>centrifuge</code> metrics to file <code>&lt;path&gt;</code>. Having alignment metric can be useful for debugging certain problems, especially performance issues. See also: <a href="#centrifuge-options-met"><code>--met</code></a>. Default: metrics disabled.</p>
+</td></tr>
+<tr><td id="centrifuge-options-met-stderr">
+
+<pre><code>--met-stderr</code></pre>
+</td><td>
+
+<p>Write <code>centrifuge</code> metrics to the &quot;standard error&quot; (&quot;stderr&quot;) filehandle. This is not mutually exclusive with <a href="#centrifuge-options-met-file"><code>--met-file</code></a>. Having alignment metric can be useful for debugging certain problems, especially performance issues. See also: <a href="#centrifuge-options-met"><code>--met</code></a>. Default: metrics disabled.</p>
+</td></tr>
+<tr><td id="centrifuge-options-met">
+
+<pre><code>--met &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Write a new <code>centrifuge</code> metrics record every <code>&lt;int&gt;</code> seconds. Only matters if either <a href="#centrifuge-options-met-stderr"><code>--met-stderr</code></a> or <a href="#centrifuge-options-met-file"><code>--met-file</code></a> are specified. Default: 1.</p>
+</td></tr>
+</table>
+
+<h4 id="performance-options">Performance options</h4>
+<table><tr>
+
+<td id="centrifuge-options-o">
+
+<pre><code>-o/--offrate &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Override the offrate of the index with <code>&lt;int&gt;</code>. If <code>&lt;int&gt;</code> is greater than the offrate used to build the index, then some row markings are discarded when the index is read into memory. This reduces the memory footprint of the aligner but requires more time to calculate text offsets. <code>&lt;int&gt;</code> must be greater than the value used to build the index.</p>
+</td></tr>
+<tr><td id="centrifuge-options-p">
+
+<pre><code>-p/--threads NTHREADS</code></pre>
+</td><td>
+
+<p>Launch <code>NTHREADS</code> parallel search threads (default: 1). Threads will run on separate processors/cores and synchronize when parsing reads and outputting alignments. Searching for alignments is highly parallel, and speedup is close to linear. Increasing <code>-p</code> increases Centrifuge's memory footprint. E.g. when aligning to a human genome index, increasing <code>-p</code> from 1 to 8 increases the memory footprint by a few hundred megabytes. This option is only available if <code>bowtie</code> is linked with the <code>pthreads</code> library (i.e. if <code>BOWTIE_PTHREADS=0</code> is not specified at build time).</p>
+</td></tr>
+<tr><td id="centrifuge-options-reorder">
+
+<pre><code>--reorder</code></pre>
+</td><td>
+
+<p>Guarantees that output records are printed in an order corresponding to the order of the reads in the original input file, even when <a href="#centrifuge-build-options-p"><code>-p</code></a> is set greater than 1. Specifying <code>--reorder</code> and setting <a href="#centrifuge-build-options-p"><code>-p</code></a> greater than 1 causes Centrifuge to run somewhat slower and use somewhat more memory then if <code>--reorder</code> were not specified. Has no effect if <a href="#centrifuge-build-options-p"><code>-p</code></a> is set to 1, since output order will naturally correspond to input order in that case.</p>
+</td></tr>
+<tr><td id="centrifuge-options-mm">
+
+<pre><code>--mm</code></pre>
+</td><td>
+
+<p>Use memory-mapped I/O to load the index, rather than typical file I/O. Memory-mapping allows many concurrent <code>bowtie</code> processes on the same computer to share the same memory image of the index (i.e. you pay the memory overhead just once). This facilitates memory-efficient parallelization of <code>bowtie</code> in situations where using <a href="#centrifuge-build-options-p"><code>-p</code></a> is not possible or not preferable.</p>
+</td></tr></table>
+
+<h4 id="other-options">Other options</h4>
+<table>
+<tr><td id="centrifuge-options-qc-filter">
+
+<pre><code>--qc-filter</code></pre>
+</td><td>
+
+<p>Filter out reads for which the QSEQ filter field is non-zero. Only has an effect when read format is <a href="#centrifuge-options-qseq"><code>--qseq</code></a>. Default: off.</p>
+</td></tr>
+<tr><td id="centrifuge-options-seed">
+
+<pre><code>--seed &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Use <code>&lt;int&gt;</code> as the seed for pseudo-random number generator. Default: 0.</p>
+</td></tr>
+<tr><td id="centrifuge-options-non-deterministic">
+
+<pre><code>--non-deterministic</code></pre>
+</td><td>
+
+<p>Normally, Centrifuge re-initializes its pseudo-random generator for each read. It seeds the generator with a number derived from (a) the read name, (b) the nucleotide sequence, (c) the quality sequence, (d) the value of the <a href="#centrifuge-options-seed"><code>--seed</code></a> option. This means that if two reads are identical (same name, same nucleotides, same qualities) Centrifuge will find and report the same classification(s) for both, even if there was ambiguity. When <code>--non-deterministic</code> is specified, Centrifuge re-initializes its pseudo-random generator for each read using the current time. This means that Centrifuge will not necessarily report the same classification for two identical reads. This is counter-intuitive for some users, but might be more appropriate in situations where the input consists of many identical reads.</p>
+</td></tr>
+<tr><td id="centrifuge-options-version">
+
+<pre><code>--version</code></pre>
+</td><td>
+
+<p>Print version information and quit.</p>
+</td></tr>
+<tr><td id="centrifuge-options-h">
+
+<pre><code>-h/--help</code></pre>
+</td><td>
+
+<p>Print usage information and quit.</p>
+</td></tr></table>
+
+
+<h1 id="the-centrifuge-build-indexer">The <code>centrifuge-build</code> indexer</h1>
+<p><code>centrifuge-build</code> builds a Centrifuge index from a set of DNA sequences. <code>centrifuge-build</code> outputs a set of 6 files with suffixes <code>.1.cf</code>, <code>.2.cf</code>, and <code>.3.cf</code>. These files together constitute the index: they are all that is needed to align reads to that reference. The original sequence FASTA files are no longer used by Centrifuge once the index is built.</p>
+<p>Use of Karkkainen's <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> allows <code>centrifuge-build</code> to trade off between running time and memory usage. <code>centrifuge-build</code> has two options governing how it makes this trade: <a href="#centrifuge-build-options-bmax"><code>--bmax</code></a>/<a href="#centrifuge-build-options-bmaxdivn"><code>--bmaxdivn</code></a>, and <a href="#centrifuge-build-options-dcv"><code>--dcv</code></a>. By default, <code>centrifuge-build</code> will automatically search for the settings that yield the best running time without exhausting memory. This behavior can be disabled using the <a href="#centrifuge-build-options-a"><code>-a</code>/<code>--noauto</code></a> option.</p>
+<p>The indexer provides options pertaining to the &quot;shape&quot; of the index, e.g. <a href="#centrifuge-build-options-o"><code>--offrate</code></a> governs the fraction of <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> rows that are &quot;marked&quot; (i.e., the density of the suffix-array sample; see the original <a href="http://en.wikipedia.org/wiki/FM-index">FM Index</a> paper for details). All of these options are potentially profitable trade-offs depending on the application. They have been set to defaults that are reasonable for most cases according to our experiments. See <a href="#performance-tuning">Performance tuning</a> for details.</p>
+<p>The Centrifuge index is based on the <a href="http://en.wikipedia.org/wiki/FM-index">FM Index</a> of Ferragina and Manzini, which in turn is based on the <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> transform. The algorithm used to build the index is based on the <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> of Karkkainen.</p>
+<h2 id="command-line-1">Command Line</h2>
+<p>Usage:</p>
+<pre><code>centrifuge-build [options]* --conversion-table &lt;table_in&gt; --taxonomy-tree &lt;taxonomy_in&gt; --name-table &lt;table_in2&gt; &lt;reference_in&gt; &lt;cf_base&gt;</code></pre>
+<h3 id="main-arguments-1">Main arguments</h3>
+<table><tr><td>
+
+<pre><code>&lt;reference_in&gt;</code></pre>
+</td><td>
+
+<p>A comma-separated list of FASTA files containing the reference sequences to be aligned to, or, if <a href="#centrifuge-build-options-c"><code>-c</code></a> is specified, the sequences themselves. E.g., <code>&lt;reference_in&gt;</code> might be <code>chr1.fa,chr2.fa,chrX.fa,chrY.fa</code>, or, if <a href="#centrifuge-build-options-c"><code>-c</code></a> is specified, this might be <code>GGTCATCCT,ACGGGTCGT,CCGTTCTATGCGGCTTA</code>.</p>
+</td></tr><tr><td>
+
+<pre><code>&lt;cf_base&gt;</code></pre>
+</td><td>
+
+<p>The basename of the index files to write. By default, <code>centrifuge-build</code> writes files named <code>NAME.1.cf</code>, <code>NAME.2.cf</code>, and <code>NAME.3.cf</code>, where <code>NAME</code> is <code>&lt;cf_base&gt;</code>.</p>
+</td></tr></table>
+
+<h3 id="options-1">Options</h3>
+<table><tr><td>
+
+<pre><code>-f</code></pre>
+</td><td>
+
+<p>The reference input files (specified as <code>&lt;reference_in&gt;</code>) are FASTA files (usually having extension <code>.fa</code>, <code>.mfa</code>, <code>.fna</code> or similar).</p>
+</td></tr><tr><td id="centrifuge-build-options-c">
+
+<pre><code>-c</code></pre>
+</td><td>
+
+<p>The reference sequences are given on the command line. I.e. <code>&lt;reference_in&gt;</code> is a comma-separated list of sequences rather than a list of FASTA files.</p>
+</td></tr>
+<tr><td id="centrifuge-build-options-a">
+
+<pre><code>-a/--noauto</code></pre>
+</td><td>
+
+<p>Disable the default behavior whereby <code>centrifuge-build</code> automatically selects values for the <a href="#centrifuge-build-options-bmax"><code>--bmax</code></a>, <a href="#centrifuge-build-options-dcv"><code>--dcv</code></a> and [<code>--packed</code>] parameters according to available memory. Instead, user may specify values for those parameters. If memory is exhausted during indexing, an error message will be printed; it is up to the user to try new parameters.</p>
+</td></tr><tr><td id="centrifuge-build-options-p">
+
+<pre><code>-p/--threads &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Launch <code>NTHREADS</code> parallel search threads (default: 1).</p>
+</td></tr><tr><td id="centrifuge-build-options-conversion-table">
+
+<pre><code>--conversion-table &lt;file&gt;</code></pre>
+</td><td>
+
+<p>List of UIDs (unique ID) and corresponding taxonomic IDs.</p>
+</td></tr><tr><td id="centrifuge-build-options-taxonomy-tree">
+
+<pre><code>--taxonomy-tree &lt;file&gt;</code></pre>
+</td><td>
+
+<p>Taxonomic tree (e.g. nodes.dmp).</p>
+</td></tr><tr><td id="centrifuge-build-options-name-table">
+
+<pre><code>--name-table &lt;file&gt;</code></pre>
+</td><td>
+
+<p>Name table (e.g. names.dmp).</p>
+</td></tr><tr><td id="centrifuge-build-options-taxonomy-tree">
+
+<pre><code>--size-table &lt;file&gt;</code></pre>
+</td><td>
+
+<p>List of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.</p>
+</td></tr><tr><td id="centrifuge-build-options-bmax">
+
+<pre><code>--bmax &lt;int&gt;</code></pre>
+</td><td>
+
+<p>The maximum number of suffixes allowed in a block. Allowing more suffixes per block makes indexing faster, but increases peak memory usage. Setting this option overrides any previous setting for <a href="#centrifuge-build-options-bmax"><code>--bmax</code></a>, or <a href="#centrifuge-build-options-bmaxdivn"><code>--bmaxdivn</code></a>. Default (in terms of the <a href="#centrifuge-build-options-bmaxdivn"><code>--bmaxdivn</code></a> parameter) is <a href="#centrifuge-build-options-bmaxdivn"><code>--bmaxdivn</code></a> 4. This is configured automatically by default; use <a href="#centrifuge-build-options-a"><code>-a</code>/<code>--noauto</code></a> to configure manually.</p>
+</td></tr><tr><td id="centrifuge-build-options-bmaxdivn">
+
+<pre><code>--bmaxdivn &lt;int&gt;</code></pre>
+</td><td>
+
+<p>The maximum number of suffixes allowed in a block, expressed as a fraction of the length of the reference. Setting this option overrides any previous setting for <a href="#centrifuge-build-options-bmax"><code>--bmax</code></a>, or <a href="#centrifuge-build-options-bmaxdivn"><code>--bmaxdivn</code></a>. Default: <a href="#centrifuge-build-options-bmaxdivn"><code>--bmaxdivn</code></a> 4. This is configured automatically by default; use <a href="#centrifuge-build-options-a"><code>-a</code>/<code>--noauto</code></a> to configure manually.</p>
+</td></tr><tr><td id="centrifuge-build-options-dcv">
+
+<pre><code>--dcv &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Use <code>&lt;int&gt;</code> as the period for the difference-cover sample. A larger period yields less memory overhead, but may make suffix sorting slower, especially if repeats are present. Must be a power of 2 no greater than 4096. Default: 1024. This is configured automatically by default; use <a href="#centrifuge-build-options-a"><code>-a</code>/<code>--noauto</code></a> to configure manually.</p>
+</td></tr><tr><td id="centrifuge-build-options-nodc">
+
+<pre><code>--nodc</code></pre>
+</td><td>
+
+<p>Disable use of the difference-cover sample. Suffix sorting becomes quadratic-time in the worst case (where the worst case is an extremely repetitive reference). Default: off.</p>
+</td></tr><tr><td id="centrifuge-build-options-o">
+
+<pre><code>-o/--offrate &lt;int&gt;</code></pre>
+</td><td>
+
+<p>To map alignments back to positions on the reference sequences, it's necessary to annotate (&quot;mark&quot;) some or all of the <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> rows with their corresponding location on the genome. <a href="#centrifuge-build-options-o"><code>-o</code>/<code>--offrate</code></a> governs how many rows get marked: the indexer will mark every 2^<code>&lt;int&gt;</code> rows. Marking more rows makes reference-position lookups faster, but requires more memory to hold the annotations at runtime. The default is 4 (every 16th row is marked; for human genome, annotations occupy about 680 megabytes).</p>
+</td></tr><tr><td>
+
+<pre><code>-t/--ftabchars &lt;int&gt;</code></pre>
+</td><td>
+
+<p>The ftab is the lookup table used to calculate an initial <a href="http://en.wikipedia.org/wiki/Burrows-Wheeler_transform">Burrows-Wheeler</a> range with respect to the first <code>&lt;int&gt;</code> characters of the query. A larger <code>&lt;int&gt;</code> yields a larger lookup table but faster query times. The ftab has size 4^(<code>&lt;int&gt;</code>+1) bytes. The default setting is 10 (ftab is 4MB).</p>
+</td></tr><tr><td>
+
+<pre><code>--seed &lt;int&gt;</code></pre>
+</td><td>
+
+<p>Use <code>&lt;int&gt;</code> as the seed for pseudo-random number generator.</p>
+</td></tr><tr><td>
+
+<pre><code>-q/--quiet</code></pre>
+</td><td>
+
+<p><code>centrifuge-build</code> is verbose by default. With this option <code>centrifuge-build</code> will print only error messages.</p>
+</td></tr><tr><td>
+
+<pre><code>-h/--help</code></pre>
+</td><td>
+
+<p>Print usage information and quit.</p>
+</td></tr><tr><td>
+
+<pre><code>--version</code></pre>
+</td><td>
+
+<p>Print version information and quit.</p>
+</td></tr></table>
+
+<h1 id="the-centrifuge-inspect-index-inspector">The <code>centrifuge-inspect</code> index inspector</h1>
+<p><code>centrifuge-inspect</code> extracts information from a Centrifuge index about what kind of index it is and what reference sequences were used to build it. When run without any options, the tool will output a FASTA file containing the sequences of the original references (with all non-<code>A</code>/<code>C</code>/<code>G</code>/<code>T</code> characters converted to <code>N</code>s). It can also be used to extract just the reference sequence names using the <a href="#centrifuge-inspect-options-n"><code>-n</code>/<code>--names</code></a> option or a more verbose summary using the <a href="#centrifuge-inspect-options-s"><code>-s</code>/<code>--summary</code></a> option.</p>
+<h2 id="command-line-2">Command Line</h2>
+<p>Usage:</p>
+<pre><code>centrifuge-inspect [options]* &lt;cf_base&gt;</code></pre>
+<h3 id="main-arguments-2">Main arguments</h3>
+<table><tr><td>
+
+<pre><code>&lt;cf_base&gt;</code></pre>
+</td><td>
+
+<p>The basename of the index to be inspected. The basename is name of any of the index files but with the <code>.X.cf</code> suffix omitted. <code>centrifuge-inspect</code> first looks in the current directory for the index files, then in the directory specified in the <code>Centrifuge_INDEXES</code> environment variable.</p>
+</td></tr></table>
+
+<h3 id="options-2">Options</h3>
+<table><tr><td>
+
+<pre><code>-a/--across &lt;int&gt;</code></pre>
+</td><td>
+
+<p>When printing FASTA output, output a newline character every <code>&lt;int&gt;</code> bases (default: 60).</p>
+</td></tr><tr><td id="centrifuge-inspect-options-n">
+
+<pre><code>-n/--names</code></pre>
+</td><td>
+
+<p>Print reference sequence names, one per line, and quit.</p>
+</td></tr><tr><td id="centrifuge-inspect-options-s">
+
+<pre><code>-s/--summary</code></pre>
+</td><td>
+
+<p>Print a summary that includes information about index settings, as well as the names and lengths of the input sequences. The summary has this format:</p>
+<pre><code>Colorspace  &lt;0 or 1&gt;
+SA-Sample   1 in &lt;sample&gt;
+FTab-Chars  &lt;chars&gt;
+Sequence-1  &lt;name&gt;  &lt;len&gt;
+Sequence-2  &lt;name&gt;  &lt;len&gt;
+...
+Sequence-N  &lt;name&gt;  &lt;len&gt;</code></pre>
+<p>Fields are separated by tabs. Colorspace is always set to 0 for Centrifuge.</p>
+</td></tr><tr><td id="centrifuge-inspect-options-conversion-table">
+
+<pre><code>--conversion-table</code></pre>
+</td><td>
+
+<p>Print a list of UIDs (unique ID) and corresponding taxonomic IDs.</p>
+</td></tr><tr><td id="centrifuge-inspect-options-taxonomy-tree">
+
+<pre><code>--taxonomy-tree</code></pre>
+</td><td>
+
+<p>Print taxonomic tree.</p>
+</td></tr><tr><td id="centrifuge-inspect-options-name-table">
+
+<pre><code>--name-table</code></pre>
+</td><td>
+
+<p>Print name table.</p>
+</td></tr><tr><td id="centrifuge-inspect-options-taxonomy-tree">
+
+<pre><code>--size-table</code></pre>
+</td><td>
+
+<p>Print a list of taxonomic IDs and lengths of the sequences belonging to the same taxonomic IDs.</p>
+</td></tr><tr><td>
+
+<pre><code>-v/--verbose</code></pre>
+</td><td>
+
+<p>Print verbose output (for debugging).</p>
+</td></tr><tr><td>
+
+<pre><code>--version</code></pre>
+</td><td>
+
+<p>Print version information and quit.</p>
+</td></tr><tr><td>
+
+<pre><code>-h/--help</code></pre>
+</td><td>
+
+<p>Print usage information and quit.</p>
+</td></tr></table>
+
+<h1 id="getting-started-with-centrifuge">Getting started with Centrifuge</h1>
+<p>Centrifuge comes with some example files to get you started. The example files are not scientifically significant; these files will simply let you start running Centrifuge and downstream tools right away.</p>
+<p>First follow the manual instructions to <a href="#obtaining-centrifuge">obtain Centrifuge</a>. Set the <code>CENTRIFUGE_HOME</code> environment variable to point to the new Centrifuge directory containing the <code>centrifuge</code>, <code>centrifuge-build</code> and <code>centrifuge-inspect</code> binaries. This is important, as the <code>CENTRIFUGE_HOME</code> variable is used in the commands below to refer to that directory.</p>
+<h2 id="indexing-a-reference-genome">Indexing a reference genome</h2>
+<p>To create an index for two small sequences included with Centrifuge, create a new temporary directory (it doesn't matter where), change into that directory, and run:</p>
+<pre><code>$CENTRIFUGE_HOME/centrifuge-build --conversion-table $CENTRIFUGE_HOME/example/reference/gi_to_tid.dmp --taxonomy-tree $CENTRIFUGE_HOME/example/reference/nodes.dmp --name-table $CENTRIFUGE_HOME/example/reference/names.dmp $CENTRIFUGE_HOME/example/reference/test.fa test</code></pre>
+<p>The command should print many lines of output then quit. When the command completes, the current directory will contain ten new files that all start with <code>test</code> and end with <code>.1.cf</code>, <code>.2.cf</code>, <code>.3.cf</code>. These files constitute the index - you're done!</p>
+<p>You can use <code>centrifuge-build</code> to create an index for a set of FASTA files obtained from any source, including sites such as <a href="http://genome.ucsc.edu/cgi-bin/hgGateway">UCSC</a>, <a href="http://www.ncbi.nlm.nih.gov/sites/genome">NCBI</a>, and <a href="http://www.ensembl.org/">Ensembl</a>. When indexing multiple FASTA files, specify all the files using commas to separate file names. For more details on how to create an index with <code>centrifuge-build</code>, see the <a href="#the-centrifuge-build-indexer">manual section on index building</a>. You may also want to bypass this process by obtaining a pre-built index.</p>
+<h2 id="classifying-example-reads">Classifying example reads</h2>
+<p>Stay in the directory created in the previous step, which now contains the <code>test</code> index files. Next, run:</p>
+<pre><code>$CENTRIFUGE_HOME/centrifuge -f -x test $CENTRIFUGE_HOME/example/reads/input.fa</code></pre>
+<p>This runs the Centrifuge classifier, which classifies a set of unpaired reads to the the genomes using the index generated in the previous step. The classification results are reported to stdout, and a short classification summary is written to centrifuge-species_report.csv.</p>
+<p>You will see something like this:</p>
+<pre><code>readID  seqID taxID     score   2ndBestScore    hitLength   numMatches
+C_1 gi|7     9913      4225 4225        80      2
+C_1 gi|4     9646      4225 4225        80      2
+C_2 gi|4     9646      4225 4225        80      2
+C_2 gi|7     9913      4225 4225        80      2
+C_3 gi|7     9913      4225 4225        80      2
+C_3 gi|4     9646      4225 4225        80      2
+C_4 gi|4     9646      4225 4225        80      2
+C_4 gi|7     9913      4225 4225        80      2
+1_1 gi|4     9646      4225 0       80      1
+1_2 gi|4     9646      4225 0       80      1
+2_1 gi|7     9913      4225 0       80      1
+2_2 gi|7     9913      4225 0       80      1
+2_3 gi|7     9913      4225 0       80      1
+2_4 gi|7     9913      4225 0       80      1
+2_5 gi|7     9913      4225 0       80      1
+2_6 gi|7     9913      4225 0       80      1</code></pre>

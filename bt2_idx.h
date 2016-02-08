@@ -550,9 +550,114 @@ enum {
     RANK_VARIETAS,
 };
 
+inline static const char* get_tax_rank(int rank) {
+    switch(rank) {
+        case RANK_STRAIN:        return "strain";
+        case RANK_SPECIES:       return "species";
+        case RANK_GENUS:         return "genus";
+        case RANK_FAMILY:        return "family";
+        case RANK_ORDER:         return "order";
+        case RANK_CLASS:         return "class";
+        case RANK_PHYLUM:        return "phylum";
+        case RANK_KINGDOM:       return "kingdom";
+        case RANK_FORMA:         return "forma";
+        case RANK_INFRA_CLASS:   return "infraclass";
+        case RANK_INFRA_ORDER:   return "infraorder";
+        case RANK_PARV_ORDER:    return "parvorder";
+        case RANK_SUB_CLASS:     return "subclass";
+        case RANK_SUB_FAMILY:    return "subfamily";
+        case RANK_SUB_GENUS:     return "subgenus";
+        case RANK_SUB_KINGDOM:   return "subkingdom";
+        case RANK_SUB_ORDER:     return "suborder";
+        case RANK_SUB_PHYLUM:    return "subphylum";
+        case RANK_SUB_SPECIES:   return "subspecies";
+        case RANK_SUB_TRIBE:     return "subtribe";
+        case RANK_SUPER_CLASS:   return "superclass";
+        case RANK_SUPER_FAMILY:  return "superfamily";
+        case RANK_SUPER_KINGDOM: return "superkingdom";
+        case RANK_SUPER_ORDER:   return "superorder";
+        case RANK_SUPER_PHYLUM:  return "superphylum";
+        case RANK_TRIBE:         return "tribe";
+        case RANK_VARIETAS:      return "varietas";
+        default:                 return "no rank";
+    };
+}
+
 struct TaxonomyNode {
     uint64_t parent_tid;
     uint8_t  rank;
+    uint8_t  leaf;
+};
+
+struct TaxonomyPathTable {
+    static const size_t nranks = 7;
+    
+    map<uint64_t, uint32_t> tid_to_pid;  // from taxonomic ID to path ID
+    ELList<uint64_t> paths;
+    
+    void buildPaths(const EList<pair<string, uint64_t> >& uid_to_tid,
+                    const std::map<uint64_t, TaxonomyNode>& tree)
+    {
+        map<uint32_t, uint32_t> rank_map;
+        rank_map[RANK_STRAIN]      = 0;
+        rank_map[RANK_SUB_SPECIES] = 0;
+        rank_map[RANK_SPECIES]     = 1;
+        rank_map[RANK_GENUS]       = 2;
+        rank_map[RANK_FAMILY]      = 3;
+        rank_map[RANK_ORDER]       = 4;
+        rank_map[RANK_CLASS]       = 5;
+        rank_map[RANK_PHYLUM]      = 6;
+        
+        tid_to_pid.clear();
+        paths.clear();
+        for(size_t i = 0; i < uid_to_tid.size(); i++) {
+            uint64_t tid = uid_to_tid[i].second;
+            if(tid_to_pid.find(tid) != tid_to_pid.end())
+                continue;
+            if(tree.find(tid) == tree.end())
+                continue;
+            
+            tid_to_pid[tid] = (uint32_t)paths.size();
+            paths.expand();
+            EList<uint64_t>& path = paths.back();
+            path.resizeExact(nranks);
+            path.fillZero();
+            bool first = true;
+            while(true) {
+                std::map<uint64_t, TaxonomyNode>::const_iterator itr = tree.find(tid);
+                if(itr == tree.end()) {
+                    break;
+                }
+                const TaxonomyNode& node = itr->second;
+                uint32_t rank = std::numeric_limits<uint32_t>::max();
+                if(first && node.rank == RANK_UNKNOWN) {
+                    rank = rank_map[RANK_STRAIN];
+                } else if(rank_map.find(node.rank) != rank_map.end()) {
+                    rank = rank_map[node.rank];
+                }
+                if(rank < path.size()) {
+                    path[rank] = tid;
+                }
+
+                first = false;
+                if(node.parent_tid == tid) {
+                    break;
+                }
+                tid = node.parent_tid;
+            }
+        }
+    }
+    
+    void getPath(uint64_t tid, EList<uint64_t>& path) const {
+        map<uint64_t, uint32_t>::const_iterator itr = tid_to_pid.find(tid);
+        if(itr != tid_to_pid.end()) {
+            uint32_t pid = itr->second;
+            assert_lt(pid, paths.size());
+            path = paths[pid];
+        } else {
+            path.clear();
+        }
+    }
 };
 
 /**
@@ -662,6 +767,7 @@ public:
             cerr << "Could not open index file " << in3Str.c_str() << endl;
         }
         
+        set<uint64_t> leaves;
         _uid_to_tid.clear();
         readU32(in3, this->toBe());
         uint64_t nref = readIndex<uint64_t>(in3, this->toBe());
@@ -679,6 +785,7 @@ public:
                 _uid_to_tid.expand();
                 _uid_to_tid.back().first = uid;
                 _uid_to_tid.back().second = tid;
+                leaves.insert(tid);
                 if(nref == _uid_to_tid.size()) break;
             }
             assert_eq(nref, _uid_to_tid.size());
@@ -692,6 +799,7 @@ public:
                 uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
                 node.parent_tid = readIndex<uint64_t>(in3, this->toBe());
                 node.rank = readIndex<uint16_t>(in3, this->toBe());
+                node.leaf = (leaves.find(tid) != leaves.end());
                 _tree[tid] = node;
                 if(ntid == _tree.size()) break;
             }
@@ -726,6 +834,8 @@ public:
                     break;
             }
         }
+        
+        _paths.buildPaths(_uid_to_tid, _tree);
         
         in3.close();
 	}
@@ -1221,9 +1331,9 @@ public:
                     uint64_t tid = get_tid(stid);
                     if(uids.find(uid) == uids.end()) continue;
                     if(uid_to_tid.find(uid) != uid_to_tid.end()) {
-						if (uid_to_tid.find(uid) != tid) {
-							cerr << "Warning: Diverging taxonomy IDs for " << uid << " in " << conversion_table_fname << ": " 
-								uid_to_tid.find(uid) << " and " tid << ". Taking first. " << endl;
+						if(uid_to_tid.find(uid) != uid_to_tid.end()) {
+							cerr << "Warning: Diverging taxonomy IDs for " << uid << " in " << conversion_table_fname << ": "
+                                 << uid_to_tid[uid] << " and " << tid << ". Taking first. " << endl;
 						}
                         continue;
                     }
@@ -1653,6 +1763,7 @@ public:
     
     const EList<pair<string, uint64_t> >&   uid_to_tid() const { return _uid_to_tid; }
     const std::map<uint64_t, TaxonomyNode>& tree() const { return _tree; }
+    const TaxonomyPathTable&                paths() const { return _paths; }
     const std::map<uint64_t, string>&       name() const { return _name; }
     const std::map<uint64_t, uint64_t>&     size() const { return _size; }
     
@@ -3001,6 +3112,7 @@ public:
     
     EList<pair<string, uint64_t> >   _uid_to_tid; // table that converts uid to tid
     std::map<uint64_t, TaxonomyNode> _tree;
+    TaxonomyPathTable                _paths;
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
 

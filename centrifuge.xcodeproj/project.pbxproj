@@ -129,7 +129,7 @@
 		E86143571C20833200D5C240 /* filebuf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = filebuf.h; sourceTree = "<group>"; };
 		E86143581C20833200D5C240 /* formats.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = formats.h; sourceTree = "<group>"; };
 		E86143591C20833200D5C240 /* group_walk.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = group_walk.h; sourceTree = "<group>"; };
-		E861435A1C20833200D5C240 /* hi_aligner.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hi_aligner.h; sourceTree = "<group>"; };
+		E861435A1C20833200D5C240 /* hi_aligner.h */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 4; lastKnownFileType = sourcecode.c.h; path = hi_aligner.h; sourceTree = "<group>"; };
 		E861435B1C20833200D5C240 /* hier_idx_common.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hier_idx_common.h; sourceTree = "<group>"; };
 		E861435C1C20833200D5C240 /* hier_idx.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hier_idx.h; sourceTree = "<group>"; };
 		E861435D1C20833200D5C240 /* hyperloglogbias.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hyperloglogbias.h; sourceTree = "<group>"; };
@@ -799,6 +799,7 @@
 				E869A04F1C2095A8007600C2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		E869A0591C2095B5007600C2 /* Build configuration list for PBXNativeTarget "centrifuge-inspectx" */ = {
 			isa = XCConfigurationList;
@@ -807,6 +808,7 @@
 				E869A05B1C2095B5007600C2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 		E869A0641C2095CA007600C2 /* Build configuration list for PBXNativeTarget "centrifuge-compressx" */ = {
 			isa = XCConfigurationList;
@@ -815,6 +817,7 @@
 				E869A0661C2095CA007600C2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

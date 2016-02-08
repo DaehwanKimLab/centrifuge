@@ -214,8 +214,10 @@ public:
     AlnRes(const AlnRes& other)
     {
         score_ = other.score_;
+        max_score_ = other.max_score_;
         uid_ = other.uid_;
         tid_ = other.tid_;
+        taxRank_ = other.taxRank_;
         summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
 		isFw_ = other.isFw_;
@@ -224,8 +226,10 @@ public:
     AlnRes& operator=(const AlnRes& other) {
         if(this == &other) return *this;
         score_ = other.score_;
+        max_score_ = other.max_score_;
         uid_ = other.uid_;
         tid_ = other.tid_;
+        taxRank_ = other.taxRank_;
         summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
 		isFw_ = other.isFw_;
@@ -238,9 +242,11 @@ public:
 	 * Clear all contents.
 	 */
 	void reset() {
-        score_.invalidate();
+        score_ = 0;
+        max_score_ = 0;
         uid_ = "";
         tid_ = 0;
+        taxRank_ = RANK_UNKNOWN;
         summedHitLen_ = 0.0;
 		readPositions_.clear();
     }
@@ -248,13 +254,15 @@ public:
 	/**
 	 * Set alignment score for this alignment.
 	 */
-	void setScore(AlnScore score) {
+	void setScore(TAlScore score) {
 		score_ = score;
 	}
 
-	AlnScore           score()          const { return score_;     }
+	TAlScore           score()          const { return score_;     }
+    TAlScore           max_score()      const { return max_score_; }
     string             uid()            const { return uid_;   }
     uint64_t           taxID()          const { return tid_;   }
+    uint8_t            taxRank()        const { return taxRank_; }
     double             summedHitLen()   const { return summedHitLen_; }
 
 	const EList<pair<uint32_t,uint32_t> >& readPositionsPtr() const { return readPositions_; }
@@ -264,9 +272,7 @@ public:
 
 	bool               isFw()           const { return isFw_;      }
     
-    EList<Edit>&       ned()                  { return ned_;      }
-
-	/**
+   /**
 	 * Print the sequence for the read that aligned using A, C, G and
 	 * T.  This will simply print the read sequence (or its reverse
 	 * complement).
@@ -313,30 +319,35 @@ public:
 	 * Initialize new AlnRes.
 	 */
 	void init(
-              AlnScore score,           // alignment score
+              TAlScore score,           // alignment score
+              TAlScore max_score,
               const string& uniqueID,
               uint64_t taxID,
+              uint8_t taxRank,
 			  double summedHitLen,
 			  const EList<pair<uint32_t, uint32_t> >& readPositions,
 			  bool isFw)
     {
         score_  = score;
+        max_score_ = max_score;
         uid_ = uniqueID;
         tid_ = taxID;
+        taxRank_ = taxRank;
         summedHitLen_ = summedHitLen;
 		readPositions_ = readPositions;
 		isFw_ = isFw;
     }
 
 protected:
-	AlnScore     score_;        // best SW score found
+	TAlScore     score_;        //
+    TAlScore     max_score_;
     string       uid_;
     uint64_t     tid_;
+    uint8_t      taxRank_;
     double       summedHitLen_; // sum of the length of all partial hits, divided by the number of genome matches
 	bool         isFw_;
   
 	EList<pair<uint32_t, uint32_t> > readPositions_;
-    EList<Edit>  ned_;          // base edits
 };
 
 typedef uint64_t TNumAlns;
