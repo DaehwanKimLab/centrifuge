@@ -215,7 +215,8 @@ def create_sql_db(sql_db):
 def write_analysis_data(sql_db, genome_name, database_name):
     if not os.path.exists(sql_db):
         return
-    
+
+    """
     programs = []
     sql_aligners = "SELECT aligner FROM ReadCosts GROUP BY aligner"
     output = sql_execute(sql_db, sql_aligners)
@@ -252,6 +253,7 @@ def write_analysis_data(sql_db, genome_name, database_name):
                     print >> database_file, output
 
         database_file.close()
+    """
 
 
 """

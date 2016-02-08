@@ -211,6 +211,9 @@ struct SpeciesMetrics {
             }
         }
         
+        // daehwan - for debugging purposes
+        cerr << "\t\tnumber of leaves: " << leaves.size() << endl;
+        
         // Find all descendants coming from the same ancestor
         map<uint64_t, EList<uint64_t> > ancestors;
         for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
@@ -226,21 +229,41 @@ struct SpeciesMetrics {
                     uint64_t tid2 = *leaf_itr;
                     assert(tree.find(tid2) != tree.end());
                     assert(tree.find(tid2)->second.leaf);
+                    uint64_t temp_tid2 = tid2;
                     while(true) {
-                        map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(tid2);
+                        map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(temp_tid2);
                         if(tree_itr == tree.end())
                             break;
                         const TaxonomyNode& node = tree_itr->second;
                         if(tid == node.parent_tid) {
                             ancestors[tid].push_back(tid2);
                         }
-                        if(tid2 == node.parent_tid)
+                        if(temp_tid2 == node.parent_tid)
                             break;
-                        tid2 = node.parent_tid;
+                        temp_tid2 = node.parent_tid;
                     }
                 }
                 ancestors[tid].sort();
             }
+        }
+        
+        // daehwan - for debugging purposes
+        cerr << "\t\tnumber of ancestors: " << ancestors.size() << endl;
+        for(map<uint64_t, EList<uint64_t> >::const_iterator itr = ancestors.begin(); itr != ancestors.end(); itr++) {
+            uint64_t tid = itr->first;
+            const EList<uint64_t>& children = itr->second;
+            map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(tid);
+            if(tree_itr == tree.end())
+                continue;
+            const TaxonomyNode& node = tree_itr->second;
+            cerr << "\t\t\t" << tid << ": " << children.size() << "\t" << get_tax_rank(node.rank) << endl;
+            cerr << "\t\t\t\t";
+            for(size_t i = 0; i < children.size(); i++) {
+                cerr << children[i];
+                if(i + 1 < children.size())
+                    cerr << ",";
+            }
+            cerr << endl;
         }
         
         // Initialize probabilities

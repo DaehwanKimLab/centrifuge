@@ -24,7 +24,6 @@
 <li><a href="#main-arguments">Main arguments</a></li>
 <li><a href="#options">Options</a></li>
 </ul></li>
-<li><a href="#centrifuge-output">Centrifuge output</a></li>
 </ul></li>
 <li><a href="#the-centrifuge-build-indexer">The <code>centrifuge-build</code> indexer</a><ul>
 <li><a href="#command-line-1">Command Line</a><ul>
@@ -573,8 +572,7 @@ in the same order as they did in the inputs.
 <p>Print usage information and quit.</p>
 </td></tr></table>
 
-<h2 id="centrifuge-output">Centrifuge output</h2>
-<p>Following is a brief description of the [SAM] format as output by <code>centrifuge</code>. For more details, see the [SAM format specification][SAM].</p>
+
 <h1 id="the-centrifuge-build-indexer">The <code>centrifuge-build</code> indexer</h1>
 <p><code>centrifuge-build</code> builds a Centrifuge index from a set of DNA sequences. <code>centrifuge-build</code> outputs a set of 6 files with suffixes <code>.1.cf</code>, <code>.2.cf</code>, and <code>.3.cf</code>. These files together constitute the index: they are all that is needed to align reads to that reference. The original sequence FASTA files are no longer used by Centrifuge once the index is built.</p>
 <p>Use of Karkkainen's <a href="http://portal.acm.org/citation.cfm?id=1314852">blockwise algorithm</a> allows <code>centrifuge-build</code> to trade off between running time and memory usage. <code>centrifuge-build</code> has two options governing how it makes this trade: <a href="#centrifuge-build-options-bmax"><code>--bmax</code></a>/<a href="#centrifuge-build-options-bmaxdivn"><code>--bmaxdivn</code></a>, and <a href="#centrifuge-build-options-dcv"><code>--dcv</code></a>. By default, <code>centrifuge-build</code> will automatically search for the settings that yield the best running time without exhausting memory. This behavior can be disabled using the <a href="#centrifuge-build-options-a"><code>-a</code>/<code>--noauto</code></a> option.</p>

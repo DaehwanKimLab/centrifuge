@@ -93,6 +93,10 @@ struct HitCount {
             }
         }
         if(paired) {
+#if 1
+            score = max(scores[0][0], scores[0][1]) + max(scores[1][0], scores[1][1]);
+            summedHitLen = max(summedHitLens[0][0], summedHitLens[0][1]) + max(summedHitLens[1][0], summedHitLens[1][1]);
+#else
             uint32_t score1 = 0, score2 = 0;
             double summedHitLen1 = 0.0, summedHitLen2 = 0.0;
             if(mate1fw == mate2fw) {
@@ -113,9 +117,10 @@ struct HitCount {
                 score = score2;
                 summedHitLen = summedHitLen2;
             }
+#endif
         } else {
-            score = max<uint32_t>(scores[0][0], scores[0][1]);
-            summedHitLen = max<double>(summedHitLens[0][0], summedHitLens[0][1]);
+            score = max(scores[0][0], scores[0][1]);
+            summedHitLen = max(summedHitLens[0][0], summedHitLens[0][1]);
         }
     }
 };
@@ -248,19 +253,10 @@ public:
                     
                     // the maximum number of hits per read is maxGenomeHitSize (change with parameter -k)
                     size_t nHitsToConsider = coords.size();
-                    
-                    // daehwan - for debugging purposes
-#if 1
                     if(coords.size() > rp.ihits) {
                         continue;
                     }
-#else
-                    if(genomeHitCnt + coords.size() > maxGenomeHitSize) {
-                        coords.shufflePortion(0, coords.size(), rnd);
-                        nHitsToConsider = maxGenomeHitSize - genomeHitCnt;
-                    }
-#endif
-                    
+
                     // find the genome id for all coordinates, and count the number of genomes
                     EList<pair<uint64_t, uint64_t> > coord_ids;
                     for(index_t k = 0; k < nHitsToConsider; k++, genomeHitCnt++) {
@@ -698,19 +694,17 @@ private:
 #ifdef LI_DEBUG
             cout << endl;
 #endif
-            if(sum[0] > sum[1] + (rdlen - cur[1] + 1)) {
-                // daehwan - for debugging purposes
+
+            // No early termination
 #if 0
+            if(sum[0] > sum[1] + (rdlen - cur[1] + 1)) {
                 this->_hits[rdi][1].done(true);
                 done[1] = true;
-#endif
             } else if(sum[1] > sum[0] + (rdlen - cur[0] + 1)) {
-                // daehwan - for debugging purposes
-#if 0
                 this->_hits[rdi][0].done(true);
                 done[0] = true;
-#endif
             }
+#endif
         }
         
         // Extend partial hits
@@ -861,18 +855,9 @@ private:
             fwi = (avgHitLength[0] > avgHitLength[1]) ? 0 : 1;
         else if(maxHitLength[0] != maxHitLength[1])
             fwi = (maxHitLength[0] > maxHitLength[1])? 0 : 1;
-        // daehwan - for debugging purposes
-#if 1
         else
             return pair<int, int>(0, 2);
-#else
-        else if(hitSize[0] != hitSize[1])
-            fwi = (hitSize[0] > hitSize[1]) ? 1 : 0;
-        else
-            return 0;//just randomly pick one
-#endif
         
-        //return this->_hits[rdi][fwi];
         return pair<int, int>((int)fwi, (int)fwi + 1);
     }
     

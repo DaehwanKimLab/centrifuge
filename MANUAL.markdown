@@ -903,11 +903,6 @@ Print usage information and quit.
 
 </td></tr></table>
 
-Centrifuge output
-----------
-
-Following is a brief description of the [SAM] format as output by `centrifuge`. 
-For more details, see the [SAM format specification][SAM].
 
 The `centrifuge-build` indexer
 ===========================
