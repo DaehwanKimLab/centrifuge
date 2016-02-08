@@ -266,8 +266,8 @@ Command Line
 </td><td>
 
 The basename of the index for the reference genomes.  The basename is the name of
-any of the index files up to but not including the final `.1.cf` / `.rev.1.cf`
-/ etc.  `centrifuge` looks for the specified index first in the current directory,
+any of the index files up to but not including the final `.1.cf` / etc.  
+`centrifuge` looks for the specified index first in the current directory,
 then in the directory specified in the `CENTRIFUGE_INDEXES` environment variable.
 
 </td></tr><tr><td>
@@ -315,12 +315,22 @@ filehandle.
 
 [`-S`]: #centrifuge-options-S
 
-    -S <hit>
+    -S <filename>
 
 </td><td>
 
-File to write SAM alignments to.  By default, alignments are written to the
+File to write classification results to.  By default, assignments are written to the
 "standard out" or "stdout" filehandle (i.e. the console).
+
+</td></tr><tr><td>
+
+[`--report-file`]: #centrifuge-options-report-file
+
+    --report-file <filename>
+
+</td><td>
+
+File to write a classification summary to (default: centrifuge_report.csv).
 
 </td></tr></table>
 
@@ -499,6 +509,7 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 
 </td></tr></table>
 
+<!--
 #### Alignment options
 
 <table>
@@ -556,7 +567,6 @@ paired-end configurations corresponding to fragments from the reverse-complement
 
 </table>
 
-<!--
 #### Paired-end options
 
 <table>

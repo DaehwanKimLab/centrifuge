@@ -550,44 +550,43 @@ enum {
     RANK_VARIETAS,
 };
 
-inline static string get_tax_rank(int rank) {
-    string rank_str;
+inline static const char* get_tax_rank(int rank) {
     switch(rank) {
-        case RANK_STRAIN:        rank_str = "strain";       break;
-        case RANK_SPECIES:       rank_str = "species";      break;
-        case RANK_GENUS:         rank_str = "genus";        break;
-        case RANK_FAMILY:        rank_str = "family";       break;
-        case RANK_ORDER:         rank_str = "order";        break;
-        case RANK_CLASS:         rank_str = "class";        break;
-        case RANK_PHYLUM:        rank_str = "phylum";       break;
-        case RANK_KINGDOM:       rank_str = "kingdom";      break;
-        case RANK_FORMA:         rank_str = "forma";        break;
-        case RANK_INFRA_CLASS:   rank_str = "infraclass";   break;
-        case RANK_INFRA_ORDER:   rank_str = "infraorder";   break;
-        case RANK_PARV_ORDER:    rank_str = "parvorder";    break;
-        case RANK_SUB_CLASS:     rank_str = "subclass";     break;
-        case RANK_SUB_FAMILY:    rank_str = "subfamily";    break;
-        case RANK_SUB_GENUS:     rank_str = "subgenus";     break;
-        case RANK_SUB_KINGDOM:   rank_str = "subkingdom";   break;
-        case RANK_SUB_ORDER:     rank_str = "suborder";     break;
-        case RANK_SUB_PHYLUM:    rank_str = "subphylum";    break;
-        case RANK_SUB_SPECIES:   rank_str = "subspecies";   break;
-        case RANK_SUB_TRIBE:     rank_str = "subtribe";     break;
-        case RANK_SUPER_CLASS:   rank_str = "superclass";   break;
-        case RANK_SUPER_FAMILY:  rank_str = "superfamily";  break;
-        case RANK_SUPER_KINGDOM: rank_str = "superkingdom"; break;
-        case RANK_SUPER_ORDER:   rank_str = "superorder";   break;
-        case RANK_SUPER_PHYLUM:  rank_str = "superphylum";  break;
-        case RANK_TRIBE:         rank_str = "tribe";        break;
-        case RANK_VARIETAS:      rank_str = "varietas";     break;
-        default:                 rank_str = "no rank";      break;
+        case RANK_STRAIN:        return "strain";
+        case RANK_SPECIES:       return "species";
+        case RANK_GENUS:         return "genus";
+        case RANK_FAMILY:        return "family";
+        case RANK_ORDER:         return "order";
+        case RANK_CLASS:         return "class";
+        case RANK_PHYLUM:        return "phylum";
+        case RANK_KINGDOM:       return "kingdom";
+        case RANK_FORMA:         return "forma";
+        case RANK_INFRA_CLASS:   return "infraclass";
+        case RANK_INFRA_ORDER:   return "infraorder";
+        case RANK_PARV_ORDER:    return "parvorder";
+        case RANK_SUB_CLASS:     return "subclass";
+        case RANK_SUB_FAMILY:    return "subfamily";
+        case RANK_SUB_GENUS:     return "subgenus";
+        case RANK_SUB_KINGDOM:   return "subkingdom";
+        case RANK_SUB_ORDER:     return "suborder";
+        case RANK_SUB_PHYLUM:    return "subphylum";
+        case RANK_SUB_SPECIES:   return "subspecies";
+        case RANK_SUB_TRIBE:     return "subtribe";
+        case RANK_SUPER_CLASS:   return "superclass";
+        case RANK_SUPER_FAMILY:  return "superfamily";
+        case RANK_SUPER_KINGDOM: return "superkingdom";
+        case RANK_SUPER_ORDER:   return "superorder";
+        case RANK_SUPER_PHYLUM:  return "superphylum";
+        case RANK_TRIBE:         return "tribe";
+        case RANK_VARIETAS:      return "varietas";
+        default:                 return "no rank";
     };
-    return rank_str;
 }
 
 struct TaxonomyNode {
     uint64_t parent_tid;
     uint8_t  rank;
+    uint8_t  leaf;
 };
 
 struct TaxonomyPathTable {
@@ -768,6 +767,7 @@ public:
             cerr << "Could not open index file " << in3Str.c_str() << endl;
         }
         
+        set<uint64_t> leaves;
         _uid_to_tid.clear();
         readU32(in3, this->toBe());
         uint64_t nref = readIndex<uint64_t>(in3, this->toBe());
@@ -785,6 +785,7 @@ public:
                 _uid_to_tid.expand();
                 _uid_to_tid.back().first = uid;
                 _uid_to_tid.back().second = tid;
+                leaves.insert(tid);
                 if(nref == _uid_to_tid.size()) break;
             }
             assert_eq(nref, _uid_to_tid.size());
@@ -798,6 +799,7 @@ public:
                 uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
                 node.parent_tid = readIndex<uint64_t>(in3, this->toBe());
                 node.rank = readIndex<uint16_t>(in3, this->toBe());
+                node.leaf = (leaves.find(tid) != leaves.end());
                 _tree[tid] = node;
                 if(ntid == _tree.size()) break;
             }

@@ -137,7 +137,8 @@ public:
                const EList<uint32_t>& hostGenomes,
                bool mate1fw,
                bool mate2fw,
-               index_t minHitLen = 22) :
+               index_t minHitLen = 22,
+               bool tree_traverse = true) :
     HI_Aligner<index_t, local_index_t>(
                                        ebwt,
                                        0,    // don't make use of splice sites found by earlier reads
@@ -146,7 +147,8 @@ public:
     _minHitLen(minHitLen),
     _hostGenomes(hostGenomes),
     _mate1fw(mate1fw),
-    _mate2fw(mate2fw)
+    _mate2fw(mate2fw),
+    _tree_traverse(tree_traverse)
     {
     }
     
@@ -336,7 +338,7 @@ public:
                             continue;
                         }
                         
-#ifndef NDEBUG //FB
+#ifdef FLORIAN_DEBUG
                         std::cerr << speciesID << ';';
 #endif
                     }
@@ -344,13 +346,13 @@ public:
                     if(genomeHitCnt >= maxGenomeHitSize)
                         break;
                     
-#ifndef NDEBUG //FB
+#ifdef FLORIAN_DEBUG
                     std::cerr << "  partialHits-done";
 #endif
                 } // partialHits
             } // fwi
             
-#ifndef NDEBUG //FB
+#ifdef FLORIAN_DEBUG
             std::cerr << "  rdi-done" << endl;
 #endif
         } // rdi
@@ -383,12 +385,14 @@ public:
                     i--;
                 }
             }
+            
+            if(!_tree_traverse) {
+                if(_hitMap.size() > (size_t)rp.khits)
+                    return 0;
+            }
+            
             uint8_t rank = 0;
             while(_hitMap.size() > (size_t)rp.khits) {
-                
-                // daehwan - for debugging purposes
-                // return 0;
-                
                 _hitTaxCount.clear();
                 for(size_t i = 0; i < _hitMap.size(); i++) {
                     while(_hitMap[i].rank < rank) {
@@ -499,7 +503,6 @@ public:
                     max_score,
                     uid_to_tid[hitCount.uniqueID].first,
                     hitCount.taxID,
-                    hitCount.leaf,
                     taxRank,
                     hitCount.summedHitLen,
                     hitCount.readPositions,
@@ -563,10 +566,12 @@ private:
     bool                         _mate1fw;
     bool                         _mate2fw;
     
+    bool                         _tree_traverse;
+    
     // Temporary variables
     ReadBWTHit<index_t>          _tempHit;
     EList<pair<uint32_t, uint64_t> > _hitTaxCount;  // pair of count and taxID
-
+    
     void searchForwardAndReverse(
                                  index_t rdi,
                                  const Ebwt<index_t>& ebwtFw,
@@ -901,7 +906,7 @@ private:
                            him,
                            false, // reject straddled
                            straddled);
-#ifndef NDEBUG //FB
+#ifdef FLORIAN_DEBUG
         std::cerr <<  partialHit.len() << ':';
 #endif
         // get all coordinates of the hit

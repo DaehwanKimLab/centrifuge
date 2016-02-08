@@ -217,7 +217,6 @@ public:
         max_score_ = other.max_score_;
         uid_ = other.uid_;
         tid_ = other.tid_;
-        isLeaf_ = other.isLeaf_;
         taxRank_ = other.taxRank_;
         summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
@@ -230,7 +229,6 @@ public:
         max_score_ = other.max_score_;
         uid_ = other.uid_;
         tid_ = other.tid_;
-        isLeaf_ = other.isLeaf_;
         taxRank_ = other.taxRank_;
         summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
@@ -248,7 +246,6 @@ public:
         max_score_ = 0;
         uid_ = "";
         tid_ = 0;
-        isLeaf_ = true;
         taxRank_ = RANK_UNKNOWN;
         summedHitLen_ = 0.0;
 		readPositions_.clear();
@@ -265,7 +262,6 @@ public:
     TAlScore           max_score()      const { return max_score_; }
     string             uid()            const { return uid_;   }
     uint64_t           taxID()          const { return tid_;   }
-    bool               leaf()           const { return isLeaf_; }
     uint8_t            taxRank()        const { return taxRank_; }
     double             summedHitLen()   const { return summedHitLen_; }
 
@@ -327,7 +323,6 @@ public:
               TAlScore max_score,
               const string& uniqueID,
               uint64_t taxID,
-              bool leaf,
               uint8_t taxRank,
 			  double summedHitLen,
 			  const EList<pair<uint32_t, uint32_t> >& readPositions,
@@ -337,7 +332,6 @@ public:
         max_score_ = max_score;
         uid_ = uniqueID;
         tid_ = taxID;
-        isLeaf_ = leaf;
         taxRank_ = taxRank;
         summedHitLen_ = summedHitLen;
 		readPositions_ = readPositions;
@@ -349,7 +343,6 @@ protected:
     TAlScore     max_score_;
     string       uid_;
     uint64_t     tid_;
-    bool         isLeaf_;
     uint8_t      taxRank_;
     double       summedHitLen_; // sum of the length of all partial hits, divided by the number of genome matches
 	bool         isFw_;

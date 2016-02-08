@@ -97,7 +97,7 @@ def compare_scm(centrifuge_out, true_out, taxonomy_tree, rank):
 
 """
 """
-def compare_abundance(centrifuge_out, true_out, debug):
+def compare_abundance(centrifuge_out, true_out, taxonomy_tree, debug):
     db_dic = {}
     first = True
     for line in open(centrifuge_out):
@@ -115,6 +115,22 @@ def compare_abundance(centrifuge_out, true_out, debug):
             continue
         
         tax_id, genome_len, num_reads, abundance, genome_name = line.strip().split('\t')
+
+        # daehwan - for debugging purposes
+        """
+        cur_tax_id = tax_id
+        while True:
+            if cur_tax_id not in taxonomy_tree:
+                break
+            parent_tax_id, rank = taxonomy_tree[cur_tax_id]
+            print "%s: %s" % (cur_tax_id, rank)
+            if cur_tax_id == parent_tax_id:
+                break
+            cur_tax_id = parent_tax_id
+        print
+        print
+        """
+        
         abundance = float(abundance)
         if tax_id in db_dic:
             SSR += (abundance - db_dic[tax_id]) ** 2;
@@ -369,6 +385,7 @@ def evaluate(index_base,
                     "-p", str(num_threads),
                     "%s/%s" % (index_path, index_base)]
             # cmd += ["-k", "5"]
+            # cmd += ["--no-traverse"]
             if paired:
                 cmd += ["-1", read1_fname,
                         "-2", read2_fname]
@@ -439,12 +456,11 @@ def evaluate(index_base,
 
             print >> sys.stderr, "\t\t%s" % rank
             print >> sys.stderr, "\t\t\tclassified: {:,}, uniquely classified: {:,}".format(raw_classified, raw_unique_classified)
-            print >> sys.stderr, "\t\t\tcorrectly classified: {:,} ({:.2%})".format(classified, float(classified) / num_cases)
-            print >> sys.stderr, "\t\t\tuniquely and correctly classified: {:,} ({:.2%})".format(unique_classified, float(unique_classified) / num_cases)
+            print >> sys.stderr, "\t\t\tcorrectly classified: {:,} ({:.2%}), uniquely and correctly classified: {:,} ({:.2%})".format(classified, float(classified) / num_cases, unique_classified, float(unique_classified) / num_cases)
 
             # Calculate sum of squared residuals in abundance
             if rank == "strain":
-                abundance_SSR = compare_abundance("centrifuge_report.csv", truth_fname, debug)
+                abundance_SSR = compare_abundance("centrifuge_report.csv", truth_fname, taxonomy_tree, debug)
                 print >> sys.stderr, "\t\t\tsum of squared residuals in abundance: {}".format(abundance_SSR)
 
         if runtime_only:

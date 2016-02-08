@@ -14,7 +14,7 @@
 </ul></li>
 <li><a href="#reporting">Reporting</a><ul>
 <li><a href="#centrifuge-classification-output">Centrifuge classification output</a></li>
-<li><a href="#centrifuge-summary-output-the-default-filename-is-centrifuge-species_report.csv">Centrifuge summary output (the default filename is centrifuge-species_report.csv)</a></li>
+<li><a href="#centrifuge-summary-output-the-default-filename-is-centrifuge_report.csv">Centrifuge summary output (the default filename is centrifuge_report.csv)</a></li>
 </ul></li>
 <li><a href="#inspecting-the-centrifuge-index">Inspecting the Centrifuge index</a></li>
 <li><a href="#wrapper">Wrapper</a></li>
@@ -112,7 +112,7 @@ The fourth column is the score for the classification, which is the weighted sum
 The fifth column is the score for the next best classification (e.g., 0).
 The sixth column is an approximate number of base pairs of the read that match the genomic sequence (e.g., 80).
 The seventh column is the number of classifications, indicating how many assignments were made (e.g.,1).</code></pre>
-<h3 id="centrifuge-summary-output-the-default-filename-is-centrifuge-species_report.csv">Centrifuge summary output (the default filename is centrifuge-species_report.csv)</h3>
+<h3 id="centrifuge-summary-output-the-default-filename-is-centrifuge_report.csv">Centrifuge summary output (the default filename is centrifuge_report.csv)</h3>
 <p>The following example shows a classification summary for each genome or taxonomic unit. The assignment output has 7 columns.</p>
 <pre><code>name                                                            taxID   taxRank    genomeSize   numReads   numUniqueReads   abundance
 Wigglesworthia glossinidia endosymbiont of Glossina brevipalpis 36870   no rank    703004       5981       5964             0.0152317
@@ -152,7 +152,7 @@ The seventh column is the proportion of this genome normalized by its genomic le
 <pre><code>-x &lt;centrifuge-idx&gt;</code></pre>
 </td><td>
 
-<p>The basename of the index for the reference genomes. The basename is the name of any of the index files up to but not including the final <code>.1.cf</code> / <code>.rev.1.cf</code> / etc. <code>centrifuge</code> looks for the specified index first in the current directory, then in the directory specified in the <code>CENTRIFUGE_INDEXES</code> environment variable.</p>
+<p>The basename of the index for the reference genomes. The basename is the name of any of the index files up to but not including the final <code>.1.cf</code> / etc.<br /><code>centrifuge</code> looks for the specified index first in the current directory, then in the directory specified in the <code>CENTRIFUGE_INDEXES</code> environment variable.</p>
 </td></tr><tr><td>
 
 <pre><code>-1 &lt;m1&gt;</code></pre>
@@ -173,10 +173,16 @@ The seventh column is the proportion of this genome normalized by its genomic le
 <p>Comma-separated list of files containing unpaired reads to be aligned, e.g. <code>lane1.fq,lane2.fq,lane3.fq,lane4.fq</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>centrifuge</code> gets the reads from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
 </td></tr><tr><td>
 
-<pre><code>-S &lt;hit&gt;</code></pre>
+<pre><code>-S &lt;filename&gt;</code></pre>
 </td><td>
 
-<p>File to write SAM alignments to. By default, alignments are written to the &quot;standard out&quot; or &quot;stdout&quot; filehandle (i.e. the console).</p>
+<p>File to write classification results to. By default, assignments are written to the &quot;standard out&quot; or &quot;stdout&quot; filehandle (i.e. the console).</p>
+</td></tr><tr><td>
+
+<pre><code>--report-file &lt;filename&gt;</code></pre>
+</td><td>
+
+<p>File to write a classification summary to (default: centrifuge_report.csv).</p>
 </td></tr></table>
 
 <h3 id="options">Options</h3>
@@ -273,35 +279,64 @@ The seventh column is the proportion of this genome normalized by its genomic le
 <p>Quality values are represented in the read input file as space-separated ASCII integers, e.g., <code>40 40 30 40</code>..., rather than ASCII characters, e.g., <code>II?I</code>.... Integers are treated as being on the <a href="http://en.wikipedia.org/wiki/Phred_quality_score">Phred quality</a> scale unless <a href="#centrifuge-options-solexa-quals"><code>--solexa-quals</code></a> is also specified. Default: off.</p>
 </td></tr></table>
 
-<h4 id="alignment-options">Alignment options</h4>
+<!--
+#### Alignment options
+
 <table>
 
 <tr><td id="centrifuge-options-n-ceil">
 
-<pre><code>--n-ceil &lt;func&gt;</code></pre>
+[`--n-ceil`]: #centrifuge-options-n-ceil
+
+    --n-ceil <func>
+
 </td><td>
 
-<p>Sets a function governing the maximum number of ambiguous characters (usually <code>N</code>s and/or <code>.</code>s) allowed in a read as a function of read length. For instance, specifying <code>-L,0,0.15</code> sets the N-ceiling function <code>f</code> to <code>f(x) = 0 + 0.15 * x</code>, where x is the read length. See also: [setting function options]. Reads exceeding this ceiling are <a href="#filtering">filtered out</a>. Default: <code>L,0,0.15</code>.</p>
+Sets a function governing the maximum number of ambiguous characters (usually
+`N`s and/or `.`s) allowed in a read as a function of read length.  For instance,
+specifying `-L,0,0.15` sets the N-ceiling function `f` to `f(x) = 0 + 0.15 * x`,
+where x is the read length.  See also: [setting function options].  Reads
+exceeding this ceiling are [filtered out].  Default: `L,0,0.15`.
+
+[filtered out]: #filtering
+
 </td></tr>
 
 <tr><td id="centrifuge-options-ignore-quals">
 
-<pre><code>--ignore-quals</code></pre>
+[`--ignore-quals`]: #centrifuge-options-ignore-quals
+
+    --ignore-quals
+
 </td><td>
 
-<p>When calculating a mismatch penalty, always consider the quality value at the mismatched position to be the highest possible, regardless of the actual value. I.e. input is treated as though all quality values are high. This is also the default behavior when the input doesn't specify quality values (e.g. in <a href="#centrifuge-options-f"><code>-f</code></a>, <a href="#centrifuge-options-r"><code>-r</code></a>, or <a href="#centrifuge-options-c"><code>-c</code></a> modes).</p>
+When calculating a mismatch penalty, always consider the quality value at the
+mismatched position to be the highest possible, regardless of the actual value. 
+I.e. input is treated as though all quality values are high.  This is also the
+default behavior when the input doesn't specify quality values (e.g. in [`-f`],
+[`-r`], or [`-c`] modes).
+
 </td></tr>
 <tr><td id="centrifuge-options-nofw">
 
-<pre><code>--nofw/--norc</code></pre>
+[`--nofw`]: #centrifuge-options-nofw
+
+    --nofw/--norc
+
 </td><td>
 
-<p>If <code>--nofw</code> is specified, <code>centrifuge</code> will not attempt to align unpaired reads to the forward (Watson) reference strand. If <code>--norc</code> is specified, <code>centrifuge</code> will not attempt to align unpaired reads against the reverse-complement (Crick) reference strand. In paired-end mode, <code>--nofw</code> and <code>--norc</code> pertain to the fragments; i.e. specifying <code>--nofw</code> causes <code>centrifuge</code> to explore only those paired-end configurations corresponding to fragments from the reverse-complement (Crick) strand. Default: both strands enabled.</p>
+If `--nofw` is specified, `centrifuge` will not attempt to align unpaired reads to
+the forward (Watson) reference strand.  If `--norc` is specified, `centrifuge` will
+not attempt to align unpaired reads against the reverse-complement (Crick)
+reference strand. In paired-end mode, `--nofw` and `--norc` pertain to the
+fragments; i.e. specifying `--nofw` causes `centrifuge` to explore only those
+paired-end configurations corresponding to fragments from the reverse-complement
+(Crick) strand.  Default: both strands enabled. 
+
 </td></tr>
 
 </table>
 
-<!--
 #### Paired-end options
 
 <table>

@@ -713,7 +713,7 @@ def simulate_reads(index_fname, base_fname, \
             transcript_id = transcript_ids[t]
             chr, strand, transcript_len, exons = transcripts[transcript_id]
             print >> sys.stderr, transcript_id, t_num_frags
-            
+
         genome_seq = genome_seqs[tax_id]
         genome_len = len(genome_seq)
         if dna:

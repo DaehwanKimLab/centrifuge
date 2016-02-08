@@ -245,6 +245,7 @@ static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
 static EList<uint32_t> hostGenomes;
 static bool abundance_analysis;
+static bool tree_traverse;
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -441,6 +442,7 @@ static void resetOptions() {
     hostGenomes.clear();
     reportFile = "centrifuge_report.csv";
     abundance_analysis = true;
+    tree_traverse = true;
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -593,11 +595,12 @@ static struct option long_options[] = {
 	{(char*)"desc-landing",     required_argument, 0,        ARG_DESC_LANDING},
 	{(char*)"desc-exp",         required_argument, 0,        ARG_DESC_EXP},
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
-    {(char*)"min-hitlen",     required_argument, 0,        ARG_MIN_HITLEN},
-    {(char*)"min-totallen",   required_argument, 0,        ARG_MIN_TOTALLEN},
-    {(char*)"host-genomes",   required_argument, 0,        ARG_HOST_GENOMES},
-	{(char*)"report-file",    required_argument, 0,        ARG_REPORT_FILE},
-    {(char*)"no-abundance",   no_argument,       0,        ARG_NO_ABUNDANCE},
+    {(char*)"min-hitlen",       required_argument, 0,        ARG_MIN_HITLEN},
+    {(char*)"min-totallen",     required_argument, 0,        ARG_MIN_TOTALLEN},
+    {(char*)"host-genomes",     required_argument, 0,        ARG_HOST_GENOMES},
+	{(char*)"report-file",      required_argument, 0,        ARG_REPORT_FILE},
+    {(char*)"no-abundance",     no_argument,       0,        ARG_NO_ABUNDANCE},
+    {(char*)"no-traverse",      no_argument,       0,        ARG_NO_TRAVERSE},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1342,6 +1345,10 @@ static void parseOption(int next_option, const char *arg) {
         }
         case ARG_NO_ABUNDANCE: {
             abundance_analysis = false;
+            break;
+        }
+        case ARG_NO_TRAVERSE: {
+            tree_traverse = false;
             break;
         }
 		default:
@@ -2238,7 +2245,8 @@ static void multiseedSearchWorker(void *vp) {
                                                   hostGenomes,
                                                   gMate1fw,
                                                   gMate2fw,
-                                                  minHitLen);
+                                                  minHitLen,
+                                                  tree_traverse);
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
@@ -2536,14 +2544,12 @@ static void multiseedSearchWorker(void *vp) {
                 if(filt[0] && filt[1]) {
                     classifier.initReads(rds, nofw, norc, minsc, maxpen);
                 } 
-		else if(filt[0] )//|| filt[1]) 
-		{
+                else if(filt[0]) {
                     classifier.initRead(rds[0], nofw[0], norc[0], minsc[0], maxpen[0], filt[1]);
                 }
-		else if ( filt[1] )
-		{
+                else if(filt[1]) {
                     classifier.initRead(rds[1], nofw[1], norc[1], minsc[1], maxpen[1], filt[1]);
-		}
+                }
                 if(filt[0] || filt[1]) {
                     classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, spm, rnd, msinkwrap);
                     size_t mate = 0;
@@ -2862,10 +2868,11 @@ static void driver(
         switch(outType) {
 			case OUTPUT_SAM: {
 				mssink = new AlnSinkSam<index_t>(
-					oq,           // output queue
-					refnames,     // reference names
-                    gQuiet);      // don't print alignment summary at end
-				if(!samNoHead) {
+                                                 &ebwt,
+                                                 oq,           // output queue
+                                                 refnames,     // reference names
+                                                 gQuiet);      // don't print alignment summary at end
+                if(!samNoHead) {
 					BTString buf;
 					fout->writeString(buf);
 				}
