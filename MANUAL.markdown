@@ -109,7 +109,7 @@ Given the gigantic number of genomes available, which continues to expand at a r
 
 We encourage first time users to take a look at and follow a [`small example`] that illustrates how to build an index, how to run Centrifuge using the index, how to interpret the classification results, and how to extract additional genomic information from the index.  For those who choose to build customized indexes, please take a close look at the following description.
 
-Index building
+Database download and index building
 -----------------
 
 Centrifuge indexes can be built with arbritary sequences. Standard choices are
@@ -122,12 +122,37 @@ file with the sequence ID to taxonomy ID map.
 To download all of the complete archaeal, viral, and bacterial genomes from RefSeq, and
 build the index:
 
-    ## download nodes.dmp and names.dmp to taxonomy/
+Centrifuge indices can be build on arbritary sequences. Usually an ensemble of
+genomes is used - such as all complete microbial genomes in the RefSeq database,
+or all sequences in the BLAST nt database. 
+
+
+To map sequence identifiers to taxonomy IDs, and taxonomy IDs to names and 
+its parents, three files are necessary in addition to the sequence files:
+
+ - taxonomy tree: typically nodes.dmp from the NCBI taxonomy dump. Links taxonomy IDs to their parents
+ - names file: typically names.dmp from the NCBI taxonomy dump. Links taxonomy IDs to their scientific name
+ - a tab-separated sequence ID to taxonomy ID mapping
+
+When using the provided scripts to download the genomes, these files are automatically downloaded or generated. 
+When using a custom taxonomy or sequence files, please refer to the section `TODO` to learn more about their format.
+
+### Building index on all complete bacterial and viral genomes
+
+Use `centrifuge-download` to download genomes from NCBI. The following two commands download
+the NCBI taxonomy to `taxonomy/` in the current directory, and all complete archaeal,
+bacterial and viral genomes to `library/`. Low-complexity regions in the genomes are masked after
+download (parameter `-m`) using blast+'s `dustmasker`. `centrifuge-download` outputs tab-separated 
+sequence ID to taxonomy ID mappings to standard out, which are required by `centrifuge-build`.
+
     centrifuge-download taxonomy
-    ## download all archaeal, viral and bacterial genomes from RefSeq to library/. Also, dust them.
-    centrifuge-download -m -d "archaea,bacteria,viral" -P $(THREADS) refseq > microbial_seqid2taxid.map
-    ## concatenate all the downloaded sequences to build the index
+    centrifuge-download -m -d "archaea,bacteria,viral" refseq > seqid2taxid.map
+
+To build the index, first concatenate all downloaded sequences into a single file, and then
+run `centrifuge-build`:
+    
     cat library/*/*.fna > input-sequences.fna
+
     ## build centrifuge index with 4 threads
     centrifuge-build -p 4 --conversion-table microbial_seqid2taxid.map \
                      --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
@@ -137,12 +162,22 @@ After building the index, all files except the index *.[123].cf files may be rem
 If you also want to include the human and/or the mouse genome, add their sequences to 
 the library folder before building the index with one of the following commands:
 
-    ## download mouse and human reference genomes
-    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome'
-    ## only human
-    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome'
-    ## only mouse
-    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome'
+After the index building, all but the *.[123].cf index files may be removed. I.e. the files in
+the `library/` and `taxonomy/` directories are no longer needed.
+
+### Adding human or mouse genome to the index
+The human and mouse genomes can also be downloaded using `centrifuge-download`. They are in the
+domain "vertebrate_mammalian" (argument `-d`), are assembled at the chromosome level (argument `-a`)
+and categorized as reference genomes by RefSeq (`-c`). The argument `-t` takes a comma-separated
+list of taxonomy IDs - e.g. `9606` for human and `10090` for mouse:
+
+    # download mouse and human reference genomes
+    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome' >> seqid2taxid.map
+    # only human
+    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' >> seqid2taxid.map
+    # only mouse
+    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' >> seqid2taxid.map
+
 
 ### nt database
 
@@ -155,6 +190,7 @@ map that can be generated from a GI taxid dump:
     wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
     gunzip nt.gz && mv -v nt nt.fa
 
+    # Get mapping file
     wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz
     gunzip -c gi_taxid_nucl.dmp.gz | sed 's/^/gi|/' > gi_taxid_nucl.map
 
@@ -164,8 +200,11 @@ map that can be generated from a GI taxid dump:
                      nt.fa nt
 
 
-Reporting
----------
+
+### Custom database
+
+TODO: Add toy example for nodes.dmp, names.dmp and seqid2taxid.map
+
 
 ### Centrifuge classification output
 
