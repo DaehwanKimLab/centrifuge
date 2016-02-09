@@ -2962,12 +2962,20 @@ static void driver(
                 }
                 reportOfb << '\t' << taxid << '\t';
                 uint8_t rank = 0;
+                bool leaf = false;
                 std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
+                
                 if(tree_itr != tree.end()) {
                     rank = tree_itr->second.rank;
+                    leaf = tree_itr->second.leaf;
                 }
-                string rank_str = get_tax_rank(rank);
-                reportOfb << rank_str << '\t';
+                if(rank == RANK_UNKNOWN && leaf) {
+                    reportOfb << "leaf";
+                } else {
+                    string rank_str = get_tax_rank(rank);
+                    reportOfb << rank_str;
+                }
+                reportOfb << '\t';
                 
                 std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
                 uint64_t genome_size = 0;
