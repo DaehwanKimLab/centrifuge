@@ -23,13 +23,13 @@
 	  <h2>Centrifuge 1.0.0-beta release 2/0X/2016 - first release</h2>
           <ul>
 	    <li>
-	      The first release of Centrifuge comes with three key features: (1) relatively small database size, (2) higher classification accuracy and sensitivity, and (3) fast classification speed.
+	      The first release of Centrifuge features a dramatically reduced database size,  higher classification accuracy and sensitivity, and comparably rapid classification speed.
 	    </li>
 	    <li>
 	      Please refer to the manual for details on how to run Centrifuge and interpret Centrifuge’s classification results.
 	    </li>
 	    <li>
-	      We provide several standard indexes that will meet most of users’ needs (see the side panel - Indexes)
+	      We provide several standard indexes designed to meet the needs of most users (see the side panel - Indexes)
 	    </li>
           </ul>
           <br>

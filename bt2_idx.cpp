@@ -46,8 +46,8 @@ string adjustEbwtBase(const string& cmdline,
 	if(!in.is_open()) {
 		if(verbose) cout << "  didn't work" << endl;
 		in.close();
-		if(getenv("BOWTIE2_INDEXES") != NULL) {
-			str = string(getenv("BOWTIE2_INDEXES")) + "/" + ebwtFileBase;
+		if(getenv("CENTRIFUGE_INDEXES") != NULL) {
+			str = string(getenv("CENTRIFUGE_INDEXES")) + "/" + ebwtFileBase;
 			if(verbose) cout << "Trying " << str.c_str() << endl;
 			in.open((str + ".1." + gEbwt_ext).c_str(), ios_base::in | ios::binary);
 			if(!in.is_open()) {
@@ -66,3 +66,5 @@ string adjustEbwtBase(const string& cmdline,
 }
 
 string gLastIOErrMsg;
+
+uint8_t tax_rank_num[RANK_MAX];

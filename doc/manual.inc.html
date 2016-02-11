@@ -87,7 +87,7 @@ centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot
 ## only mouse
 centrifuge-download -d &quot;vertebrate_mammalian&quot; -a &quot;Chromosome&quot; -t 10090 -c &#39;reference genome&#39;</code></pre>
 <h3 id="nt-database">nt database</h3>
-<p>NCBI BLAST's nt database contains all spliced non-redundant coding sequences from multiplpe databases, inferred from genommic sequences. Traditionally used with BLAST, a download of the FASTA is provided on the NCBI homepage. Further the user needs a sequence ID to taxonomy ID map that can be generated from a GI taxid dump:</p>
+<p>NCBI BLAST's nt database contains all spliced non-redundant coding sequences from multiplpe databases, inferred from genommic sequences. Traditionally used with BLAST, a download of the FASTA is provided on the NCBI homepage. Building an index with any database requires the user to creates a sequence ID to taxonomy ID map that can be generated from a GI taxid dump:</p>
 <pre><code>wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
 gunzip nt.gz &amp;&amp; mv -v nt nt.fa
 

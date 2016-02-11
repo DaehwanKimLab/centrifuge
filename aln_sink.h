@@ -191,7 +191,81 @@ struct SpeciesMetrics {
 		return(species_kmers[taxID].cardinality());
 	}
     
-    void calculateAbundance(const Ebwt<uint64_t>& ebwt)
+    static void EM(
+                   const map<IDs, uint64_t>& observed,
+                   const map<uint64_t, EList<uint64_t> >& ancestors,
+                   const map<uint64_t, uint64_t>& tid_to_num,
+                   const EList<double>& p,
+                   EList<double>& p_next)
+    {
+        // E step
+        p_next.fill(0.0);
+        for(map<IDs, uint64_t>::const_iterator itr = observed.begin(); itr != observed.end(); itr++) {
+            const EList<uint64_t, 5>& ids = itr->first.ids;
+            uint64_t count = itr->second;
+            double psum = 0.0;
+            for(size_t i = 0; i < ids.size(); i++) {
+                uint64_t tid = ids[i];
+                // Leaves?
+                map<uint64_t, uint64_t>::const_iterator id_itr = tid_to_num.find(tid);
+                if(id_itr != tid_to_num.end()) {
+                    uint64_t num = id_itr->second;
+                    assert_lt(num, p.size());
+                    psum += p[num];
+                } else { // Ancestors
+                    map<uint64_t, EList<uint64_t> >::const_iterator a_itr = ancestors.find(tid);
+                    if(a_itr == ancestors.end())
+                        continue;
+                    const EList<uint64_t>& children = a_itr->second;
+                    for(size_t c = 0; c < children.size(); c++) {
+                        uint64_t c_tid = children[c];
+                        map<uint64_t, uint64_t>::const_iterator id_itr = tid_to_num.find(c_tid);
+                        if(id_itr == tid_to_num.end())
+                            continue;
+                        uint64_t c_num = id_itr->second;
+                        psum += p[c_num];
+                    }
+                }
+            }
+
+            if(psum == 0.0) continue;
+            
+            for(size_t i = 0; i < ids.size(); i++) {
+                uint64_t tid = ids[i];
+                // Leaves?
+                map<uint64_t, uint64_t>::const_iterator id_itr = tid_to_num.find(tid);
+                if(id_itr != tid_to_num.end()) {
+                    uint64_t num = id_itr->second;
+                    assert_leq(p[num], psum);
+                    p_next[num] += (count * (p[num] / psum));
+                } else {
+                    map<uint64_t, EList<uint64_t> >::const_iterator a_itr = ancestors.find(tid);
+                    if(a_itr == ancestors.end())
+                        continue;
+                    const EList<uint64_t>& children = a_itr->second;
+                    for(size_t c = 0; c < children.size(); c++) {
+                        uint64_t c_tid = children[c];
+                        map<uint64_t, uint64_t>::const_iterator id_itr = tid_to_num.find(c_tid);
+                        if(id_itr == tid_to_num.end())
+                            continue;
+                        uint64_t c_num = id_itr->second;
+                        p_next[c_num] += (count * (p[c_num] / psum));
+                    }
+                }
+            }
+        }
+        
+        // M step
+        double sum = 0.0;
+        for(size_t i = 0; i < p_next.size(); i++) {
+            sum += p_next[i];
+        }
+        for(size_t i = 0; i < p_next.size(); i++) {
+            p_next[i] /= sum;
+        }
+    }
+    
+    void calculateAbundance(const Ebwt<uint64_t>& ebwt, uint8_t rank)
     {
         const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
         
@@ -205,14 +279,19 @@ struct SpeciesMetrics {
                 if(tree_itr == tree.end())
                     continue;
                 const TaxonomyNode& node = tree_itr->second;
-                if(!node.leaf)
-                    continue;
+                if(!node.leaf) {
+                    //if(tax_rank_num[node.rank] > tax_rank_num[rank]) {
+                        continue;
+                    //}
+                }
                 leaves.insert(tree_itr->first);
             }
         }
         
-        // daehwan - for debugging purposes
+ 
+#ifdef DAEHWAN_DEBUG
         cerr << "\t\tnumber of leaves: " << leaves.size() << endl;
+#endif
         
         // Find all descendants coming from the same ancestor
         map<uint64_t, EList<uint64_t> > ancestors;
@@ -247,24 +326,33 @@ struct SpeciesMetrics {
             }
         }
         
-        // daehwan - for debugging purposes
+#ifdef DAEHWAN_DEBUG
         cerr << "\t\tnumber of ancestors: " << ancestors.size() << endl;
         for(map<uint64_t, EList<uint64_t> >::const_iterator itr = ancestors.begin(); itr != ancestors.end(); itr++) {
             uint64_t tid = itr->first;
             const EList<uint64_t>& children = itr->second;
+            if(children.size() <= 0)
+                continue;
             map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(tid);
             if(tree_itr == tree.end())
                 continue;
             const TaxonomyNode& node = tree_itr->second;
-            cerr << "\t\t\t" << tid << ": " << children.size() << "\t" << get_tax_rank(node.rank) << endl;
-            cerr << "\t\t\t\t";
+            cerr << "\t\t\t" << tid << " (" << get_tax_rank_string(node.rank) << "): " << children.size();
+            cerr << "\t\t";
             for(size_t i = 0; i < children.size(); i++) {
                 cerr << children[i];
                 if(i + 1 < children.size())
                     cerr << ",";
+                if(i > 10) {
+                    cerr << " ...";
+                    break;
+                }
             }
             cerr << endl;
         }
+        
+        uint64_t test_tid = 0, test_tid2 = 0;
+#endif
         
         // Initialize probabilities
         map<uint64_t, uint64_t> tid_to_num; // taxonomic ID to corresponding element of a list
@@ -276,6 +364,20 @@ struct SpeciesMetrics {
                 uint64_t tid = ids.ids[i];
                 if(leaves.find(tid) == leaves.end())
                     continue;
+                
+#ifdef DAEHWAN_DEBUG
+                if((tid == test_tid || tid == test_tid2) &&
+                   count >= 100) {
+                    cerr << tid << ": " << count << "\t";
+                    for(size_t j = 0; j < ids.ids.size(); j++) {
+                        cerr << ids.ids[j];
+                        if(j + 1 < ids.ids.size())
+                            cerr << ",";
+                    }
+                    cerr << endl;
+                }
+#endif
+                
                 if(tid_to_num.find(tid) == tid_to_num.end()) {
                     tid_to_num[tid] = tid_to_num.size();
                     p.push_back(1.0 / ids.ids.size() * count);
@@ -297,70 +399,48 @@ struct SpeciesMetrics {
             }
         }
         
-        EList<double> p_next;
-        p_next.resizeExact(p.size());
+        EList<double> p_next; p_next.resizeExact(p.size());
+        EList<double> p_next2; p_next2.resizeExact(p.size());
+        EList<double> p_r; p_r.resizeExact(p.size());
+        EList<double> p_v; p_v.resizeExact(p.size());
         size_t num_iteration = 0;
         double diff = 0.0;
         while(true) {
-            // E step
-            p_next.fill(0.0);
-            for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
-                const EList<uint64_t, 5>& ids = itr->first.ids;
-                uint64_t count = itr->second;
-                double psum = 0.0;
-                for(size_t i = 0; i < ids.size(); i++) {
-                    uint64_t tid = ids[i];
-                    // Leaves?
-                    if(tid_to_num.find(tid) != tid_to_num.end()) {
-                        uint64_t num = tid_to_num[tid];
-                        assert_lt(num, p.size());
-                        psum += p[num];
-                    } else { // Ancestors
-                        map<uint64_t, EList<uint64_t> >::const_iterator a_itr = ancestors.find(tid);
-                        if(a_itr == ancestors.end())
-                            continue;
-                        const EList<uint64_t>& children = a_itr->second;
-                        for(size_t c = 0; c < children.size(); c++) {
-                            uint64_t c_tid = children[i];
-                            assert(tid_to_num.find(c_tid) != tid_to_num.end());
-                            uint64_t c_num = tid_to_num[c_tid];
-                            double prob = p[c_num] / ((double)children.size());
-                            psum += prob;
-                        }
-                    }
+#ifdef DAEHWAN_DEBUG
+            if(num_iteration % 50 == 0) {
+                if(test_tid != 0 || test_tid2 != 0)
+                    cerr << "iter " << num_iteration << endl;
+                if(test_tid != 0)
+                    cerr << "\t" << test_tid << ": " << p[tid_to_num[test_tid]] << endl;
+                if(test_tid2 != 0)
+                    cerr << "\t" << test_tid2 << ": " << p[tid_to_num[test_tid2]] << endl;
+            }
+#endif
+            
+            // Accelerated version of EM - SQUAREM iteration
+            //    Varadhan, R. & Roland, C. Scand. J. Stat. 35, 335–353 (2008).
+            //    Also, this algorithm is used in Sailfish - http://www.nature.com/nbt/journal/v32/n5/full/nbt.2862.html
+#if 1
+            EM(observed, ancestors, tid_to_num, p, p_next);
+            EM(observed, ancestors, tid_to_num, p_next, p_next2);
+            double sum_squared_r = 0.0, sum_squared_v = 0.0;
+            for(size_t i = 0; i < p.size(); i++) {
+                p_r[i] = p_next[i] - p[i];
+                sum_squared_r += (p_r[i] * p_r[i]);
+                p_v[i] = p_next2[i] - p_next[i] - p_r[i];
+                sum_squared_v += (p_v[i] * p_v[i]);
+            }
+            if(sum_squared_v > 0.0) {
+                double gamma = -sqrt(sum_squared_r / sum_squared_v);
+                for(size_t i = 0; i < p.size(); i++) {
+                    p_next2[i] = max(0.0, p[i] - 2 * gamma * p_r[i] + gamma * gamma * p_v[i]);
                 }
-                
-                for(size_t i = 0; i < ids.size(); i++) {
-                    uint64_t tid = ids[i];
-                    // Leaves?
-                    if(tid_to_num.find(tid) != tid_to_num.end()) {
-                        uint64_t num = tid_to_num[tid];
-                        assert_leq(p[num], psum);
-                        p_next[num] += (count * p[num] / psum);
-                    } else {
-                        map<uint64_t, EList<uint64_t> >::const_iterator a_itr = ancestors.find(tid);
-                        if(a_itr == ancestors.end())
-                            continue;
-                        const EList<uint64_t>& children = a_itr->second;
-                        for(size_t c = 0; c < children.size(); c++) {
-                            uint64_t c_tid = children[i];
-                            assert(tid_to_num.find(c_tid) != tid_to_num.end());
-                            uint64_t c_num = tid_to_num[c_tid];
-                            double prob = p[c_num] / ((double)children.size());
-                            p_next[c_num] += (count * prob / psum);
-                        }
-                    }
-                }
+                EM(observed, ancestors, tid_to_num, p_next2, p_next);
             }
-
-            // M step
-            double sum = 0.0;
-            for(size_t i = 0; i < p_next.size(); i++) {
-                sum += p_next[i];
-            }
-            for(size_t i = 0; i < p_next.size(); i++) {
-                p_next[i] /= sum;
-            }
+            
+#else
+            EM(observed, ancestors, tid_to_num, p, p_next);
+#endif
             
             diff = 0.0;
             for(size_t i = 0; i < p.size(); i++) {
@@ -2173,7 +2253,7 @@ void AlnSinkSam<index_t>::appendMate(
     if(leaf) {
         o.append(rs->uid().c_str());
     } else {
-        o.append(get_tax_rank(rs->taxRank()));
+        o.append(get_tax_rank_string(rs->taxRank()));
     }
     o.append('\t');
     

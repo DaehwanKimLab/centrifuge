@@ -39,8 +39,9 @@ struct HitCount {
     uint32_t timeStamp;
     EList<pair<uint32_t,uint32_t> > readPositions;
     bool     leaf;
+    uint32_t num_leaves;
     
-    uint32_t rank;
+    uint8_t rank;
     EList<uint64_t> path;
     
     void reset() {
@@ -52,6 +53,7 @@ struct HitCount {
         rank = 0;
         path.clear();
         leaf = true;
+        num_leaves = 1;
     }
     
     HitCount& operator=(const HitCount& o) {
@@ -73,6 +75,8 @@ struct HitCount {
         summedHitLens[1][1] = o.summedHitLens[1][1];
         timeStamp = o.timeStamp;
         readPositions = o.readPositions;
+        leaf = o.leaf;
+        num_leaves = o.num_leaves;
         rank = o.rank;
         path = o.path;
         
@@ -80,18 +84,9 @@ struct HitCount {
     }
 
     void finalize(
-                  const Ebwt<index_t>& ebwt,
                   bool paired,
                   bool mate1fw,
                   bool mate2fw) {
-        rank = 0; path.clear();
-        const TaxonomyPathTable& pathTable = ebwt.paths();
-        pathTable.getPath(taxID, path);
-        for(; rank < path.size(); rank++) {
-            if(path[rank] == taxID) {
-                break;
-            }
-        }
         if(paired) {
 #if 1
             score = max(scores[0][0], scores[0][1]) + max(scores[1][0], scores[1][1]);
@@ -139,22 +134,71 @@ public:
      */
     Classifier(const Ebwt<index_t>& ebwt,
                const EList<string>& refnames,
-               const EList<uint32_t>& hostGenomes,
                bool mate1fw,
                bool mate2fw,
-               index_t minHitLen = 22,
-               bool tree_traverse = true) :
+               index_t minHitLen,
+               bool tree_traverse,
+               const string& classification_rank,
+               const EList<uint64_t>& hostGenomes,
+               const EList<uint64_t>& excluded_taxIDs) :
     HI_Aligner<index_t, local_index_t>(
                                        ebwt,
                                        0,    // don't make use of splice sites found by earlier reads
                                        true), // no spliced alignment
     _refnames(refnames),
     _minHitLen(minHitLen),
-    _hostGenomes(hostGenomes),
     _mate1fw(mate1fw),
     _mate2fw(mate2fw),
     _tree_traverse(tree_traverse)
     {
+        _classification_rank = get_tax_rank_id(classification_rank.c_str());
+        _classification_rank = TaxonomyPathTable::rank_to_pathID(_classification_rank);
+        
+        const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+        _host_taxIDs.clear();
+        if(hostGenomes.size() > 0) {
+            for(map<uint64_t, TaxonomyNode>::const_iterator itr = tree.begin(); itr != tree.end(); itr++) {
+                uint64_t tmp_taxID = itr->first;
+                while(true) {
+                    bool found = false;
+                    for(size_t t = 0; t < hostGenomes.size(); t++) {
+                        if(tmp_taxID == hostGenomes[t]) {
+                            _host_taxIDs.insert(itr->first);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if(found) break;
+                    map<uint64_t, TaxonomyNode>::const_iterator itr2 = tree.find(tmp_taxID);
+                    if(itr2 == tree.end()) break;
+                    const TaxonomyNode& node = itr2->second;
+                    if(tmp_taxID == node.parent_tid) break;
+                    tmp_taxID = node.parent_tid;
+                }
+            }
+        }
+        
+        _excluded_taxIDs.clear();
+        if(excluded_taxIDs.size() > 0) {
+            for(map<uint64_t, TaxonomyNode>::const_iterator itr = tree.begin(); itr != tree.end(); itr++) {
+                uint64_t tmp_taxID = itr->first;
+                while(true) {
+                    bool found = false;
+                    for(size_t t = 0; t < excluded_taxIDs.size(); t++) {
+                        if(tmp_taxID == excluded_taxIDs[t]) {
+                            _excluded_taxIDs.insert(itr->first);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if(found) break;
+                    map<uint64_t, TaxonomyNode>::const_iterator itr2 = tree.find(tmp_taxID);
+                    if(itr2 == tree.end()) break;
+                    if(tmp_taxID == itr2->second.parent_tid) break;
+                    tmp_taxID = itr2->second.parent_tid;
+                }
+            }
+        }
     }
     
     ~Classifier() {
@@ -178,7 +222,7 @@ public:
            AlnSinkWrap<index_t>&    sink)
     {
         _hitMap.clear();
-
+        
         const index_t increment = (2 * _minHitLen <= 33) ? 10 : (2 * _minHitLen - 33);
         const ReportingParams& rp = sink.reportingParams();
         index_t maxGenomeHitSize = rp.khits;
@@ -186,7 +230,6 @@ public:
         
         //
         uint32_t ts = 0; // time stamp
-        uint32_t human_speciesID = 0, human_genusID = 0;
         // for each mate. only called once for unpaired data
         for(int rdi = 0; rdi < (this->_paired ? 2 : 1); rdi++) {
             assert(this->_rds[rdi] != NULL);
@@ -293,30 +336,11 @@ public:
                     for(index_t k = 0; k < coord_ids.size(); ++k) {
                         uint64_t uniqueID = coord_ids[k].first;
                         uint64_t taxID = coord_ids[k].second;
-                        uint32_t speciesID = (uint32_t)taxID, genusID = (uint32_t)taxID;
-                        const map<uint64_t, TaxonomyNode>& tree = ebwtFw.tree();
-                        uint64_t tmp_taxID = taxID;
-                        while(tree.find(tmp_taxID) != tree.end()) {
-                            const TaxonomyNode& node = tree.find(tmp_taxID)->second;
-                            if(node.rank == RANK_SPECIES) {
-                                speciesID = (uint32_t)tmp_taxID;
-                            } else if(node.rank == RANK_GENUS) {
-                                genusID = (uint32_t)tmp_taxID;
-                                break;
-                            }
-                            if(tmp_taxID == node.parent_tid) break;
-                            tmp_taxID = node.parent_tid;
-                        }
-                        
-                        if(_hostGenomes.size() > 0 &&
-                           _hostGenomes.back() == speciesID &&
-                           partialHit.len() >= 31) {
-                            human_speciesID = speciesID;
-                            human_genusID = genusID;
-                        }
-                        
+                        if(_excluded_taxIDs.find(taxID) != _excluded_taxIDs.end())
+                            break;
                         // add hit to genus map and get new index in the map
                         size_t idx = addHitToHitMap(
+                                                    ebwtFw,
                                                     _hitMap,
                                                     rdi,
                                                     fwi,
@@ -354,10 +378,7 @@ public:
         } // rdi
         
         for(size_t i = 0; i < _hitMap.size(); i++) {
-            _hitMap[i].finalize(ebwtFw,
-                                this->_paired,
-                                this->_mate1fw,
-                                this->_mate2fw);
+            _hitMap[i].finalize(this->_paired, this->_mate1fw, this->_mate2fw);
         }
         
         // If the number of hits is more than -k,
@@ -393,7 +414,7 @@ public:
                 for(size_t i = 0; i < _hitMap.size(); i++) {
                     while(_hitMap[i].rank < rank) {
                         if(_hitMap[i].rank + 1 >= _hitMap[i].path.size()) {
-                            _hitMap[i].rank = std::numeric_limits<uint32_t>::max();
+                            _hitMap[i].rank = std::numeric_limits<uint8_t>::max();
                             break;
                         }
                         _hitMap[i].rank += 1;
@@ -442,9 +463,12 @@ public:
                     }
                     
                     bool first = true;
+                    size_t rep_i = _hitMap.size();
                     for(size_t i = 0; i < _hitMap.size(); i++) {
                         if(parent_taxID == _hitMap[i].taxID) {
                             if(!first) {
+                                assert_lt(rep_i, _hitMap.size());
+                                _hitMap[rep_i].num_leaves += _hitMap[i].num_leaves;
                                 if(i + 1 < _hitMap.size()) {
                                     _hitMap[i] = _hitMap.back();
                                 }
@@ -452,6 +476,7 @@ public:
                                 i--;
                             } else {
                                 first = false;
+                                rep_i = i;
                             }
                         }
                     }
@@ -480,10 +505,25 @@ public:
             max_score += (rdlen > 15 ? (rdlen - 15) * (rdlen - 15) : 0);
         }
         
+        // See if some of the assignments corresponde to host taxIDs
+        int64_t best_score = 0;
+        bool only_host_taxIDs = false;
+        for(size_t gi = 0; gi < _hitMap.size(); gi++) {
+            if(_hitMap[gi].score > best_score) {
+                best_score = _hitMap[gi].score;
+                only_host_taxIDs = (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
+            } else if(_hitMap[gi].score == best_score) {
+                only_host_taxIDs |= (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
+            }
+        }
+        
         for(size_t gi = 0; gi < _hitMap.size(); gi++) {
             assert_gt(_hitMap[gi].score, 0);
             HitCount<index_t>& hitCount = _hitMap[gi];
-            if(human_genusID != 0 && human_genusID != hitCount.taxID) continue;
+            if(only_host_taxIDs) {
+                if(_host_taxIDs.find(_hitMap[gi].taxID) == _host_taxIDs.end())
+                    continue;
+            }
             const EList<pair<string, uint64_t> >& uid_to_tid = ebwtFw.uid_to_tid();
             assert_lt(hitCount.uniqueID, uid_to_tid.size());
             const std::map<uint64_t, TaxonomyNode>& tree = ebwtFw.tree();
@@ -558,15 +598,18 @@ private:
     EList<HitCount<index_t> >    _hitMap;
     index_t                      _minHitLen;
     EList<uint16_t>              _tempTies;
-    EList<uint32_t>              _hostGenomes;
     bool                         _mate1fw;
     bool                         _mate2fw;
     
     bool                         _tree_traverse;
+    uint8_t                      _classification_rank;
+    set<uint64_t>                _host_taxIDs; // favor these genomes
+    set<uint64_t>                _excluded_taxIDs;
     
     // Temporary variables
     ReadBWTHit<index_t>          _tempHit;
     EList<pair<uint32_t, uint64_t> > _hitTaxCount;  // pair of count and taxID
+    EList<uint64_t>              _tempPath;
     
     void searchForwardAndReverse(
                                  index_t rdi,
@@ -873,7 +916,7 @@ private:
                             HIMetrics& him)
     {
         BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
-        assert(!partialHit.hasGenomeCoords());
+	assert(!partialHit.hasGenomeCoords());
         bool straddled = false;
         this->getGenomeIdx(
                            ebwtFw,     // FB: Why is it called ...FW here?
@@ -901,6 +944,7 @@ private:
 
     // append a hit to genus map or update entry
     size_t addHitToHitMap(
+                          const Ebwt<index_t>& ebwt,
                           EList<HitCount<index_t> >& hitMap,
                           int rdi,
                           int fwi,
@@ -917,10 +961,27 @@ private:
 #ifdef LI_DEBUG
         cout << "Add " << taxID << " " << partialHitScore << " " << weightedHitLen << endl;
 #endif
+        const TaxonomyPathTable& pathTable = ebwt.paths();
+        pathTable.getPath(taxID, _tempPath);
+        uint8_t rank = _classification_rank;
+        if(rank > 0) {
+            for(; rank < _tempPath.size(); rank++) {
+                if(_tempPath[rank] != 0) {
+                    taxID = _tempPath[rank];
+                    break;
+                }
+            }
+        }
+        
         for(; idx < hitMap.size(); ++idx) {
-            if(hitMap[idx].uniqueID == uniqueID) {
+            bool same = false;
+            if(rank == 0) {
+                same = (uniqueID == hitMap[idx].uniqueID);
+            } else {
+                same = (taxID == hitMap[idx].taxID);
+            }
+            if(same) {
                 if(hitMap[idx].timeStamp != hi) {
-                    hitMap[idx].taxID = taxID;
                     hitMap[idx].count += 1;
                     hitMap[idx].scores[rdi][fwi] += partialHitScore;
                     hitMap[idx].summedHitLens[rdi][fwi] += weightedHitLen;
@@ -933,15 +994,18 @@ private:
         
         if(idx >= hitMap.size() && !considerOnlyIfPreviouslyObserved) {
             hitMap.expand();
-            hitMap.back().reset();
-            hitMap.back().uniqueID = uniqueID;
-            hitMap.back().taxID = taxID;
-            hitMap.back().count = 1;
-            hitMap[idx].scores[rdi][fwi] = partialHitScore;
-            hitMap[idx].summedHitLens[rdi][fwi] = weightedHitLen;
-            hitMap.back().timeStamp = (uint32_t)hi;
-            hitMap.back().readPositions.clear();
-            hitMap.back().readPositions.push_back(make_pair(offset, length));
+            HitCount<index_t>& hitCount = hitMap.back();
+            hitCount.reset();
+            hitCount.uniqueID = uniqueID;
+            hitCount.count = 1;
+            hitCount.scores[rdi][fwi] = partialHitScore;
+            hitCount.summedHitLens[rdi][fwi] = weightedHitLen;
+            hitCount.timeStamp = (uint32_t)hi;
+            hitCount.readPositions.clear();
+            hitCount.readPositions.push_back(make_pair(offset, length));
+            hitCount.path = _tempPath;
+            hitCount.rank = rank;
+            hitCount.taxID = taxID;
         }
 
         //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size

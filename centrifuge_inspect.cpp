@@ -440,7 +440,7 @@ static void driver(
         } else if(taxonomy_tree) {
             const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
             for(map<uint64_t, TaxonomyNode>::const_iterator itr = tree.begin(); itr != tree.end(); itr++) {
-                string rank = get_tax_rank(itr->second.rank);
+                string rank = get_tax_rank_string(itr->second.rank);
                 cout << itr->first << "\t|\t" << itr->second.parent_tid << "\t|\t" << rank << endl;
             }
         } else if(name_table) {

@@ -243,9 +243,11 @@ static MUTEX_T         thread_rids_mutex;
 static uint32_t minHitLen;   // minimum length of partial hits
 static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
-static EList<uint32_t> hostGenomes;
 static bool abundance_analysis;
 static bool tree_traverse;
+static string classification_rank;
+static EList<uint64_t> host_taxIDs;
+static EList<uint64_t> excluded_taxIDs;
 
 #define DMAX std::numeric_limits<double>::max()
 
@@ -439,10 +441,12 @@ static void resetOptions() {
 	bowtie2p5 = false;
     minHitLen = 22;
     minTotalLen = 0;
-    hostGenomes.clear();
     reportFile = "centrifuge_report.csv";
     abundance_analysis = true;
     tree_traverse = true;
+    host_taxIDs.clear();
+    classification_rank = "strain";
+    excluded_taxIDs.clear();
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -597,10 +601,12 @@ static struct option long_options[] = {
 	{(char*)"desc-fmops",       required_argument, 0,        ARG_DESC_FMOPS},
     {(char*)"min-hitlen",       required_argument, 0,        ARG_MIN_HITLEN},
     {(char*)"min-totallen",     required_argument, 0,        ARG_MIN_TOTALLEN},
-    {(char*)"host-genomes",     required_argument, 0,        ARG_HOST_GENOMES},
+    {(char*)"host-taxids",      required_argument, 0,        ARG_HOST_TAXIDS},
 	{(char*)"report-file",      required_argument, 0,        ARG_REPORT_FILE},
     {(char*)"no-abundance",     no_argument,       0,        ARG_NO_ABUNDANCE},
     {(char*)"no-traverse",      no_argument,       0,        ARG_NO_TRAVERSE},
+    {(char*)"classification-rank", required_argument,    0,  ARG_CLASSIFICATION_RANK},
+    {(char*)"exclude-taxids",      required_argument,    0,  ARG_EXCLUDE_TAXIDS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -666,7 +672,7 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
-	out <<     "  <sam>      File for SAM output (default: stdout)" << endl
+	out <<     "  <filename>      File for classification output (default: stdout)" << endl
 	    <<     "  <report>   File for tabular report output (default: " << reportFile << ")" << endl
 	    << endl
 	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
@@ -692,9 +698,6 @@ static void printUsage(ostream& out) {
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
         << "  --min-hitlen       " << endl
-		<< endl
-        << " Paired-end:" << endl
-	    << "  --fr/--rf/--ff     -1, -2 mates align fw/rev, rev/fw, fw/fw (--fr)" << endl
 		<< endl
 		<< "Score:" << endl
 		<< "  --min-hitlen <int>    minimum length of partial hits (default "<<minHitLen<<", must be greater than 15)" << endl
@@ -1116,25 +1119,6 @@ static void parseOption(int next_option, const char *arg) {
 			sam_print_zi = true;
 			break;
 		}
-		case ARG_SAM_RG: {
-			string argstr = arg;
-			if(argstr.substr(0, 3) == "ID:") {
-				rgid = "\t";
-				rgid += argstr;
-				rgs_optflag = "RG:Z:" + argstr.substr(3);
-			} else {
-				rgs += '\t';
-				rgs += argstr;
-			}
-			break;
-		}
-		case ARG_SAM_RGID: {
-			string argstr = arg;
-			rgid = "\t";
-			rgid = "\tID:" + argstr;
-			rgs_optflag = "RG:Z:" + argstr;
-			break;
-		}
 		case ARG_PARTITION: partitionSz = parse<int>(arg); break;
 		case ARG_DPAD:
 			maxhalf = parseInt(0, "--dpad must be no less than 0", arg);
@@ -1147,12 +1131,6 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			origString = arg;
 			break;
-		case ARG_LOCAL: localAlign = true; break;
-		case ARG_END_TO_END: localAlign = false; break;
-		case ARG_SSE8: enable8 = true; break;
-		case ARG_SSE8_NO: enable8 = false; break;
-		case ARG_UNGAPPED: doUngapped = true; break;
-		case ARG_UNGAPPED_NO: doUngapped = false; break;
 		case ARG_NO_DOVETAIL: gDovetailMatesOK = false; break;
 		case ARG_NO_CONTAIN:  gContainMatesOK  = false; break;
 		case ARG_NO_OVERLAP:  gOlapMatesOK     = false; break;
@@ -1163,30 +1141,6 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_NO_SCORE_PRIORITY: sortByScore = false; break;
 		case ARG_IGNORE_QUALS: ignoreQuals = true; break;
 		case ARG_MAPQ_V: mapqv = parse<int>(arg); break;
-		case ARG_TIGHTEN: tighten = parse<int>(arg); break;
-		case ARG_EXACT_UPFRONT:    doExactUpFront = true; break;
-		case ARG_1MM_UPFRONT:      do1mmUpFront   = true; break;
-		case ARG_EXACT_UPFRONT_NO: doExactUpFront = false; break;
-		case ARG_1MM_UPFRONT_NO:   do1mmUpFront   = false; break;
-		case ARG_1MM_MINLEN:       do1mmMinLen = parse<size_t>(arg); break;
-		case ARG_NOISY_HPOLY: noisyHpolymer = true; break;
-		case 'x': bt2index = arg; break;
-		case ARG_PRESET_VERY_FAST_LOCAL: localAlign = true;
-		case ARG_PRESET_VERY_FAST: {
-			presetList.push_back("very-fast%LOCAL%"); break;
-		}
-		case ARG_PRESET_FAST_LOCAL: localAlign = true;
-		case ARG_PRESET_FAST: {
-			presetList.push_back("fast%LOCAL%"); break;
-		}
-		case ARG_PRESET_SENSITIVE_LOCAL: localAlign = true;
-		case ARG_PRESET_SENSITIVE: {
-			presetList.push_back("sensitive%LOCAL%"); break;
-		}
-		case ARG_PRESET_VERY_SENSITIVE_LOCAL: localAlign = true;
-		case ARG_PRESET_VERY_SENSITIVE: {
-			presetList.push_back("very-sensitive%LOCAL%"); break;
-		}
 		case 'P': { presetList.push_back(arg); break; }
 		case ARG_ALIGN_POLICY: {
 			if(strlen(arg) > 0) {
@@ -1335,8 +1289,12 @@ static void parseOption(int next_option, const char *arg) {
         	minTotalLen = parseInt(50, "--min-totallen arg must be at least 50", arg);
         	break;
         }
-        case ARG_HOST_GENOMES: {
-            hostGenomes.push_back(9606); // Homo Sapiens Species ID
+        case ARG_HOST_TAXIDS: {
+            EList<string> args;
+            tokenize(arg, ",", args);
+            for(size_t i = 0; i < args.size(); i++) {
+                host_taxIDs.push_back(stol(args[i].c_str()));
+            }
             break;
         }
         case ARG_REPORT_FILE: {
@@ -1349,6 +1307,28 @@ static void parseOption(int next_option, const char *arg) {
         }
         case ARG_NO_TRAVERSE: {
             tree_traverse = false;
+            break;
+        }
+        case ARG_CLASSIFICATION_RANK: {
+            classification_rank = arg;
+            if(classification_rank != "strain" &&
+               classification_rank != "species" &&
+               classification_rank != "genus" &&
+               classification_rank != "family" &&
+               classification_rank != "order" &&
+               classification_rank != "class" &&
+               classification_rank != "phylum") {
+                cerr << "Error: " << classification_rank << " (--classification-rank) should be one of strain, species, genus, family, order, class, and phylum" << endl;
+                exit(1);
+            }
+            break;
+        }
+        case ARG_EXCLUDE_TAXIDS: {
+            EList<string> args;
+            tokenize(arg, ",", args);
+            for(size_t i = 0; i < args.size(); i++) {
+                excluded_taxIDs.push_back(stol(args[i].c_str()));
+            }
             break;
         }
 		default:
@@ -2242,11 +2222,13 @@ static void multiseedSearchWorker(void *vp) {
     Classifier<index_t, local_index_t> classifier(
                                                   ebwtFw,
                                                   multiseed_refnames,
-                                                  hostGenomes,
                                                   gMate1fw,
                                                   gMate2fw,
                                                   minHitLen,
-                                                  tree_traverse);
+                                                  tree_traverse,
+                                                  classification_rank,
+                                                  host_taxIDs,
+                                                  excluded_taxIDs);
 	OuterLoopMetrics olm;
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
@@ -2934,8 +2916,9 @@ static void driver(
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics& spm = metrics.spmu;
             if(abundance_analysis) {
+                uint8_t rank = get_tax_rank_id(classification_rank.c_str());
                 Timer timer(cerr, "Calculating abundance: ");
-                spm.calculateAbundance(ebwt);
+                spm.calculateAbundance(ebwt, rank);
             }
             const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
             const std::map<uint64_t, string>& name_map = ebwt.name();
@@ -2954,6 +2937,7 @@ static void driver(
             reportOfb << endl;
 			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
                 uint64_t taxid = it->first;
+                if(taxid == 0) continue;
                 std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
                 if(name_itr != name_map.end()) {
                     reportOfb << name_itr->second;
@@ -2972,7 +2956,7 @@ static void driver(
                 if(rank == RANK_UNKNOWN && leaf) {
                     reportOfb << "leaf";
                 } else {
-                    string rank_str = get_tax_rank(rank);
+                    string rank_str = get_tax_rank_string(rank);
                     reportOfb << rank_str;
                 }
                 reportOfb << '\t';

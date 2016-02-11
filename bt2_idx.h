@@ -548,9 +548,54 @@ enum {
     RANK_SUPER_PHYLUM,
     RANK_TRIBE,
     RANK_VARIETAS,
+    RANK_MAX
 };
 
-inline static const char* get_tax_rank(int rank) {
+extern uint8_t tax_rank_num[RANK_MAX];
+
+inline static void initial_tax_rank_num() {
+    uint8_t rank = 0;
+    
+    tax_rank_num[RANK_SUB_SPECIES] = rank;
+    tax_rank_num[RANK_STRAIN] = rank++;
+    
+    tax_rank_num[RANK_SPECIES] = rank++;
+    
+    tax_rank_num[RANK_SUB_GENUS] = rank;
+    tax_rank_num[RANK_GENUS] = rank++;
+    
+    tax_rank_num[RANK_SUB_FAMILY] = rank;
+    tax_rank_num[RANK_FAMILY] = rank;
+    tax_rank_num[RANK_SUPER_FAMILY] = rank++;
+    
+    tax_rank_num[RANK_SUB_ORDER] = rank;
+    tax_rank_num[RANK_INFRA_ORDER] = rank;
+    tax_rank_num[RANK_PARV_ORDER] = rank;
+    tax_rank_num[RANK_ORDER] = rank;
+    tax_rank_num[RANK_SUPER_ORDER] = rank++;
+    
+    tax_rank_num[RANK_INFRA_CLASS] = rank;
+    tax_rank_num[RANK_SUB_CLASS] = rank;
+    tax_rank_num[RANK_CLASS] = rank;
+    tax_rank_num[RANK_SUPER_CLASS] = rank++;
+    
+    tax_rank_num[RANK_SUB_PHYLUM] = rank;
+    tax_rank_num[RANK_PHYLUM] = rank;
+    tax_rank_num[RANK_SUPER_PHYLUM] = rank++;
+    
+    tax_rank_num[RANK_SUB_KINGDOM] = rank;
+    tax_rank_num[RANK_KINGDOM] = rank;
+    tax_rank_num[RANK_SUPER_KINGDOM] = rank++;
+    
+    tax_rank_num[RANK_DOMAIN] = rank;
+    tax_rank_num[RANK_FORMA] = rank;
+    tax_rank_num[RANK_SUB_TRIBE] = rank;
+    tax_rank_num[RANK_TRIBE] = rank;
+    tax_rank_num[RANK_VARIETAS] = rank;
+    tax_rank_num[RANK_UNKNOWN] = rank;
+}
+
+inline static const char* get_tax_rank_string(uint8_t rank) {
     switch(rank) {
         case RANK_STRAIN:        return "strain";
         case RANK_SPECIES:       return "species";
@@ -583,6 +628,66 @@ inline static const char* get_tax_rank(int rank) {
     };
 }
 
+inline static uint8_t get_tax_rank_id(const char* rank) {
+    if(strcmp(rank, "strain") == 0) {
+        return RANK_STRAIN;
+    } else if(strcmp(rank, "species") == 0) {
+        return RANK_SPECIES;
+    } else if(strcmp(rank, "genus") == 0) {
+        return RANK_GENUS;
+    } else if(strcmp(rank, "family") == 0) {
+        return RANK_FAMILY;
+    } else if(strcmp(rank, "order") == 0) {
+        return RANK_ORDER;
+    } else if(strcmp(rank, "class") == 0) {
+        return RANK_CLASS;
+    } else if(strcmp(rank, "phylum") == 0) {
+        return RANK_PHYLUM;
+    } else if(strcmp(rank, "kingdom") == 0) {
+        return RANK_KINGDOM;
+    } else if(strcmp(rank, "forma") == 0) {
+        return RANK_FORMA;
+    } else if(strcmp(rank, "infraclass") == 0) {
+        return RANK_INFRA_CLASS;
+    } else if(strcmp(rank, "infraorder") == 0) {
+        return RANK_INFRA_ORDER;
+    } else if(strcmp(rank, "parvorder") == 0) {
+        return RANK_PARV_ORDER;
+    } else if(strcmp(rank, "subclass") == 0) {
+        return RANK_SUB_CLASS;
+    } else if(strcmp(rank, "subfamily") == 0) {
+        return RANK_SUB_FAMILY;
+    } else if(strcmp(rank, "subgenus") == 0) {
+        return RANK_SUB_GENUS;
+    } else if(strcmp(rank, "subkingdom") == 0) {
+        return RANK_SUB_KINGDOM;
+    } else if(strcmp(rank, "suborder") == 0) {
+        return RANK_SUB_ORDER;
+    } else if(strcmp(rank, "subphylum") == 0) {
+        return RANK_SUB_PHYLUM;
+    } else if(strcmp(rank, "subspecies") == 0) {
+        return RANK_SUB_SPECIES;
+    } else if(strcmp(rank, "subtribe") == 0) {
+        return RANK_SUB_TRIBE;
+    } else if(strcmp(rank, "superclass") == 0) {
+        return RANK_SUPER_CLASS;
+    } else if(strcmp(rank, "superfamily") == 0) {
+        return RANK_SUPER_FAMILY;
+    } else if(strcmp(rank, "superkingdom") == 0) {
+        return RANK_SUPER_KINGDOM;
+    } else if(strcmp(rank, "superorder") == 0) {
+        return RANK_SUPER_ORDER;
+    } else if(strcmp(rank, "superphylum") == 0) {
+        return RANK_SUPER_PHYLUM;
+    } else if(strcmp(rank, "tribe") == 0) {
+        return RANK_TRIBE;
+    } else if(strcmp(rank, "varietas") == 0) {
+        return RANK_VARIETAS;
+    } else {
+        return RANK_UNKNOWN;
+    }
+}
+
 struct TaxonomyNode {
     uint64_t parent_tid;
     uint8_t  rank;
@@ -594,6 +699,28 @@ struct TaxonomyPathTable {
     
     map<uint64_t, uint32_t> tid_to_pid;  // from taxonomic ID to path ID
     ELList<uint64_t> paths;
+    
+    static uint8_t rank_to_pathID(uint8_t rank) {
+        switch(rank) {
+            case RANK_STRAIN:
+            case RANK_SUB_SPECIES:
+                return 0;
+            case RANK_SPECIES:
+                return 1;
+            case RANK_GENUS:
+                return 2;
+            case RANK_FAMILY:
+                return 3;
+            case RANK_ORDER:
+                return 4;
+            case RANK_CLASS:
+                return 5;
+            case RANK_PHYLUM:
+                return 6;
+            default:
+                return std::numeric_limits<uint8_t>::max();
+        }
+    }
     
     void buildPaths(const EList<pair<string, uint64_t> >& uid_to_tid,
                     const std::map<uint64_t, TaxonomyNode>& tree)
@@ -616,7 +743,6 @@ struct TaxonomyPathTable {
                 continue;
             if(tree.find(tid) == tree.end())
                 continue;
-            
             tid_to_pid[tid] = (uint32_t)paths.size();
             paths.expand();
             EList<uint64_t>& path = paths.back();
@@ -635,7 +761,7 @@ struct TaxonomyPathTable {
                 } else if(rank_map.find(node.rank) != rank_map.end()) {
                     rank = rank_map[node.rank];
                 }
-                if(rank < path.size()) {
+                if(rank < path.size() && path[rank] == 0) {
                     path[rank] = tid;
                 }
 
@@ -767,6 +893,8 @@ public:
             cerr << "Could not open index file " << in3Str.c_str() << endl;
         }
         
+        initial_tax_rank_num();
+        
         set<uint64_t> leaves;
         _uid_to_tid.clear();
         readU32(in3, this->toBe());
@@ -835,6 +963,41 @@ public:
             }
         }
         
+        // Calculate average genome size
+        for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
+            uint64_t tid = tree_itr->first;
+            const TaxonomyNode& node = tree_itr->second;
+            if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
+               node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
+                size_t sum = 0, count = 0;
+                for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
+                    uint64_t c_tid = size_itr->first;
+                    map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
+                    assert(tree_itr2 != _tree.end());
+                    const TaxonomyNode& c_node = tree_itr2->second;
+                    if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
+                       tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
+                        c_tid = c_node.parent_tid;
+                        while(true) {
+                            if(c_tid == tid) {
+                                sum += size_itr->second;
+                                count += 1;
+                                break;
+                            }
+                            tree_itr2 = _tree.find(c_tid);
+                            if(tree_itr2 == _tree.end())
+                                break;
+                            if(c_tid == tree_itr2->second.parent_tid)
+                                break;
+                            c_tid = tree_itr2->second.parent_tid;
+                        }
+                    }
+                }
+                if(count > 0) {
+                    _size[tid] = sum / count;
+                }
+            }
+        }
         _paths.buildPaths(_uid_to_tid, _tree);
         
         in3.close();
@@ -1395,63 +1558,7 @@ public:
                         }
                         TaxonomyNode node;
                         node.parent_tid = parent_tid;
-                        if(rank == "strain") {
-                            node.rank = RANK_STRAIN;
-                        } else if(rank == "species") {
-                            node.rank = RANK_SPECIES;
-                        } else if(rank == "genus") {
-                            node.rank = RANK_GENUS;
-                        } else if(rank == "family") {
-                            node.rank = RANK_FAMILY;
-                        } else if(rank == "order") {
-                            node.rank = RANK_ORDER;
-                        } else if(rank == "class") {
-                            node.rank = RANK_CLASS;
-                        } else if(rank == "phylum") {
-                            node.rank = RANK_PHYLUM;
-                        } else if(rank == "kingdom") {
-                            node.rank = RANK_KINGDOM;
-                        } else if(rank == "forma") {
-                            node.rank = RANK_FORMA;
-                        } else if(rank == "infraclass") {
-                            node.rank = RANK_INFRA_CLASS;
-                        } else if(rank == "infraorder") {
-                            node.rank = RANK_INFRA_ORDER;
-                        } else if(rank == "parvorder") {
-                            node.rank = RANK_PARV_ORDER;
-                        } else if(rank == "subclass") {
-                            node.rank = RANK_SUB_CLASS;
-                        } else if(rank == "subfamily") {
-                            node.rank = RANK_SUB_FAMILY;
-                        } else if(rank == "subgenus") {
-                            node.rank = RANK_SUB_GENUS;
-                        } else if(rank == "subkingdom") {
-                            node.rank = RANK_SUB_KINGDOM;
-                        } else if(rank == "suborder") {
-                            node.rank = RANK_SUB_ORDER;
-                        } else if(rank == "subphylum") {
-                            node.rank = RANK_SUB_PHYLUM;
-                        } else if(rank == "subspecies") {
-                            node.rank = RANK_SUB_SPECIES;
-                        } else if(rank == "subtribe") {
-                            node.rank = RANK_SUB_TRIBE;
-                        } else if(rank == "superclass") {
-                            node.rank = RANK_SUPER_CLASS;
-                        } else if(rank == "superfamily") {
-                            node.rank = RANK_SUPER_FAMILY;
-                        } else if(rank == "superkingdom") {
-                            node.rank = RANK_SUPER_KINGDOM;
-                        } else if(rank == "superorder") {
-                            node.rank = RANK_SUPER_ORDER;
-                        } else if(rank == "superphylum") {
-                            node.rank = RANK_SUPER_PHYLUM;
-                        } else if(rank == "tribe") {
-                            node.rank = RANK_TRIBE;
-                        } else if(rank == "varietas") {
-                            node.rank = RANK_VARIETAS;
-                        } else {
-                            node.rank = RANK_UNKNOWN;
-                        }
+                        node.rank = get_tax_rank_id(rank.c_str());
                         tree[tid] = node;
                     }
                     taxonomy_file.close();

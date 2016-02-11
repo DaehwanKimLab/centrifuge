@@ -6,17 +6,17 @@ What is Centrifuge?
 -----------------
 
 [Centrifuge] is a novel microbial classification engine that enables
-rapid, accurate and sensitive labeling of reads and quantification of
+rapid, accurate, and sensitive labeling of reads and quantification of
 species on desktop computers.  The system uses a novel indexing scheme
 based on the Burrows-Wheeler transform (BWT) and the Ferragina-Manzini
 (FM) index, optimized specifically for the metagenomic classification
 problem. Centrifuge requires a relatively small index (4.7 GB for all
 complete bacterial and viral genomes plus the human genome) and
-classifies sequences at very high speed, allowing it to process the
+classifies sequences at a very high speed, allowing it to process the
 millions of reads from a typical high-throughput DNA sequencing run
 within a few minutes.  Together these advances enable timely and
 accurate analysis of large metagenomics data sets on conventional
-desktop computers
+desktop computers.
 
 [Centrifuge]:     http://www.ccb.jhu.edu/software/centrifuge
 
@@ -91,18 +91,27 @@ in the scripts/ folder if you opt for genome compression in the database constru
 [PATH environment variable]: http://en.wikipedia.org/wiki/PATH_(variable)
 [PATH]: http://en.wikipedia.org/wiki/PATH_(variable)
 
+Before running Centrifuge
+-----------------
+
+Classification is considerably different from alignment in that classification is performed on a large set of genomes as opposed to on just one reference genome as in alignment.  Currently, an enormous number of complete genomes are available at the GenBank (e.g. >4,000 bacterial genomes, >10,000 viral genomes, …).  These genomes are organized in a taxonomic tree where each genome is located at the bottom of the tree, at the strain or subspecies level.  On the taxonomic tree, genomes have ancestors usually situated at the species level, and those ancestors also have ancestors at the genus level and so on up the family level, the order level, class level, phylum, kingdom, and finally at the root level.
+
+Given the gigantic number of genomes available, which continues to expand at a rapid rate, and the development of the taxonomic tree, which continues to evolve with new advancements in research, we have designed Centrifuge to be flexible and general enough to reflect this huge database.  We provide several standard indexes that will meet most of users’ needs (see the side panel - Indexes).  In our approach our indexes not only include raw genome sequences, but also genome names/sizes and taxonomic trees.  This enables users to perform additional analyses on Centrifuge’s classification output without the need to download extra database sources.  This also eliminates the potential issue of discrepancy between the indexes we provide and the databases users may otherwise download.  We plan to provide a couple of additional standard indexes in the near future, and update the indexes on a regular basis.
+
+We encourage first time users to take a look at and follow a `small example` that illustrates how to build an index, how to run Centrifuge using the index, how to interpret the classification results, and how to extract additional genomic information from the index.  For those who choose to build customized indexes, please take a close look at the following description.
+
 Index building
 -----------------
 
-Centrifuge can be build with arbritary sequences. Standard choices are
-all complete bacterial and viral genomes, or using the sequences that
+Centrifuge indexes can be built with arbritary sequences. Standard choices are
+all of the complete bacterial and viral genomes, or using the sequences that
 are part of the BLAST nt database. Centrifuge always needs the
 nodes.dmp file from the NCBI taxonomy dump to build the taxonomy tree,
 as well as a sequence ID to taxonomy ID map. The map is a tab-separated
 file with the sequence ID to taxonomy ID map.
 
-To download all complete archaeal, viral and bacterial genomes from RefSeq, and
-build the index
+To download all of the complete archaeal, viral, and bacterial genomes from RefSeq, and
+build the index:
 
     ## download nodes.dmp and names.dmp to taxonomy/
     centrifuge-download taxonomy
@@ -110,14 +119,14 @@ build the index
     centrifuge-download -m -d "archaea,bacteria,viral" -P $(THREADS) refseq > microbial_seqid2taxid.map
     ## concatenate all the downloaded sequences to build the index
     cat library/*/*.fna > input-sequences.fna
-    ## build centrifuge index with 5 threads
-    centrifuge-build -p 5 --conversion-table microbial_seqid2taxid.map \
-      --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
-      input-sequences.fna a+b+v
+    ## build centrifuge index with 4 threads
+    centrifuge-build -p 4 --conversion-table microbial_seqid2taxid.map \
+                     --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+                     input-sequences.fna a+b+v
 
-After the index building, all files but the *.[123].cf files may be removed.
+After building the index, all files except the index *.[123].cf files may be removed.
 If you also want to include the human and/or the mouse genome, add their sequences to 
-the library folder before index building with one of the following commands:
+the library folder before building the index with one of the following commands:
 
     ## download mouse and human reference genomes
     centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome'
@@ -129,10 +138,11 @@ the library folder before index building with one of the following commands:
 ### nt database
 
 NCBI BLAST's nt database contains all spliced non-redundant coding
-sequences from multiplpe databases, infered from genommic
+sequences from multiplpe databases, inferred from genommic
 sequences. Traditionally used with BLAST, a download of the FASTA is
-provided on the NCBI homepage. Further we need a sequence ID to taxonomy ID
-map that can be generated from a GI taxid dump:
+provided on the NCBI homepage. Building an index with any database 
+requires the user to creates a sequence ID to taxonomy ID map that 
+can be generated from a GI taxid dump:
 
     wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
     gunzip nt.gz && mv -v nt nt.fa
@@ -141,31 +151,66 @@ map that can be generated from a GI taxid dump:
     gunzip -c gi_taxid_nucl.dmp.gz | sed 's/^/gi|/' > gi_taxid_nucl.map
 
     # build index using 16 cores and a small bucket size, which will require less memory
-    centrifuge-build -p 16 --bmax 1342177280 --conversion-table gi_taxid_nucl.map --taxonomy-tree taxonomy/nodes.dmp nt.fa nt
+    centrifuge-build -p 16 --bmax 1342177280 --conversion-table gi_taxid_nucl.map \
+                     --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \ 
+                     nt.fa nt
 
 Reporting
 ---------
-TODO
 
-Inspecting the database
+### Centrifuge classification output
+
+The following example shows classification assignments for a read.  The assignment output has 7 columns.
+
+    readID    seqID   taxID score	   2ndBestScore	   hitLength	numMatches
+    1_1	      gi|4    9646  4225	   0		       80			1
+
+    The first column is the read ID from a raw sequencing read (e.g., 1_1 in the example).
+    The second column is the sequence ID of the genomic sequence, where the read is classified (e.g., gi|4).
+    The third column is the taxonomic ID of the genomic sequence in the second column (e.g., 9646).
+    The fourth column is the score for the classification, which is the weighted sum of hits (e.g., 4225)
+    The fifth column is the score for the next best classification (e.g., 0).
+    The sixth column is an approximate number of base pairs of the read that match the genomic sequence (e.g., 80).
+    The seventh column is the number of classifications, indicating how many assignments were made (e.g.,1).
+
+### Centrifuge summary output (the default filename is centrifuge_report.csv)
+
+The following example shows a classification summary for each genome or taxonomic unit.  The assignment output has 7 columns.
+
+    name      	      	      		     	     	      	     	taxID	taxRank	   genomeSize 	numReads   numUniqueReads   abundance
+    Wigglesworthia glossinidia endosymbiont of Glossina brevipalpis	36870	leaf	   703004		5981	   5964	            0.0152317
+
+    The first column is the name of a genome, or the name corresponding to a taxonomic ID (the second column) at a rank higher than the strain (e.g., Wigglesworthia glossinidia endosymbiont of Glossina brevipalpis).
+    The second column is the taxonomic ID (e.g., 36870).
+    The third column is the taxonomic rank (e.g., leaf).
+    The fourth column is the length of the genome sequence (e.g., 703004).
+    The fifth column is the number of reads classified to this genomic sequence including multi-classified reads (e.g., 5981).
+    The sixth column is the number of reads uniquely classified to this genomic sequence (e.g., 5964).
+    The seventh column is the proportion of this genome normalized by its genomic length (e.g., 0.0152317).
+
+Inspecting the Centrifuge index
 -----------------------
 
-The database can be inspected with `centrifuge-inspect`.  To extract raw sequences:
+The index can be inspected with `centrifuge-inspect`.  To extract raw sequences:
 
-    centrifuge-inspect <centrifuge database>
+    centrifuge-inspect <centrifuge index>
 
-Extract the sequence ID to taxonomy ID conversion table from the database
+Extract the sequence ID to taxonomy ID conversion table from the index
 
-    centrifuge-inspect --conversion-table <centrifuge database>
+    centrifuge-inspect --conversion-table <centrifuge index>
 
 Extract the taxonomy tree from the index:
 
-    centrifuge-inspect --taxonomy-tree <centrifuge database>
+    centrifuge-inspect --taxonomy-tree <centrifuge index>
 
 Extract the lengths of the sequences from the index (each row has two columns: taxonomic ID and length):
 
-    centrifuge-inspect --size-table <centrifuge database>
+    centrifuge-inspect --size-table <centrifuge index>
 
+Extract the names from the index (each row has two columns: taxonomic ID and name):
+
+    centrifuge-inspect --name-table <centrifuge index>
+    
 Wrapper
 -------
 
@@ -200,8 +245,8 @@ Command Line
     -x <centrifuge-idx>
 
 The basename of the index for the reference genomes.  The basename is the name of
-any of the index files up to but not including the final `.1.cf` / `.rev.1.cf`
-/ etc.  `centrifuge` looks for the specified index first in the current directory,
+any of the index files up to but not including the final `.1.cf` / etc.  
+`centrifuge` looks for the specified index first in the current directory,
 then in the directory specified in the `CENTRIFUGE_INDEXES` environment variable.
 
     -1 <m1>
@@ -227,10 +272,14 @@ Comma-separated list of files containing unpaired reads to be aligned, e.g.
 If `-` is specified, `centrifuge` gets the reads from the "standard in" or "stdin"
 filehandle.
 
-    -S <hit>
+    -S <filename>
 
-File to write SAM alignments to.  By default, alignments are written to the
+File to write classification results to.  By default, assignments are written to the
 "standard out" or "stdout" filehandle (i.e. the console).
+
+    --report-file <filename>
+
+File to write a classification summary to (default: centrifuge_report.csv).
 
 ### Options
 
@@ -512,12 +561,6 @@ Print version information and quit.
 
 Print usage information and quit.
 
-Centrifuge output
-----------
-
-Following is a brief description of the [SAM] format as output by `centrifuge`. 
-For more details, see the [SAM format specification][SAM].
-
 The `centrifuge-build` indexer
 ===========================
 
@@ -588,7 +631,7 @@ available memory.  Instead, user may specify values for those parameters.  If
 memory is exhausted during indexing, an error message will be printed; it is up
 to the user to try new parameters.
 
-    -p <int>
+    -p/--threads <int>
 
 Launch `NTHREADS` parallel search threads (default: 1).
 
@@ -637,18 +680,6 @@ Disable use of the difference-cover sample.  Suffix sorting becomes
 quadratic-time in the worst case (where the worst case is an extremely
 repetitive reference).  Default: off.
 
-    -r/--noref
-
-Do not build the `NAME.3.cf` and `NAME.4.cf` portions of the index, which
-contain a bitpacked version of the reference sequences and are used for
-paired-end alignment.
-
-    -3/--justref
-
-Build only the `NAME.3.cf` and `NAME.4.cf` portions of the index, which
-contain a bitpacked version of the reference sequences and are used for
-paired-end alignment.
-
     -o/--offrate <int>
 
 To map alignments back to positions on the reference sequences, it's necessary
@@ -670,11 +701,6 @@ range with respect to the first `<int>` characters of the query.  A larger
     --seed <int>
 
 Use `<int>` as the seed for pseudo-random number generator.
-
-    --cutoff <int>
-
-Index only the first `<int>` bases of the reference sequences (cumulative across
-sequences) and ignore the rest.
 
     -q/--quiet
 
@@ -818,20 +844,20 @@ short classification summary is written to centrifuge-species_report.csv.
 
 You will see something like this:
 
-    readID  uniqueID taxID     score	2ndBestScore	hitLength	numMatches
-    C_1 gi|7     9913      4225	4225		80.00		2
-    C_1 gi|4     9646      4225	4225		80.00		2
-    C_2 gi|4     9646      4225	4225		80.00		2
-    C_2 gi|7     9913      4225	4225		80.00		2
-    C_3 gi|7     9913      4225	4225		80.00		2
-    C_3 gi|4     9646      4225	4225		80.00		2
-    C_4 gi|4     9646      4225	4225		80.00		2
-    C_4 gi|7     9913      4225	4225		80.00		2
-    1_1 gi|4     9646      4225	0		80.00		1
-    1_2 gi|4     9646      4225	0		80.00		1
-    2_1 gi|7     9913      4225	0		80.00		1
-    2_2 gi|7     9913      4225	0		80.00		1
-    2_3 gi|7     9913      4225	0		80.00		1
-    2_4 gi|7     9913      4225	0		80.00		1
-    2_5 gi|7     9913      4225	0		80.00		1
-    2_6 gi|7     9913      4225	0		80.00		1
+    readID  seqID taxID     score	2ndBestScore	hitLength	numMatches
+    C_1 gi|7     9913      4225	4225		80		2
+    C_1 gi|4     9646      4225	4225		80		2
+    C_2 gi|4     9646      4225	4225		80		2
+    C_2 gi|7     9913      4225	4225		80		2
+    C_3 gi|7     9913      4225	4225		80		2
+    C_3 gi|4     9646      4225	4225		80		2
+    C_4 gi|4     9646      4225	4225		80		2
+    C_4 gi|7     9913      4225	4225		80		2
+    1_1 gi|4     9646      4225	0		80		1
+    1_2 gi|4     9646      4225	0		80		1
+    2_1 gi|7     9913      4225	0		80		1
+    2_2 gi|7     9913      4225	0		80		1
+    2_3 gi|7     9913      4225	0		80		1
+    2_4 gi|7     9913      4225	0		80		1
+    2_5 gi|7     9913      4225	0		80		1
+    2_6 gi|7     9913      4225	0		80		1

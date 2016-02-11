@@ -149,8 +149,9 @@ the library folder before building the index with one of the following commands:
 NCBI BLAST's nt database contains all spliced non-redundant coding
 sequences from multiplpe databases, inferred from genommic
 sequences. Traditionally used with BLAST, a download of the FASTA is
-provided on the NCBI homepage. Further the user needs a sequence ID to taxonomy ID
-map that can be generated from a GI taxid dump:
+provided on the NCBI homepage. Building an index with any database 
+requires the user to creates a sequence ID to taxonomy ID map that 
+can be generated from a GI taxid dump:
 
     wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
     gunzip nt.gz && mv -v nt nt.fa

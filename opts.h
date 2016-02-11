@@ -167,10 +167,12 @@ enum {
 #endif
     ARG_MIN_HITLEN,              // --min-hitlen
     ARG_MIN_TOTALLEN,            // --min-totallen
-    ARG_HOST_GENOMES,            // --host-genomes
+    ARG_HOST_TAXIDS,             // --host-taxids
 	ARG_REPORT_FILE,             // --report
     ARG_NO_ABUNDANCE,            // --no-abundance
     ARG_NO_TRAVERSE,             // --no-traverse
+    ARG_CLASSIFICATION_RANK,
+    ARG_EXCLUDE_TAXIDS,
 };
 
 #endif
