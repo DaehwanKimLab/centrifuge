@@ -444,7 +444,7 @@ sub solve
 	my $seq = "" ;
 	if ( $noCompress == 0 &&  ( $maxGenomeSizeForCompression < 0 || $genomeSize <= $maxGenomeSizeForCompression ) ) #$genomeSize < 50000000 )
 	{
-		system_call("perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id" ) ;
+		system_call("perl $bssPath/centrifuge-BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id" ) ;
 
 # Merge all the fragmented sequence into one big chunk.
 		system_call("cat tmp_${tid}_${id}_*.fa > tmp_${tid}_$id.fa");
