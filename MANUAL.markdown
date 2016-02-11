@@ -549,6 +549,40 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 
 </td></tr></table>
 
+#### Classification
+
+<table>
+
+<tr><td id="centrifuge-options-host-taxids">
+
+[`--host-taxids`]: #centrifuge-options-host-taxids
+
+    --host-taxids
+
+</td><td>
+
+A comma-separated list of taxonomic IDs that will be preferred in classification procedure.
+The descendants from these IDs will also be preferred.  In case some of a read's assignments correspond to
+these taxonomic IDs, only those corresponding assignments will be reported.
+
+</td></tr>
+
+<tr><td id="centrifuge-options-exclude-taxids">
+
+[`--exclude-taxids`]: #centrifuge-options-exclude-taxids
+
+    --exclude-taxids
+
+</td><td>
+
+A comma-separated list of taxonomic IDs that will be excluded in classification procedure.
+The descendants from these IDs will also be exclude. 
+
+</td></tr>
+
+</table>
+
+
 <!--
 #### Alignment options
 

@@ -699,9 +699,11 @@ static void printUsage(ostream& out) {
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
         << "  --min-hitlen       " << endl
 		<< endl
-		<< "Score:" << endl
-		<< "  --min-hitlen <int>    minimum length of partial hits (default "<<minHitLen<<", must be greater than 15)" << endl
-		<< "  --min-totallen <int>  minimum summed length of partial hits per read (default "<<minTotalLen<<")" << endl
+		<< "Classification:" << endl
+		<< "  --min-hitlen <int>    minimum length of partial hits (default " << minHitLen << ", must be greater than 15)" << endl
+		<< "  --min-totallen <int>  minimum summed length of partial hits per read (default " << minTotalLen << ")" << endl
+        << "  --host-taxids <taxids> comma-separated list of taxonomic IDs that will be preferred in classification" << endl
+        << "  --exclude-taxids <taxids> comma-separated list of taxonomic IDs that will be excluded in classification" << endl
 		<< endl
 	    << " Output:" << endl;
 	//if(wrapper == "basic-0") {

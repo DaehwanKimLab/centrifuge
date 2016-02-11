@@ -395,6 +395,19 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
  Integers are treated as being on the [Phred quality] scale unless
 `--solexa-quals` is also specified. Default: off.
 
+#### Classification
+
+    --host-taxids
+
+A comma-separated list of taxonomic IDs that will be preferred in classification procedure.
+The descendants from these IDs will also be preferred.  In case some of a read's assignments correspond to
+these taxonomic IDs, only those corresponding assignments will be reported.
+
+    --exclude-taxids
+
+A comma-separated list of taxonomic IDs that will be excluded in classification procedure.
+The descendants from these IDs will also be exclude. 
+
 #### Alignment options
 
     --n-ceil <func>
