@@ -553,6 +553,23 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 
 <table>
 
+<tr><td id="centrifuge-options-k">
+
+[`-k`]: #centrifuge-options-k
+
+    -k <int>
+
+</td><td>
+
+It searches for at most `<int>` distinct, primary assignments for each read or pair.  
+Primary assignments mean assignments whose assignment score is equal or higher than any other assignments.
+If there are more primary assignments than this value, 
+the search will merge some of the assignments into a higher taxonomic rank.
+The assignment score for a paired-end assignment equals the sum of the assignment scores of the individual mates. 
+Default: 5
+
+</td></tr>
+
 <tr><td id="centrifuge-options-host-taxids">
 
 [`--host-taxids`]: #centrifuge-options-host-taxids

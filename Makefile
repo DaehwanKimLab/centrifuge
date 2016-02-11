@@ -374,7 +374,6 @@ centrifuge-src: $(SRC_PKG_LIST)
 
 .PHONY: centrifuge-bin
 centrifuge-bin: $(BIN_PKG_LIST) $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX) 
-	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
 	mkdir .bin.tmp/centrifuge-$(VERSION)

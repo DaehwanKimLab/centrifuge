@@ -296,6 +296,14 @@ The seventh column is the proportion of this genome normalized by its genomic le
 <h4 id="classification">Classification</h4>
 <table>
 
+<tr><td id="centrifuge-options-k">
+
+<pre><code>-k &lt;int&gt;</code></pre>
+</td><td>
+
+<p>It searches for at most <code>&lt;int&gt;</code> distinct, primary assignments for each read or pair.<br />Primary assignments mean assignments whose assignment score is equal or higher than any other assignments. If there are more primary assignments than this value, the search will merge some of the assignments into a higher taxonomic rank. The assignment score for a paired-end assignment equals the sum of the assignment scores of the individual mates. Default: 5</p>
+</td></tr>
+
 <tr><td id="centrifuge-options-host-taxids">
 
 <pre><code>--host-taxids</code></pre>
