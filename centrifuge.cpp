@@ -1296,7 +1296,10 @@ static void parseOption(int next_option, const char *arg) {
             EList<string> args;
             tokenize(arg, ",", args);
             for(size_t i = 0; i < args.size(); i++) {
-                host_taxIDs.push_back(stol(args[i].c_str()));
+                istringstream ss(args[i]);
+                uint64_t tid;
+                ss >> tid;
+                host_taxIDs.push_back(tid);
             }
             break;
         }
@@ -1330,7 +1333,10 @@ static void parseOption(int next_option, const char *arg) {
             EList<string> args;
             tokenize(arg, ",", args);
             for(size_t i = 0; i < args.size(); i++) {
-                excluded_taxIDs.push_back(stol(args[i].c_str()));
+                istringstream ss(args[i]);
+                uint64_t tid;
+                ss >> tid;
+                excluded_taxIDs.push_back(tid);
             }
             break;
         }
