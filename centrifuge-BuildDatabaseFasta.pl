@@ -40,6 +40,7 @@ GetOptions ("level|l=s" => \$level,
 			"noCompress" => \$noCompress )
 or die("Error in command line arguments. \n\n$usage");
 
+print "\n@ARGV\n";
 die $usage unless @ARGV == 2;
 
 my $path = $ARGV[0] ;
@@ -211,7 +212,8 @@ if ( $noCompress == 1 )
 # Extract the tid that are associated with the gids
 print STDERR "Step $step: Extract the taxonomy ids that are associated with the gids\n";
 ++$step ;
-open FP1, "$taxPath/gi_taxid_nucl.dmp" ;
+if (-f "$taxPath/gi_taxid_nucl.dmp" ) {
+open FP1, "$taxPath/gi_taxid_nucl.dmp" or die "Could not open file: $!";
 while ( <FP1> )
 {
 	chomp ;
@@ -226,6 +228,7 @@ while ( <FP1> )
 	}
 }
 close FP1 ;
+}
 
 if ( $noCompress == 1 )
 {
@@ -444,7 +447,7 @@ sub solve
 	my $seq = "" ;
 	if ( $noCompress == 0 &&  ( $maxGenomeSizeForCompression < 0 || $genomeSize <= $maxGenomeSizeForCompression ) ) #$genomeSize < 50000000 )
 	{
-		system_call("perl $bssPath/BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id" ) ;
+		system_call("perl $bssPath/centrifuge-BuildSharedSequence.pl tmp_$tid.list -prefix tmp_${tid}_$id" ) ;
 
 # Merge all the fragmented sequence into one big chunk.
 		system_call("cat tmp_${tid}_${id}_*.fa > tmp_${tid}_$id.fa");

@@ -9,13 +9,23 @@ function download_n_process() {
     IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
 
     NAME=`basename $FILEPATH .gz`
-    wget --reject="*index.html*" -nc -qO "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 255; }
+    wget --reject="*index.html*" -nc -qO "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+    [[ -f "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
     gunzip "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
+
+	
     if [[ "$CHANGE_HEADER" == "1" ]]; then
         sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
-    else 
-        sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1 $TAXID/p" $LIBDIR/$DOMAIN/$NAME
-    fi
+	fi
+
+	if [[ "$FILTER_UNPLACED" == "1" ]]; then
+        echo TODO 2>&1
+		##sed -n '1,/^>.*unplaced/p; /'
+	fi
+
+	## Output sequenceID to taxonomy ID map to STDOUT
+    sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1\t$TAXID/p" $LIBDIR/$DOMAIN/$NAME
+
 
     if [[ "$DO_DUST" == "1" ]]; then
       ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
@@ -89,6 +99,7 @@ N_PROC=1
 CHANGE_HEADER=0
 DOWNLOAD_RNA=0
 DO_DUST=0
+FILTER_UNPLACED=0
 
 USAGE="
 `basename $0` [<options>] <database>
@@ -100,8 +111,7 @@ ARGUMENT
                      - taxonomy for taxonomy mappings.
 
 COMMON OPTIONS
- -f <directory>         Folder to which the files are downloaded. Default: '$BASE_DIR'.
-                        Sequence files go into <directory>/library, taxonomy goes to <directory>/taxonomy.
+ -o <directory>         Folder to which the files are downloaded. Default: '$BASE_DIR'.
  -P <# of threads>      Number of processes when downloading (uses xargs). Default: '$N_PROC'
 
 WHEN USING database refseq OR genbank:
@@ -110,20 +120,22 @@ WHEN USING database refseq OR genbank:
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
  -r                     Download RNA sequences, too.
+ -u                     Filter unplaced sequences.
  -m                     Mask low-complexity regions using dustmasker. Default: off.
  -l                     Modify header to include taxonomy ID. Default: off.
 "
 
 # arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
-while getopts "f:P:d:a:c:t:rlm" OPT "$@"; do
+while getopts "o:P:d:a:c:t:urlm" OPT "$@"; do
     case $OPT in
-        f) BASE_DIR="$OPTARG" ;;
+        o) BASE_DIR="$OPTARG" ;;
         P) N_PROC="$OPTARG" ;;
         d) DOMAINS=${OPTARG//,/ } ;;
         a) ASSEMBLY_LEVEL="$OPTARG" ;;
         c) REFSEQ_CATEGORY="$OPTARG" ;;
         t) TAXID="$OPTARG" ;;
         r) DOWNLOAD_RNA=1 ;;
+		u) FILTER_UNPLACED=1 ;;
         m) DO_DUST=1 ;;
         l) CHANGE_HEADER=1 ;;
         \?) echo "Invalid option: -$OPTARG" >&2 
@@ -144,8 +156,8 @@ FTP="ftp://ftp.ncbi.nih.gov"
 DOWNLOAD_GI_MAP=0
 if [[ "$DATABASE" == "taxonomy" ]]; then 
   echo "Downloading NCBI taxonomy ... " >&2
-  if check_or_mkdir_no_fail "$BASE_DIR/taxonomy"; then
-    cd "$BASE_DIR/taxonomy"
+  if check_or_mkdir_no_fail "$BASE_DIR"; then
+    cd "$BASE_DIR" > /dev/null
     wget $FTP/pub/taxonomy/taxdump.tar.gz
     tar -zxvf taxdump.tar.gz nodes.dmp
     tar -zxvf taxdump.tar.gz names.dmp
@@ -163,30 +175,28 @@ fi
 if [[ "$DATABASE" == "contaminants" ]]; then 
   echo "Downloading contaminant databases ... " >&2
   CONTAMINANT_TAXID=32630
-  CONTAMINANT_DIR="$BASE_DIR/library/contaminants"
+  CONTAMINANT_DIR="$BASE_DIR/contaminants"
   if check_or_mkdir_no_fail "$CONTAMINANT_DIR"; then
-    cd "$CONTAMINANT_DIR"
+    cd "$CONTAMINANT_DIR" > /dev/null
 
-    # copy contaminant sequences to the library
-    #cp -rv $SCRIPTDIR/contaminants/* .
-
-    # download UniVec and EmVec database to the library
-    wget -nv -O UniVec.fa ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
+    # download UniVec and EmVec database
+    wget -nv -O UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
     wget -nv ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
     gunzip -c emvec.dat.gz | \
         sed -n '/^DE/,/^\/\//p' | \
         grep -E '^DE|^    '  | sed ':a /^DE/ {N; s/\nDE//; ta; p; d}' | \
-        sed '/^  /s/  *[0-9]*$//g; /^  /s/ //g;s/^DE\s*/>/; /^[^>]/s/.*/\U&/' > EmVec.fa
+        sed '/^  /s/  *[0-9]*$//g; s/^DE\s*/>/; /^>/ s/[ |]/_/g; /^[^>]/s/.*/\U&/' > EmVec.fna
  
     if [[ "$CHANGE_HEADER" == "1" ]]; then
-        sed -i "s/^>/>kraken:taxid|$CONTAMINANT_TAXID /" UniVec.fa
-        sed -i "s/^>/>kraken:taxid|$CONTAMINANT_TAXID /" EmVec.fa
+        sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" UniVec.fna
+        sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" EmVec.fna
     else 
-        sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1\t$CONTAMINANT_TAXID/p" UniVec.fa
-        sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1\t$CONTAMINANT_TAXID/p" EmVec.fa
+        SED_PATTERN="s/^>\([^|]\+|[^|]\+\).*/\1\t$CONTAMINANT_TAXID/p; s/^>\([^ ]\+\)\( .*\)\?/\1\t$CONTAMINANT_TAXID/p"
+        sed -n "$SED_PATTERN" UniVec.fna | sort -u
+        sed -n "$SED_PATTERN" EmVec.fna | sort -u
     fi
 
-   #sed ':a $!N; s/^>.*\n>/>/; P; D' library/Contaminants/emvec.fa  > library/Contaminants/emvec.fa
+   #sed ':a $!N; s/^>.*\n>/>/; P; D' Contaminants/emvec.fa  > Contaminants/emvec.fa
     rm emvec.dat.gz
 
     cd - > /dev/null
@@ -198,7 +208,7 @@ fi
 
 #### REFSEQ/GENBANK DOWNLOAD
 
-export LIBDIR="$BASE_DIR/library"
+export LIBDIR="$BASE_DIR"
 export DO_DUST="$DO_DUST"
 export CHANGE_HEADER="$CHANGE_HEADER"
 

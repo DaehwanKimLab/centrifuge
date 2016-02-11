@@ -30,12 +30,11 @@ For more details on installing and running Centrifuge, look at MANUAL
 ### Building indexes
 
 We provide several indexes on the Centrifuge homepage at http://www.ccb.jhu.edu/software/centrifuge.
-To create your own, you need to download and index the genomes.
+Centrifuge needs sequence and taxonomy files,  as well as sequence ID to taxonomy ID mapping. 
+See the MANUAL files for details. We provide a Makefile that simplifies the building of several
+standard and custom indices
 
-#### Downloading genomes
-[Centrifuge] needs the NCBI taxonomy for the naming and hierarchy. To download the taxonomy and 
-GI to taxonomy mapping, as well as all complete viral, archaeal and bacterial genomes from RefSeq, 
-use the following commands:
-
-    scripts/DownloadTaxonomy.sh 
-    scripts/DownloadGenomes.sh -g refseq -a 'Complete Genome' -l library bacteria archaea viral
+    cd indices
+    make b+h+v                   # bacterial, human, and viral genomes [~12G]
+    make b_compressed            # bacterial genomes compressed at the species level [~4.2G]
+    make b_compressed+h+v        # combination of the two above [~8G]
