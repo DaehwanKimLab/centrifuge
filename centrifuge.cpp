@@ -51,6 +51,8 @@
 #include "presets.h"
 #include "opts.h"
 #include "outq.h"
+#include "util.h"
+#include "taxonomy.h"
 
 using namespace std;
 
@@ -2937,78 +2939,61 @@ static void driver(
                 Timer timer(cerr, "Calculating abundance: ");
                 spm.calculateAbundance(ebwt);
             }
-            const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+            const TaxonomyTree& tree = ebwt.tree();
             const std::map<uint64_t, string>& name_map = ebwt.name();
             const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
-            const map<uint64_t, double>& abundance = spm.abundance;
-            const map<uint64_t, double>& abundance_len = spm.abundance_len;
-			reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
-					  << "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
+            const map<uint64_t, double>& abundance_map = spm.abundance;
+            const map<uint64_t, double>& abundance_len_map = spm.abundance_len;
+			reportOfb << "name"
+					  << '\t' << "taxID"
+					  << '\t' << "taxRank"
+					  << '\t' << "speciesTaxID"
+					  << '\t' << "genomeSize"
+					  << '\t' << "numReads"
+					  << '\t' << "numUniqueReads";
             if(false) {
                 reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
             }
-            reportOfb << "abundance";
+            reportOfb << '\t' << "abundance";
             if(false) {
-                reportOfb << '\t' << "abundance_normalized_by_genome_size";
+                reportOfb << '\t' << "abundance_not_normalized_by_genome_size";
             }
             reportOfb << endl;
-			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
-                uint64_t taxid = it->first;
-                std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
-                if(name_itr != name_map.end()) {
-                    reportOfb << name_itr->second;
-                } else {
-                    reportOfb << taxid;
-                }
-                reportOfb << '\t' << taxid << '\t';
-                uint8_t rank = 0;
-                bool leaf = false;
-                std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
+
+			for(map<uint64_t, ReadCounts>::const_iterator species_itr = spm.species_counts.begin(); species_itr != spm.species_counts.end(); ++species_itr) {
+                uint64_t taxid = species_itr->first;
+                uint64_t species_taxid = getParentTaxIDAtRank(tree, taxid, RANK_SPECIES);
+                uint64_t genus_taxid = getParentTaxIDAtRank(tree, species_taxid, RANK_GENUS);
                 
-                if(tree_itr != tree.end()) {
-                    rank = tree_itr->second.rank;
-                    leaf = tree_itr->second.leaf;
-                }
-                if(rank == RANK_UNKNOWN && leaf) {
-                    reportOfb << "leaf";
-                } else {
-                    string rank_str = get_tax_rank(rank);
-                    reportOfb << rank_str;
-                }
-                reportOfb << '\t';
+                const string name = find_or_use_default(name_map, taxid,  to_string(taxid));
+                const TaxonomyNode node = find_or_use_default(tree, taxid, TaxonomyNode(0, RANK_UNKNOWN, false));
+                const string rank_name = (node.rank == RANK_UNKNOWN && node.leaf)? "leaf" : getRankName(node.rank);
+                const uint64_t genome_size = find_or_use_default(size_map, taxid, (uint64_t) 0);
+                const double abundance_len = find_or_use_default(abundance_len_map, taxid, 0.0);
+
+                reportOfb << name
+                          << '\t' << taxid
+						  << '\t' << rank_name
+						  << '\t' << species_taxid
+						  << '\t' << genome_size
+						  << '\t' << species_itr->second.n_reads
+						  << '\t' << species_itr->second.n_unique_reads;
                 
-                std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
-                uint64_t genome_size = 0;
-                if(size_itr != size_map.end()) {
-                    genome_size = size_itr->second;
-                }
-                
-                reportOfb << genome_size << '\t'
-						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
                 if(false) {
-                    reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
-                              << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
+                    reportOfb << species_itr->second.summed_hit_len << '\t' << species_itr->second.weighted_reads << '\t'
+                              << spm.nDistinctKmers(taxid) << '\t' << species_itr->second.sum_score << '\t';
                 }
-                map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
-                if(ab_len_itr != abundance_len.end()) {
-                    reportOfb << ab_len_itr->second;
-                } else {
-                    reportOfb << "0.0";
-                }
-                map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
-                if(false) {
-                    if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
-                        reportOfb << '\t' << ab_itr->second;
-                    } else {
-                        reportOfb << "\t0.0";
-                    }
+
+                reportOfb << '\t' << abundance_len;
+
+                if (false) {
+                	const double abundance = find_or_use_default(abundance_map, taxid, 0.0);
+                	reportOfb << '\t' << abundance;
                 }
                 reportOfb << endl;
-
 			}
 			reportOfb.close();
 		}
-
 
 		oq.flush(true);
 		assert_eq(oq.numStarted(), oq.numFinished());
