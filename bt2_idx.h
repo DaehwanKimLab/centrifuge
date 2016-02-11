@@ -626,6 +626,8 @@ public:
             cerr << "Could not open index file " << in3Str.c_str() << endl;
         }
         
+        initial_tax_rank_num();
+        
         set<uint64_t> leaves;
         _uid_to_tid.clear();
         readU32(in3, this->toBe());
@@ -694,6 +696,41 @@ public:
             }
         }
         
+        // Calculate average genome size
+        for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
+            uint64_t tid = tree_itr->first;
+            const TaxonomyNode& node = tree_itr->second;
+            if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
+               node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
+                size_t sum = 0, count = 0;
+                for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
+                    uint64_t c_tid = size_itr->first;
+                    map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
+                    assert(tree_itr2 != _tree.end());
+                    const TaxonomyNode& c_node = tree_itr2->second;
+                    if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
+                       tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
+                        c_tid = c_node.parent_tid;
+                        while(true) {
+                            if(c_tid == tid) {
+                                sum += size_itr->second;
+                                count += 1;
+                                break;
+                            }
+                            tree_itr2 = _tree.find(c_tid);
+                            if(tree_itr2 == _tree.end())
+                                break;
+                            if(c_tid == tree_itr2->second.parent_tid)
+                                break;
+                            c_tid = tree_itr2->second.parent_tid;
+                        }
+                    }
+                }
+                if(count > 0) {
+                    _size[tid] = sum / count;
+                }
+            }
+        }
         _paths.buildPaths(_uid_to_tid, _tree);
         
         in3.close();
@@ -1234,9 +1271,8 @@ public:
 
         // Read taxonomy
         {
-            std::map<uint64_t, TaxonomyNode> tree = readTaxonomyTree(taxonomy_fname);
+            std::map<uint64_t, TaxonomyNode> tree;
             std::set<uint64_t> tree_color;
-
             for(std::set<uint64_t>::iterator itr = tids.begin(); itr != tids.end(); itr++) {
                 uint64_t tid = *itr;
                 if(tree.find(tid) == tree.end()) {

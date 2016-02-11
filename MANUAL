@@ -173,8 +173,9 @@ list of taxonomy IDs - e.g. `9606` for human and `10090` for mouse:
 NCBI BLAST's nt database contains all spliced non-redundant coding
 sequences from multiplpe databases, inferred from genommic
 sequences. Traditionally used with BLAST, a download of the FASTA is
-provided on the NCBI homepage. Further the user needs a sequence ID to taxonomy ID
-map that can be generated from a GI taxid dump:
+provided on the NCBI homepage. Building an index with any database 
+requires the user to creates a sequence ID to taxonomy ID map that 
+can be generated from a GI taxid dump:
 
     wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
     gunzip nt.gz && mv -v nt nt.fa
@@ -393,6 +394,19 @@ Quality values are represented in the read input file as space-separated ASCII
 integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
  Integers are treated as being on the [Phred quality] scale unless
 `--solexa-quals` is also specified. Default: off.
+
+#### Classification
+
+    --host-taxids
+
+A comma-separated list of taxonomic IDs that will be preferred in classification procedure.
+The descendants from these IDs will also be preferred.  In case some of a read's assignments correspond to
+these taxonomic IDs, only those corresponding assignments will be reported.
+
+    --exclude-taxids
+
+A comma-separated list of taxonomic IDs that will be excluded in classification procedure.
+The descendants from these IDs will also be exclude. 
 
 #### Alignment options
 

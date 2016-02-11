@@ -190,10 +190,10 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 	doc/manual.inc.html \
 	doc/README \
 	doc/style.css \
-	$(wildcard example/index/*.bt2) \
+	$(wildcard example/index/*.cf) \
 	$(wildcard example/reads/*.fq) \
 	$(wildcard example/reads/*.pl) \
-	example/reference/22_20-21M.fa \
+	example/reference/test.fa \
 	$(PTHREAD_PKG) \
 	centrifuge \
 	centrifuge-build \
@@ -218,6 +218,8 @@ SRC_PKG_LIST = $(wildcard *.h) \
 	$(wildcard *.hh) \
 	$(wildcard *.c) \
 	$(wildcard *.cpp) \
+	$(wildcard third_party/*.h) \
+	$(wildcard third_party/*.cpp) \
 	doc/strip_markdown.pl \
 	Makefile \
 	$(GENERAL_LIST)
@@ -352,28 +354,26 @@ centrifuge.bat:
 
 centrifuge-build.bat:
 	echo "@echo off" > centrifuge-build.bat
-	echo "python %~dp0/centrifuge-build %*" >> hisat-build.bat
+	echo "python %~dp0/centrifuge-build %*" >> centrifuge-build.bat
 
 centrifuge-inspect.bat:
 	echo "@echo off" > centrifuge-inspect.bat
-	echo "python %~dp0/centrifuge-inspect %*" >> hisat-inspect.bat
+	echo "python %~dp0/centrifuge-inspect %*" >> centrifuge-inspect.bat
 
 
 .PHONY: centrifuge-src
 centrifuge-src: $(SRC_PKG_LIST)
-	chmod a+x scripts/*.sh scripts/*.pl
 	mkdir .src.tmp
-	mkdir .src.tmp/hisat-$(VERSION)
+	mkdir .src.tmp/centrifuge-$(VERSION)
 	zip tmp.zip $(SRC_PKG_LIST)
-	mv tmp.zip .src.tmp/hisat-$(VERSION)
+	mv tmp.zip .src.tmp/centrifuge-$(VERSION)
 	cd .src.tmp/centrifuge-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
-	cd .src.tmp ; zip -r centrifuge-$(VERSION)-source.zip hisat-$(VERSION)
+	cd .src.tmp ; zip -r centrifuge-$(VERSION)-source.zip centrifuge-$(VERSION)
 	cp .src.tmp/centrifuge-$(VERSION)-source.zip .
 	rm -rf .src.tmp
 
 .PHONY: centrifuge-bin
 centrifuge-bin: $(BIN_PKG_LIST) $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX) 
-	chmod a+x scripts/*.sh scripts/*.pl
 	rm -rf .bin.tmp
 	mkdir .bin.tmp
 	mkdir .bin.tmp/centrifuge-$(VERSION)
@@ -385,7 +385,7 @@ centrifuge-bin: $(BIN_PKG_LIST) $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX
 	mv tmp.zip .bin.tmp/centrifuge-$(VERSION)
 	cd .bin.tmp/centrifuge-$(VERSION) ; unzip tmp.zip ; rm -f tmp.zip
 	cd .bin.tmp ; zip -r centrifuge-$(VERSION)-$(BITS).zip centrifuge-$(VERSION)
-	cp .bin.tmp/hisat-$(VERSION)-$(BITS).zip .
+	cp .bin.tmp/centrifuge-$(VERSION)-$(BITS).zip .
 	rm -rf .bin.tmp
 
 .PHONY: doc

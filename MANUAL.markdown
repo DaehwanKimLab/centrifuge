@@ -184,8 +184,9 @@ list of taxonomy IDs - e.g. `9606` for human and `10090` for mouse:
 NCBI BLAST's nt database contains all spliced non-redundant coding
 sequences from multiplpe databases, inferred from genommic
 sequences. Traditionally used with BLAST, a download of the FASTA is
-provided on the NCBI homepage. Further the user needs a sequence ID to taxonomy ID
-map that can be generated from a GI taxid dump:
+provided on the NCBI homepage. Building an index with any database 
+requires the user to creates a sequence ID to taxonomy ID map that 
+can be generated from a GI taxid dump:
 
     wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
     gunzip nt.gz && mv -v nt nt.fa
@@ -547,6 +548,57 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 [`--solexa-quals`] is also specified. Default: off.
 
 </td></tr></table>
+
+#### Classification
+
+<table>
+
+<tr><td id="centrifuge-options-k">
+
+[`-k`]: #centrifuge-options-k
+
+    -k <int>
+
+</td><td>
+
+It searches for at most `<int>` distinct, primary assignments for each read or pair.  
+Primary assignments mean assignments whose assignment score is equal or higher than any other assignments.
+If there are more primary assignments than this value, 
+the search will merge some of the assignments into a higher taxonomic rank.
+The assignment score for a paired-end assignment equals the sum of the assignment scores of the individual mates. 
+Default: 5
+
+</td></tr>
+
+<tr><td id="centrifuge-options-host-taxids">
+
+[`--host-taxids`]: #centrifuge-options-host-taxids
+
+    --host-taxids
+
+</td><td>
+
+A comma-separated list of taxonomic IDs that will be preferred in classification procedure.
+The descendants from these IDs will also be preferred.  In case some of a read's assignments correspond to
+these taxonomic IDs, only those corresponding assignments will be reported.
+
+</td></tr>
+
+<tr><td id="centrifuge-options-exclude-taxids">
+
+[`--exclude-taxids`]: #centrifuge-options-exclude-taxids
+
+    --exclude-taxids
+
+</td><td>
+
+A comma-separated list of taxonomic IDs that will be excluded in classification procedure.
+The descendants from these IDs will also be exclude. 
+
+</td></tr>
+
+</table>
+
 
 <!--
 #### Alignment options

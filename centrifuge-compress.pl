@@ -40,7 +40,6 @@ GetOptions ("level|l=s" => \$level,
 			"noCompress" => \$noCompress )
 or die("Error in command line arguments. \n\n$usage");
 
-print "\n@ARGV\n";
 die $usage unless @ARGV == 2;
 
 my $path = $ARGV[0] ;
@@ -212,8 +211,7 @@ if ( $noCompress == 1 )
 # Extract the tid that are associated with the gids
 print STDERR "Step $step: Extract the taxonomy ids that are associated with the gids\n";
 ++$step ;
-if (-f "$taxPath/gi_taxid_nucl.dmp" ) {
-open FP1, "$taxPath/gi_taxid_nucl.dmp" or die "Could not open file: $!";
+open FP1, "$taxPath/gi_taxid_nucl.dmp" ;
 while ( <FP1> )
 {
 	chomp ;
@@ -228,7 +226,6 @@ while ( <FP1> )
 	}
 }
 close FP1 ;
-}
 
 if ( $noCompress == 1 )
 {
@@ -434,12 +431,12 @@ sub solve
 		$speciesName = "Unknown_species_name" ;
 	}
 	my $id = $speciesId ;#( $speciesId << 32 ) | $genusId ;
-	my $header = ">cid|$id $speciesName $genomeSize ".scalar( @subspeciesList ) ;
+	my $header = ">cid|$id $speciesName $avgGenomeSize ".scalar( @subspeciesList ) ;
 	print STDERR "$header\n" ;
 	{
 		lock( $idMapLock ) ;
 		$newIdToTaxId{ "cid|$id" } = $speciesId ;
-		$idToGenomeSize{ "cid|$id" } = $genomeSize ;
+		$idToGenomeSize{ "cid|$id" } = $avgGenomeSize ;
 	}
 
 #return ;
