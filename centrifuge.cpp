@@ -967,6 +967,7 @@ static void parseOption(int next_option, const char *arg) {
 			cacheSize *= (1024 * 1024); // convert from MB to B
 			break;
 		case ARG_WRAPPER: wrapper = arg; break;
+        case 'x': bt2index = arg; break;
 		case 'p':
 			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
 			break;
