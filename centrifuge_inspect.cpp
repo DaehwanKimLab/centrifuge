@@ -1,7 +1,7 @@
 /*
- * Copyright 2011, Ben Langmead <langmea@cs.jhu.edu>
+ * Copyright 2016
  *
- * This file is part of Bowtie 2.
+ * This file is part of Centrifuge and based on code from Bowtie 2.
  *
  * Bowtie 2 is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,12 +21,14 @@
 #include <iostream>
 #include <getopt.h>
 #include <stdexcept>
+#include <set>
 
 #include "assert_helpers.h"
 #include "endian_swap.h"
 #include "hier_idx.h"
 #include "reference.h"
 #include "ds.h"
+#include "hyperloglogplus.h"
 
 using namespace std;
 
@@ -42,6 +44,7 @@ static int conversion_table = 0;
 static int taxonomy_tree = 0;
 static int name_table = 0;
 static int size_table = 0;
+static int count_kmers = 0;
 
 enum {
 	ARG_VERSION = 256,
@@ -51,6 +54,7 @@ enum {
     ARG_TAXONOMY_TREE,
     ARG_NAME_TABLE,
     ARG_SIZE_TABLE,
+	ARG_COUNT_KMERS
 };
 
 static struct option long_options[] = {
@@ -67,6 +71,7 @@ static struct option long_options[] = {
     {(char*)"taxonomy-tree",    no_argument,  0, ARG_TAXONOMY_TREE},
     {(char*)"name-table",       no_argument,  0, ARG_NAME_TABLE},
     {(char*)"size-table",       no_argument,  0, ARG_SIZE_TABLE},
+	{(char*)"estimate-n-kmers",      no_argument,  0, ARG_COUNT_KMERS},
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -163,6 +168,9 @@ static void parseOptions(int argc, char **argv) {
             case ARG_SIZE_TABLE:
                 size_table = true;
                 break;
+			case ARG_COUNT_KMERS:
+				count_kmers = true;
+				break;
 			case 'e': refFromEbwt = true; break;
 			case 'n': names_only = true; break;
 			case 's': summarize_only = true; break;
@@ -198,6 +206,81 @@ static void print_fasta_record(
 	} else {
 		fout << seq.c_str() << endl;
 	}
+}
+
+/**
+ * Counts the number of unique k-mers in the reference sequence
+ * that's reconstructed from the index
+ */
+template<typename index_t, typename TStr>
+static uint64_t count_idx_kmers ( Ebwt<index_t>& ebwt)
+{
+	TStr cat_ref;
+	ebwt.restore(cat_ref);
+	cerr << "Index loaded" << endl;
+	std::set<uint64_t> my_set;
+
+	HyperLogLogPlusMinus<uint64_t> kmer_counter(10);
+	uint64_t word = 0;
+	uint64_t curr_length = 0;
+	uint8_t k = 32;
+
+	TIndexOffU curr_ref = OFF_MASK;
+	TIndexOffU last_text_off = 0;
+	size_t orig_len = cat_ref.length();
+	TIndexOffU tlen = OFF_MASK;
+	bool first = true;
+
+	for(size_t i = 0; i < orig_len; i++) {
+		TIndexOffU tidx = OFF_MASK;
+		TIndexOffU textoff = OFF_MASK;
+		tlen = OFF_MASK;
+		bool straddled = false;
+		ebwt.joinedToTextOff(1 /* qlen */, (TIndexOffU)i, tidx, textoff, tlen, true, straddled);
+
+		if (tidx != OFF_MASK && textoff < tlen) {
+			if (curr_ref != tidx) {
+				// End of the sequence - reset word and counter
+				curr_ref = tidx;
+				word = 0; curr_length = 0;
+				last_text_off = 0;
+				first = true;
+			}
+
+			TIndexOffU textoff_adj = textoff;
+			if(first && textoff > 0) textoff_adj++;
+			if (textoff_adj - last_text_off > 1) {
+				// there's an N - reset word and counter
+				word = 0; curr_length = 0;
+			}
+			// add another char.
+            int bp = (int)cat_ref[i];
+
+            // shift the first two bits off the word
+            word = word << 2;
+            // put the base-pair code from pos at that position
+            word = word |= bp;
+			++curr_length;
+			//cerr << "[" << i << "; " << curr_length << "; " << word << ":" << kmer_counter.cardinality()  << "]" << endl;
+			if (curr_length >= k) {
+				kmer_counter.add(word);
+				my_set.insert(word);
+				cerr << kmer_counter.cardinality()  << " vs " << my_set.size() << endl;
+			}
+
+			last_text_off = textoff;
+			first = false;
+
+		}
+	}
+	if (curr_length >= k) {
+		kmer_counter.add(word);
+		my_set.insert(word);
+	}
+
+	cerr << "Exact count: " << my_set.size() << endl;
+
+	return kmer_counter.cardinality();
 }
 
 /**
@@ -280,6 +363,7 @@ static void print_index_sequences(ostream& fout, Ebwt<index_t>& ebwt)
 	TStr cat_ref;
 	ebwt.restore(cat_ref);
 
+	HyperLogLogPlusMinus<uint64_t> kmer_counter;
 	TIndexOffU curr_ref = OFF_MASK;
 	string curr_ref_seq = "";
 	TIndexOffU curr_ref_len = OFF_MASK;
@@ -440,7 +524,7 @@ static void driver(
         } else if(taxonomy_tree) {
             const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
             for(map<uint64_t, TaxonomyNode>::const_iterator itr = tree.begin(); itr != tree.end(); itr++) {
-                string rank = get_tax_rank(itr->second.rank);
+                string rank = getRankName(itr->second.rank);
                 cout << itr->first << "\t|\t" << itr->second.parent_tid << "\t|\t" << rank << endl;
             }
         } else if(name_table) {
@@ -466,6 +550,18 @@ static void driver(
                 }
                 cout << "\t" << size << endl;
             }
+        } else if (count_kmers) {
+        	ebwt.loadIntoMemory(
+        	                                -1,     // color
+        	                                -1,     // need entire reverse
+        	                                true,   // load SA sample
+        	                                true,   // load ftab
+        	                                true,   // load rstarts
+        	                                true,   // load names
+        	                                verbose);  // verbose
+        	uint64_t n_kmers = count_idx_kmers<TIndexOffU, SString<char> >(ebwt);
+        	cout << "Number of kmer that would be needed to represent reference sequence (estimated vie HyperLogLog+-): " << n_kmers << endl;
+
         } else {
             ebwt.loadIntoMemory(
                                 -1,     // color
