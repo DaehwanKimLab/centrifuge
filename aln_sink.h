@@ -30,6 +30,7 @@
 #include "aligner_result.h"
 #include "hyperloglogplus.h"
 #include "timer.h"
+#include "taxonomy.h"
 
 
 // Forward decl
@@ -2253,7 +2254,7 @@ void AlnSinkSam<index_t>::appendMate(
     if(leaf) {
         o.append(rs->uid().c_str());
     } else {
-        o.append(get_tax_rank(rs->taxRank()));
+        o.append(get_tax_rank_string(rs->taxRank()));
     }
     o.append('\t');
     
