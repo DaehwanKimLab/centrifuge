@@ -134,7 +134,7 @@ $(REFERENCE_SEQUENCES_DIR)/all-compressed-%.fna: | $(REFERENCE_SEQUENCES_DIR)
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	centrifuge-download -o $(TMP_DIR) -d "$*" -P $(THREADS) refseq > \
 		$(TMP_DIR)/all-$*.map
-	/usr/bin/time -v centrifuge-BuildDatabaseFasta.pl $(TMP_DIR)/$* taxonomy -map $(TMP_DIR)/all-$*.map \
+	time centrifuge-BuildDatabaseFasta.pl $(TMP_DIR)/$* taxonomy -map $(TMP_DIR)/all-$*.map \
 		-o $@.tmp -t $(THREADS) -maxG 50000000 2>&1 | tee centrifuge-compress-$(IDX_NAME).log
 	mv $@.tmp.fa $@
 	mv $@.tmp.map $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
@@ -199,7 +199,7 @@ taxonomy: | .path-ok
 $(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
 	@echo Index building prerequisites: $^
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	/usr/bin/time -v centrifuge-build -p $(THREADS) \
+	time centrifuge-build -p $(THREADS) \
 		--conversion-table <(cat $(TAXID_MAPS)) \
 		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
 		$(call join_w_comma,$(REFERENCE_SEQUENCES)) $(TMP_DIR)/$(IDX_NAME) 2>&1 | tee centrifuge-build-$(IDX_NAME).log

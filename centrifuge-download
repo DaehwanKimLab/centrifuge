@@ -2,6 +2,29 @@
 
 set -eu -o pipefail
 
+exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+if hash wget 2>/dev/null; then
+	DL_PROG="wget --reject=\"*index.html*\" -nc -qO"
+else 
+	DL_PROG="curl -s -o"
+fi
+export DL_PROG
+
+cut_after_first_space_or_second_pipe() {
+	grep '^>' | sed 's/ .*//' | sed 's/\([^|]*|[^|]*\).*/\1/'
+}
+export -f cut_after_first_space_or_second_pipe
+
+map_headers_to_taxid() {
+	grep '^>' | cut_after_first_space_or_second_pipe | sed -e "s/^>//" -e  "s/\$/	$1/"
+}
+export -f map_headers_to_taxid
+
+
+
 #########################################################
 ## Functions
 
@@ -9,7 +32,7 @@ function download_n_process() {
     IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
 
     NAME=`basename $FILEPATH .gz`
-    wget --reject="*index.html*" -nc -qO "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+    $DL_PROG "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
     [[ -f "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
     gunzip "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
 
@@ -24,8 +47,7 @@ function download_n_process() {
 	fi
 
 	## Output sequenceID to taxonomy ID map to STDOUT
-    sed -n "s/^>\([^ ]\+\)\( .*\)\?/\1\t$TAXID/p" $LIBDIR/$DOMAIN/$NAME
-
+	cat $LIBDIR/$DOMAIN/$NAME | map_headers_to_taxid $TAXID
 
     if [[ "$DO_DUST" == "1" ]]; then
       ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
@@ -68,11 +90,6 @@ function check_or_mkdir_no_fail {
         return `true`
     fi
 }
-
-function validate_url(){
-  if [[ `wget --reject="index.html*" -S --spider $1  2>&1 | egrep 'HTTP/1.1 200 OK|File .* exists.'` ]]; then echo "true"; fi
-}
-export -f validate_url
 
 function c_echo() {
         printf "\033[34m$*\033[0m\n"
@@ -158,18 +175,22 @@ if [[ "$DATABASE" == "taxonomy" ]]; then
   echo "Downloading NCBI taxonomy ... " >&2
   if check_or_mkdir_no_fail "$BASE_DIR"; then
     cd "$BASE_DIR" > /dev/null
-    wget $FTP/pub/taxonomy/taxdump.tar.gz
+    $DL_PROG taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
     tar -zxvf taxdump.tar.gz nodes.dmp
     tar -zxvf taxdump.tar.gz names.dmp
     rm taxdump.tar.gz
     if [[ "$DOWNLOAD_GI_MAP" == "1" ]]; then
-        wget $FTP/pub/taxonomy/gi_taxid_nucl.dmp.gz
+        DL_PROG gi_taxid_nucl.dmp.gz $FTP/pub/taxonomy/gi_taxid_nucl.dmp.gz
         gunzip gi_taxid_nucl.dmp.gz
     fi
     cd - > /dev/null
   fi
   exit 0
 fi
+
+dat_to_fna() {
+	grep -E '^DE|^ ' | awk '/^DE/ { sub(/DE */,">"); gsub(/[ |]/,"_") }; { print }' | awk '/^ / { gsub(/ /,""); sub(/[0-9]*$/,"") }; { print }' 
+}
 
 #### CONTAMINANT SEQ DOWNLOAD
 if [[ "$DATABASE" == "contaminants" ]]; then 
@@ -180,20 +201,16 @@ if [[ "$DATABASE" == "contaminants" ]]; then
     cd "$CONTAMINANT_DIR" > /dev/null
 
     # download UniVec and EmVec database
-    wget -nv -O UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
-    wget -nv ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
-    gunzip -c emvec.dat.gz | \
-        sed -n '/^DE/,/^\/\//p' | \
-        grep -E '^DE|^    '  | sed ':a /^DE/ {N; s/\nDE//; ta; p; d}' | \
-        sed '/^  /s/  *[0-9]*$//g; s/^DE\s*/>/; /^>/ s/[ |]/_/g; /^[^>]/s/.*/\U&/' > EmVec.fna
+    $DL_PROG UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
+    $DL_PROG emvec.dat.gz ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
+    gunzip -c emvec.dat.gz | dat_to_fna > EmVec.fna
  
     if [[ "$CHANGE_HEADER" == "1" ]]; then
         sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" UniVec.fna
         sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" EmVec.fna
     else 
-        SED_PATTERN="s/^>\([^|]\+|[^|]\+\).*/\1\t$CONTAMINANT_TAXID/p; s/^>\([^ ]\+\)\( .*\)\?/\1\t$CONTAMINANT_TAXID/p"
-        sed -n "$SED_PATTERN" UniVec.fna | sort -u
-        sed -n "$SED_PATTERN" EmVec.fna | sort -u
+	cat UniVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
+	cat EmVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
     fi
 
    #sed ':a $!N; s/^>.*\n>/>/; P; D' Contaminants/emvec.fa  > Contaminants/emvec.fa
@@ -229,7 +246,11 @@ TAXID=${TAXID//,/|}
 echo "$AWK_QUERY" >&2
 
 echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
-wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
+if exists wget; then
+	wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
+else
+	curl -s ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
+fi
 
 
 if [[ "$CHANGE_HEADER" == "1" ]]; then
@@ -256,7 +277,7 @@ for DOMAIN in $DOMAINS; do
     ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary_filtered.txt"
 
     echo "Downloading and filtering the assembly_summary.txt file ..." >&2
-    wget -qO- -nc ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE"
+    $DL_PROG "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE"
     awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"
 
     N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
