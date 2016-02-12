@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -xv
 set -eu -o pipefail
 
 exists() {
@@ -80,12 +81,12 @@ function count {
 }
 
 function check_or_mkdir_no_fail {
-    echo -n "Creating $1 ... " >&2
+    #echo -n "Creating $1 ... " >&2
     if [[ -d $1 && ! -n `find $1 -prune -empty -type d` ]]; then
         echo "Directory exists already! Continuing" >&2
         return `true`
     else 
-        echo "Done" >&2
+        #echo "Done" >&2
         mkdir -p $1
         return `true`
     fi
@@ -243,14 +244,15 @@ AWK_QUERY="\$$ASSEMBLY_LEVEL_FIELD==\"$ASSEMBLY_LEVEL\" && \$$VERSION_STATUS_FIE
 TAXID=${TAXID//,/|}
 [[ "$TAXID" != "" ]] && AWK_QUERY="$AWK_QUERY && match(\$$TAXID_FIELD,\"^($TAXID)\$\")"
 
-echo "$AWK_QUERY" >&2
+#echo "$AWK_QUERY" >&2
 
-echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
+#echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
 if exists wget; then
 	wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
 else
 	curl -s ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
 fi
+wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
 
 
 if [[ "$CHANGE_HEADER" == "1" ]]; then
@@ -265,10 +267,10 @@ for DOMAIN in $DOMAINS; do
         exit 1
     fi
     
-    if [[ "$CHANGE_HEADER" != "1" ]]; then
-        echo "Writing taxonomy ID to sequence ID map to STDOUT" >&2
+    #if [[ "$CHANGE_HEADER" != "1" ]]; then
+        #echo "Writing taxonomy ID to sequence ID map to STDOUT" >&2
         #[[ -f "$LIBDIR/$DOMAIN.map" ]] && rm "$LIBDIR/$DOMAIN.map"
-    fi
+    #fi
 
     export DOMAIN=$DOMAIN
     check_or_mkdir_no_fail $LIBDIR/$DOMAIN
@@ -276,13 +278,13 @@ for DOMAIN in $DOMAINS; do
     FULL_ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary.txt"
     ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary_filtered.txt"
 
-    echo "Downloading and filtering the assembly_summary.txt file ..." >&2
+    #echo "Downloading and filtering the assembly_summary.txt file ..." >&2
     $DL_PROG "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE"
     awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"
 
     N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
     [[ $N_EXPECTED -gt 0 ]] || { echo "Domain $DOMAIN has no genomes with specified filter." >&2; exit 1; }
-    echo "Downloading $N_EXPECTED $DOMAIN genomes ... (will take a while)" >&2
+    echo "Downloading $N_EXPECTED $DOMAIN genomes at assembly level $ASSEMBLY_LEVEL ... (will take a while)" >&2
     cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
        tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _ | count $N_EXPECTED
     echo >&2

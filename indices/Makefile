@@ -10,6 +10,7 @@ KEEP_FILES?=0
 
 get_ref_file_names = $(addprefix $(REFERENCE_SEQUENCES_DIR)/, $(addsuffix $(1), \
 	$(addprefix all-,$(COMPLETE_GENOMES)) \
+	$(addprefix all-,$(addsuffix -chromosome_level,$(CHROMOSOME_LEVEL_GENOMES))) \
 	$(addprefix mammalian-reference-,$(MAMMALIAN_TAXIDS)) \
 	$(addprefix all-compressed-,$(COMPLETE_GENOMES_COMPRESSED)) \
 	$(if $(INCLUDE_CONTAMINANTS),contaminants)))
@@ -77,22 +78,37 @@ all:
 
 IDX_NAME?=$(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
 
-INDICES=b+h+v b_compressed b_compressed+h+v ai
+INDICES=b+h+v b_compressed b_compressed+h+v refseq_microbial refseq_full
 
 b+h+v: export COMPLETE_GENOMES:=archaea bacteria viral
 b+h+v: export MAMMALIAN_TAXIDS:=9606
 b+h+v: export INCLUDE_CONTAMINANTS:=1
-b+h+v: export IDX_NAME:=$@
+b+h+v: export IDX_NAME:=b+h+v
 
 b_compressed: export COMPLETE_GENOMES:=archaea
 b_compressed: export COMPLETE_GENOMES_COMPRESSED:=bacteria
-b_compressed: export IDX_NAME:=$@
+b_compressed: export IDX_NAME:=b_compressed
 
 b_compressed+h+v: export COMPLETE_GENOMES:=archaea viral
 b_compressed+h+v: export COMPLETE_GENOMES_COMPRESSED:=bacteria
 b_compressed+h+v: export MAMMALIAN_TAXIDS:=9606
 b_compressed+h+v: export INCLUDE_CONTAMINANTS:=1
-b_compressed+h+v: export IDX_NAME:=$@
+b_compressed+h+v: export IDX_NAME:=b_compressed+h+v
+
+refseq_microbial: export COMPLETE_GENOMES:=archaea bacteria fungi protozoa viral
+refseq_microbial: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
+##refseq_microbial: export SMALL_GENOMES:=mitochondrion plasmid plastid # TODO
+refseq_microbial: export MAMMALIAN_TAXIDS:=9606 10090
+refseq_microbial: export INCLUDE_CONTAMINANTS:=1
+refseq_microbial: export IDX_NAME:=refseq_microbial
+refseq_microbial: export CF_BUILD_OPTS+=--ftabchars 14
+
+refseq_full: export COMPLETE_GENOMES:=archaea bacteria fungi invertebrate plant protozoa vertebrate_mammalian vertebrate_other viral
+refseq_full: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
+refseq_full: export SMALL_GENOMES:=mitochondrion plasmid plastid
+refseq_full: export MAMMALIAN_TAXIDS:=9606 10090
+refseq_full: export INCLUDE_CONTAMINANTS:=1
+refseq_full: export IDX_NAME:=refseq_full
 
 $(INDICES):
 	$(MAKE)
@@ -108,7 +124,29 @@ $(error REFERENCE_SEQUENCES is not set - specify at lease one of COMPLETE_GENOME
 COMPLETE_GENOMES_COMPRESSED, or MAMMALIAN_TAXIDS with the IDX_NAME ($(IDX_NAME)))
 endif
 
+CF_BUILD_OPTS:= 
+ifneq ($(strip $(COMPLETE_GENOMES_COMPRESSED)),)
+CF_BUILD_OPTS+=--size_table <(cat $(addprefix $(REFERENCE_SEQUENCES_DIR)/all-compressed-,$(addsuffix .size,$(COMPLETE_GENOMES_COMPRESSED))))
+endif
+
+
+
 all: $(IDX_NAME).1.cf
+
+$(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
+	@echo Index building prerequisites: $^
+	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
+	time centrifuge-build -p $(THREADS) $(CF_BUILD_OPTS) \
+		--conversion-table <(cat $(TAXID_MAPS)) \
+		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+		$(call join_w_comma,$(REFERENCE_SEQUENCES)) $(TMP_DIR)/$(IDX_NAME) 2>&1 | tee centrifuge-build-$(IDX_NAME).log
+	mv $(TMP_DIR)/$(IDX_NAME).*.cf . && rmdir $(TMP_DIR)
+
+nkmers: scripts/estimate-nkmers.pl input-sequences.fna
+	scripts/estimate-nkmers.pl input-sequences.fna
+
+# vim:ft=make
+endif ## ifndef IDX_NAME
 
 $(REFERENCE_SEQUENCES_DIR):
 	mkdir -p $(REFERENCE_SEQUENCES_DIR)
@@ -118,9 +156,12 @@ $(TAXID_MAPS): | $(REFERENCE_SEQUENCES_DIR)
 	$(MAKE) -f $(THIS_FILE) $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
 
 $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DIR)
-	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	centrifuge-download -o $(TMP_DIR) -d "vertebrate_mammalian" -a "Chromosome" -t $* -c 'reference genome' -r -P $(THREADS) refseq > \
+	@[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
+	centrifuge-download -o $(TMP_DIR) -d "vertebrate_mammalian" -a "Chromosome" -t $* -c 'reference genome' -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX), $(notdir $@))
+	#echo ">Vertebrate_mammalian_genome_$*"
+	#printf "Vertebrate_mammalian_genome_$*\t$*" > $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
+	#cat $(TMP_DIR)/vertebrate_mammalian/*.fna | grep  > $@.tmp && mv $@.tmp $@
 	cat $(TMP_DIR)/vertebrate_mammalian/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
@@ -134,15 +175,15 @@ $(REFERENCE_SEQUENCES_DIR)/all-compressed-%.fna: | $(REFERENCE_SEQUENCES_DIR)
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	centrifuge-download -o $(TMP_DIR) -d "$*" -P $(THREADS) refseq > \
 		$(TMP_DIR)/all-$*.map
-	time centrifuge-BuildDatabaseFasta.pl $(TMP_DIR)/$* taxonomy -map $(TMP_DIR)/all-$*.map \
-		-o $@.tmp -t $(THREADS) -maxG 50000000 2>&1 | tee centrifuge-compress-$(IDX_NAME).log
-	mv $@.tmp.fa $@
+	time centrifuge-compress.pl $(TMP_DIR)/$* taxonomy -map $(TMP_DIR)/all-$*.map \
+		-o $@.tmp -t $(THREADS) -maxG 50000000 2>&1 | tee centrifuge-compress-$(IDX_NAME).log && \
+	mv $@.tmp.fa $@ && mv $@.tmp.size $(patsubst %.size,%$(TAXID_SUFFIX),$@) && \
 	mv $@.tmp.map $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
     [[ -d $(TMP_DIR)/$* ]] || mkdir -p $(TMP_DIR)/$*
 	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
 else
-	rm -rf $(TMP_DIR)
+	#rm -rf $(TMP_DIR)
 endif
 
 $(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR)
@@ -205,11 +246,6 @@ $(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(TAXID_MAPS) taxonomy/nodes.dmp taxono
 		$(call join_w_comma,$(REFERENCE_SEQUENCES)) $(TMP_DIR)/$(IDX_NAME) 2>&1 | tee centrifuge-build-$(IDX_NAME).log
 	mv $(TMP_DIR)/$(IDX_NAME).*.cf . && rmdir $(TMP_DIR)
 
-nkmers: scripts/estimate-nkmers.pl input-sequences.fna
-	scripts/estimate-nkmers.pl input-sequences.fna
-
-# vim:ft=make
-endif ## ifndef IDX_NAME
 
 clean:
 	# Removing input sequences (all required information is in the index)
