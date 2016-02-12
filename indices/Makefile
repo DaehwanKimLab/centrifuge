@@ -237,6 +237,14 @@ taxonomy: | .path-ok
 	centrifuge-download -o $(TMP_DIR)/taxonomy taxonomy
 	mv $(TMP_DIR)/taxonomy . && rmdir $(TMP_DIR)
 
+$(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
+	@echo Index building prerequisites: $^
+	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
+	time centrifuge-build -p $(THREADS) \
+		--conversion-table <(cat $(TAXID_MAPS)) \
+		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+		$(call join_w_comma,$(REFERENCE_SEQUENCES)) $(TMP_DIR)/$(IDX_NAME) 2>&1 | tee centrifuge-build-$(IDX_NAME).log
+	mv $(TMP_DIR)/$(IDX_NAME).*.cf . && rmdir $(TMP_DIR)
 
 
 clean:
