@@ -37,7 +37,8 @@ GetOptions ("level|l=s" => \$level,
 			"maxG=i" => \$maxGenomeSizeForCompression, 
 			"map=s" => \$mapFile, 
             "verbose|v" => \$verbose,
-			"noCompress" => \$noCompress )
+			"noCompress" => \$noCompress,
+			"noDustmasker" => \$noDustmasker)
 or die("Error in command line arguments. \n\n$usage");
 
 die $usage unless @ARGV == 2;
@@ -262,7 +263,7 @@ if ( $noCompress == 1 )
 # Organize the tree
 print STDERR "Step $step: Organizing the taxonomical tree\n";
 ++$step ;
-open FP1, "$taxPath/nodes.dmp" ;
+open FP1, "$taxPath/nodes.dmp" or die "Couldn't open $taxPath/nodes.dmp: $!";
 while ( <FP1> ) {
 	chomp ;
 
@@ -322,7 +323,7 @@ for $i ( keys %tidToGid )
 
 print STDERR "Step $step: Reading the name of the species\n";
 ++$step ;
-open FP1, "$taxPath/names.dmp" ;
+open FP1, "$taxPath/names.dmp" or die "Could not open $taxPath/names.dmp: $!";
 while ( <FP1> )
 {
 	next if (!/scientific name/ ) ;

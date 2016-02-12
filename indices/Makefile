@@ -20,7 +20,7 @@ TMP_DIR?=tmp_$(IDX_NAME)
 TAXID_SUFFIX:=.map
 REFERENCE_SEQUENCES_DIR:=reference-sequences
 
-.PHONY: index index-name index-size .path-ok
+.PHONY: index index-name index-size .path-ok .dustmasker-ok
 
 define USAGE
 
@@ -111,11 +111,13 @@ refseq_full: export INCLUDE_CONTAMINANTS:=1
 refseq_full: export IDX_NAME:=refseq_full
 
 $(INDICES):
-	$(MAKE)
+	echo Here: $@: $(IDX_NAME)
+	$(MAKE) -f $(THIS_FILE) IDX_NAME=$(IDX_NAME)
 
 ####################################################################################################
 else ## IDX_NAME is defined
 
+DONT_DUSTMASK=
 REFERENCE_SEQUENCES=$(call get_ref_file_names,.fna)
 TAXID_MAPS=$(call get_ref_file_names,$(TAXID_SUFFIX))
 
@@ -124,9 +126,17 @@ $(error REFERENCE_SEQUENCES is not set - specify at lease one of COMPLETE_GENOME
 COMPLETE_GENOMES_COMPRESSED, or MAMMALIAN_TAXIDS with the IDX_NAME ($(IDX_NAME)))
 endif
 
-CF_BUILD_OPTS:= 
+CF_BUILD_OPTS?= 
 ifneq ($(strip $(COMPLETE_GENOMES_COMPRESSED)),)
 CF_BUILD_OPTS+=--size_table <(cat $(addprefix $(REFERENCE_SEQUENCES_DIR)/all-compressed-,$(addsuffix .size,$(COMPLETE_GENOMES_COMPRESSED))))
+endif
+
+CF_DOWNLOAD_OPTS?=
+CF_COMPRESS_OPTS?=
+ifeq ($(strip $(DONT_DUSTMASK)),)
+CF_DOWNLOAD_OPTS+=-m
+else
+CF_COMPRESS_OPTS+=--noDustmasker
 endif
 
 
@@ -171,11 +181,10 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
-$(REFERENCE_SEQUENCES_DIR)/all-compressed-%.fna: | $(REFERENCE_SEQUENCES_DIR)
+$(REFERENCE_SEQUENCES_DIR)/all-compressed-%.fna: | $(REFERENCE_SEQUENCES_DIR) taxonomy/nodes.dmp taxonomy/names.dmp .dustmasker-ok
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	centrifuge-download -o $(TMP_DIR) -d "$*" -P $(THREADS) refseq > \
-		$(TMP_DIR)/all-$*.map
-	time centrifuge-compress.pl $(TMP_DIR)/$* taxonomy -map $(TMP_DIR)/all-$*.map \
+	centrifuge-download -o $(TMP_DIR) -d "$*" -P $(THREADS) refseq > $(TMP_DIR)/all-$*.map
+	time centrifuge-compress.pl $(TMP_DIR)/$* taxonomy $(CF_COMPRESS_OPTS) -map $(TMP_DIR)/all-$*.map \
 		-o $@.tmp -t $(THREADS) -maxG 50000000 2>&1 | tee centrifuge-compress-$(IDX_NAME).log && \
 	mv $@.tmp.fa $@ && mv $@.tmp.size $(patsubst %.size,%$(TAXID_SUFFIX),$@) && \
 	mv $@.tmp.map $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
@@ -186,10 +195,10 @@ else
 	#rm -rf $(TMP_DIR)
 endif
 
-$(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR)
+$(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	@echo Downloading and dust-masking $*
-	centrifuge-download -o $(TMP_DIR) -m -d "$*" -P $(THREADS) refseq > \
+	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -d "$*" -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
 	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
@@ -200,10 +209,10 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
-$(REFERENCE_SEQUENCES_DIR)/all-%-chromosome_level.fna: | $(REFERENCE_SEQUENCES_DIR)
+$(REFERENCE_SEQUENCES_DIR)/all-%-chromosome_level.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	@echo Downloading and dust-masking $*
-	centrifuge-download -o $(TMP_DIR) -m -a "Chromosome" -d "$*" -P $(THREADS) refseq > \
+	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -a "Chromosome" -d "$*" -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
 	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
@@ -228,6 +237,14 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
+DUSTMASKER_EXISTS := $(SHELL command -v dustmasker)
+.dustmasker-ok:
+ifndef DUSTMASKER_EXISTS
+ifeq ($(strip $(DONT_DUSTMASK)),)
+	$(error dustmasker program does not exist. Install NCBI blast+, or set option DONT_DUSTMASK=1)
+endif
+endif
+	
 
 taxonomy/names.dmp: | taxonomy
 taxonomy/nodes.dmp: | taxonomy
@@ -263,14 +280,17 @@ EMPTY:=
 SPACE:= $(EMPTY) $(EMPTY)
 join_w_comma = $(subst $(SPACE),$(COMMA),$(strip $1))
 
-PATH_OK  := $(shell command -v centrifuge-build 2> /dev/null && command -v centrifuge-download 2> /dev/null )
-CF_BASE_DIR := $(shell dirname $(shell dirname $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))))
 
-error_msg := centrifuge scripts are not available - please make sure they are in the path.
+PATH_OK  := $(shell command -v centrifuge-build 2> /dev/null && command -v centrifuge-download 2> /dev/null )
+CF_BASE_DIR := $(shell dirname $(shell dirname $(THIS_FILE)))
+
+error_msg := centrifuge-download and centrifuge-build are not available - please make sure they are in the path.
 define n
 
 
 endef
+
+TEST_PROGRAMS=centrifuge-build centrifuge-download
 
 ifneq ("$(wildcard $(CF_BASE_DIR)/centrifuge-build)","")
 error_msg := $(error_msg)$n$nThe following command may solve this problem:$n  export PATH=$$PATH:"$(CF_BASE_DIR)"$n
