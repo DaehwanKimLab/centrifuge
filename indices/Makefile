@@ -186,7 +186,7 @@ $(REFERENCE_SEQUENCES_DIR)/all-compressed-%.fna: | $(REFERENCE_SEQUENCES_DIR) ta
 	centrifuge-download -o $(TMP_DIR) -d "$*" -P $(THREADS) refseq > $(TMP_DIR)/all-$*.map
 	time centrifuge-compress.pl $(TMP_DIR)/$* taxonomy $(CF_COMPRESS_OPTS) -map $(TMP_DIR)/all-$*.map \
 		-o $@.tmp -t $(THREADS) -maxG 50000000 2>&1 | tee centrifuge-compress-$(IDX_NAME).log && \
-	mv $@.tmp.fa $@ && mv $@.tmp.size $(patsubst %.size,%$(TAXID_SUFFIX),$@) && \
+	mv $@.tmp.fa $@ && mv $@.tmp.size $(patsubst %.fna,%.size,$@) && \
 	mv $@.tmp.map $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
     [[ -d $(TMP_DIR)/$* ]] || mkdir -p $(TMP_DIR)/$*
