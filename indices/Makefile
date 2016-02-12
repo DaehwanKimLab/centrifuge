@@ -139,21 +139,7 @@ else
 CF_COMPRESS_OPTS+=--noDustmasker
 endif
 
-
-
 all: $(IDX_NAME).1.cf
-
-$(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
-	@echo Index building prerequisites: $^
-	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	time centrifuge-build -p $(THREADS) $(CF_BUILD_OPTS) \
-		--conversion-table <(cat $(TAXID_MAPS)) \
-		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
-		$(call join_w_comma,$(REFERENCE_SEQUENCES)) $(TMP_DIR)/$(IDX_NAME) 2>&1 | tee centrifuge-build-$(IDX_NAME).log
-	mv $(TMP_DIR)/$(IDX_NAME).*.cf . && rmdir $(TMP_DIR)
-
-nkmers: scripts/estimate-nkmers.pl input-sequences.fna
-	scripts/estimate-nkmers.pl input-sequences.fna
 
 # vim:ft=make
 endif ## ifndef IDX_NAME
@@ -237,7 +223,7 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
-DUSTMASKER_EXISTS := $(SHELL command -v dustmasker)
+DUSTMASKER_EXISTS := $(shell command -v dustmasker)
 .dustmasker-ok:
 ifndef DUSTMASKER_EXISTS
 ifeq ($(strip $(DONT_DUSTMASK)),)
@@ -281,6 +267,7 @@ SPACE:= $(EMPTY) $(EMPTY)
 join_w_comma = $(subst $(SPACE),$(COMMA),$(strip $1))
 
 
+THIS_FILE := $(lastword $(MAKEFILE_LIST))
 PATH_OK  := $(shell command -v centrifuge-build 2> /dev/null && command -v centrifuge-download 2> /dev/null )
 CF_BASE_DIR := $(shell dirname $(shell dirname $(THIS_FILE)))
 
@@ -308,6 +295,4 @@ index-name:
 
 index-size:
 	du -csh $(IDX_NAME).[123].cf
-
-THIS_FILE := $(lastword $(MAKEFILE_LIST))
 

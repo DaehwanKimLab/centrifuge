@@ -7,7 +7,7 @@ exists() {
 }
 
 if hash wget 2>/dev/null; then
-	DL_PROG="wget --reject=\"*index.html*\" -nc -qO"
+	DL_PROG="wget -N --reject=index.html -qO"
 else 
 	DL_PROG="curl -s -o"
 fi
