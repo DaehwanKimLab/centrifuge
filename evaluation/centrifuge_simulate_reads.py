@@ -621,7 +621,7 @@ def simulate_reads(index_fname, base_fname, \
     # Read genome sequences into memory
     genomes_fname = index_fname + ".fa"
     if not os.path.exists(genomes_fname):
-        print >> sys.stderr, "Extracting genomes from Centrifuge index to %s ..."  % (genomes_fname)
+        print >> sys.stderr, "Extracting genomes from Centrifuge index to %s, which may take a few hours ..."  % (genomes_fname)
         extract_cmd = [centrifuge_inspect,
                        index_fname]
         extract_proc = subprocess.Popen(extract_cmd, stdout=open(genomes_fname, 'w'))

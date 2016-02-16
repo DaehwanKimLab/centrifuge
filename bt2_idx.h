@@ -973,6 +973,9 @@ public:
                 for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
                     uint64_t c_tid = size_itr->first;
                     map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
+                    if(tree_itr2 == _tree.end())
+                        continue;
+                    
                     assert(tree_itr2 != _tree.end());
                     const TaxonomyNode& c_node = tree_itr2->second;
                     if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||

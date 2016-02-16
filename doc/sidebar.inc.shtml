@@ -33,7 +33,7 @@
 <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads"><h2><u>Releases</u></h2></a>
 <div class="box">
  <ul>
-   <table width="100%"><tbody><tr><td>version 1.0.0-beta</td> <td align="right">2/0X/2016</td></tr>
+   <table width="100%"><tbody><tr><td>version 1.0.0-beta</td> <td align="right">2/XX/2016</td></tr>
        <tr>
 	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.0-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
        </tr>
@@ -52,23 +52,23 @@
     <table width="100%">
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37_snp.tar.gz"><i>Bacteria (Compressed)</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/b_compressed.tar.gz"><i>Bacteria (compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>4.2 GB</b>
+	  <b>4.4 GB</b>
         </td>
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37.tar.gz"><i>Bacteria, viruses, and human (compressed)</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/b_compressed+h+v.tar.gz"><i>Bacteria, Viruses, Human (compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>5.6 GB</b>
+	  <b>5.9 GB</b>
         </td>
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/grch37.tar.gz"><i>Bacteria, viruses, and human </i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/b+h+v.tar.gz"><i>Bacteria, Viruses, Human </i></a>
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>8.4 GB</b>

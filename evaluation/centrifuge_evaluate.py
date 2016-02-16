@@ -297,7 +297,11 @@ def evaluate(index_base,
     if not os.path.exists(index_path):
         os.mkdir(index_path)
     index_fnames = ["%s/%s.%d.cf" % (index_path, index_base, i+1) for i in range(3)]
-    assert check_files(index_fnames)
+    if not check_files(index_fnames):
+        print >> sys.stderr, "Downloading indexes: %s" % ("index")
+        os.system("cd %s; wget ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/%s.tar.gz; tar xvzf %s.tar.gz; rm %s.tar.gz; ln -s %s/%s* .; cd -" % \
+                      (index_path, index_base, index_base, index_base, index_base, index_base))
+        assert check_files(index_fnames)        
 
     # Read taxonomic IDs
     centrifuge_inspect = os.path.join(path_base, "../centrifuge-inspect")
@@ -341,7 +345,7 @@ def evaluate(index_base,
         simulate_cmd += ["%s/%s" % (index_path, index_base),
                          "%s/%s" % (read_path, read_base)]
         
-        simulate_proc = subprocess.Popen(simulate_cmd, stdout=open("/dev/null", 'w'), stderr=open("/dev/null", 'w'))
+        simulate_proc = subprocess.Popen(simulate_cmd, stdout=open("/dev/null", 'w'))
         simulate_proc.communicate()
         assert check_files(read_fnames)
 
