@@ -192,8 +192,9 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 	doc/README \
 	doc/style.css \
 	$(wildcard example/index/*.cf) \
-	$(wildcard example/reads/*.fq) \
+	$(wildcard example/reads/*.fa) \
 	example/reference/test.fa \
+	indices/Makefile \
 	$(PTHREAD_PKG) \
 	centrifuge \
 	centrifuge-build \
