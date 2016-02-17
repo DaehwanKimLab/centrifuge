@@ -397,6 +397,15 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 
 #### Classification
 
+    -k <int>
+
+It searches for at most `<int>` distinct, primary assignments for each read or pair.  
+Primary assignments mean assignments whose assignment score is equal or higher than any other assignments.
+If there are more primary assignments than this value, 
+the search will merge some of the assignments into a higher taxonomic rank.
+The assignment score for a paired-end assignment equals the sum of the assignment scores of the individual mates. 
+Default: 5
+
     --host-taxids
 
 A comma-separated list of taxonomic IDs that will be preferred in classification procedure.

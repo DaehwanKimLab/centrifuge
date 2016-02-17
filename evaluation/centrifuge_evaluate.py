@@ -326,7 +326,7 @@ def evaluate(index_base,
     tax_ids = set()
     tax_cmd = [centrifuge_inspect,
                "--conversion-table",
-               "%s/%s" % (index_path, index_base)]
+               "%s/%s" % (index_path, index_base_for_read)]
     tax_proc = subprocess.Popen(tax_cmd, stdout=subprocess.PIPE)
     for line in tax_proc.stdout:
         _, tax_id = line.strip().split()
@@ -336,7 +336,7 @@ def evaluate(index_base,
     # Read taxonomic tree
     tax_tree_cmd = [centrifuge_inspect,
                     "--taxonomy-tree",
-                    "%s/%s" % (index_path, index_base)]    
+                    "%s/%s" % (index_path, index_base_for_read)]    
     tax_tree_proc = subprocess.Popen(tax_tree_cmd, stdout=subprocess.PIPE, stderr=open("/dev/null", 'w'))
     taxonomy_tree = read_taxonomy_tree(tax_tree_proc.stdout)
 
