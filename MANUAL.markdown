@@ -17,7 +17,7 @@ rapid, accurate, and sensitive labeling of reads and quantification of
 species on desktop computers.  The system uses a novel indexing scheme
 based on the Burrows-Wheeler transform (BWT) and the Ferragina-Manzini
 (FM) index, optimized specifically for the metagenomic classification
-problem. Centrifuge requires a relatively small index (4.7 GB for all
+problem. Centrifuge requires a relatively small index (5.8 GB for all
 complete bacterial and viral genomes plus the human genome) and
 classifies sequences at a very high speed, allowing it to process the
 millions of reads from a typical high-throughput DNA sequencing run

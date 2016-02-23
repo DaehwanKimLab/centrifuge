@@ -24,6 +24,19 @@ def read_taxonomy_tree(tax_file):
 """
 """
 def compare_scm(centrifuge_out, true_out, taxonomy_tree, rank):
+    ancestors = set()
+    for tax_id in taxonomy_tree.keys():
+        if tax_id in ancestors:
+            continue
+        while True:
+            parent_tax_id, cur_rank = taxonomy_tree[tax_id]
+            if parent_tax_id in ancestors:
+                break
+            if tax_id == parent_tax_id:
+                break
+            tax_id = parent_tax_id
+            ancestors.add(tax_id)
+
     db_dic = {}
     first = True
     for line in open(centrifuge_out):
@@ -46,7 +59,11 @@ def compare_scm(centrifuge_out, true_out, taxonomy_tree, rank):
                     rank_tax_id = ""
                     break
                 tax_id = parent_tax_id
-                
+        else:
+            assert rank == "strain"
+            if tax_id in ancestors:
+                continue
+
         if rank_tax_id == "":
             continue            
         if read_name not in db_dic:
@@ -259,6 +276,7 @@ def write_analysis_data(sql_db, genome_name, database_name):
 """
 """
 def evaluate(index_base,
+             index_base_for_read,
              num_fragment,
              paired,
              error_rate,
@@ -297,14 +315,18 @@ def evaluate(index_base,
     if not os.path.exists(index_path):
         os.mkdir(index_path)
     index_fnames = ["%s/%s.%d.cf" % (index_path, index_base, i+1) for i in range(3)]
-    assert check_files(index_fnames)
+    if not check_files(index_fnames):
+        print >> sys.stderr, "Downloading indexes: %s" % ("index")
+        os.system("cd %s; wget ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/%s.tar.gz; tar xvzf %s.tar.gz; rm %s.tar.gz; ln -s %s/%s* .; cd -" % \
+                      (index_path, index_base, index_base, index_base, index_base, index_base))
+        assert check_files(index_fnames)        
 
     # Read taxonomic IDs
     centrifuge_inspect = os.path.join(path_base, "../centrifuge-inspect")
     tax_ids = set()
     tax_cmd = [centrifuge_inspect,
                "--conversion-table",
-               "%s/%s" % (index_path, index_base)]
+               "%s/%s" % (index_path, index_base_for_read)]
     tax_proc = subprocess.Popen(tax_cmd, stdout=subprocess.PIPE)
     for line in tax_proc.stdout:
         _, tax_id = line.strip().split()
@@ -314,15 +336,17 @@ def evaluate(index_base,
     # Read taxonomic tree
     tax_tree_cmd = [centrifuge_inspect,
                     "--taxonomy-tree",
-                    "%s/%s" % (index_path, index_base)]    
+                    "%s/%s" % (index_path, index_base_for_read)]    
     tax_tree_proc = subprocess.Popen(tax_tree_cmd, stdout=subprocess.PIPE, stderr=open("/dev/null", 'w'))
     taxonomy_tree = read_taxonomy_tree(tax_tree_proc.stdout)
+
+    compressed = (index_base.find("compressed") != -1) or (index_base_for_read.find("compressed") != -1)
 
     # Check if simulated reads exist, otherwise simulate reads
     read_path = "%s/reads" % path_base
     if not os.path.exists(read_path):
         os.mkdir(read_path)
-    read_base = "%s_%dM" % (index_base, num_fragment / 1000000)
+    read_base = "%s_%dM" % (index_base_for_read, num_fragment / 1000000)
     if error_rate > 0.0:
         read_base += "%.2fe" % error_rate
 
@@ -338,10 +362,10 @@ def evaluate(index_base,
                         "--num-fragment", str(num_fragment)]
         if error_rate > 0.0:
             simulate_cmd += ["--error-rate", str(error_rate)]
-        simulate_cmd += ["%s/%s" % (index_path, index_base),
+        simulate_cmd += ["%s/%s" % (index_path, index_base_for_read),
                          "%s/%s" % (read_path, read_base)]
         
-        simulate_proc = subprocess.Popen(simulate_cmd, stdout=open("/dev/null", 'w'), stderr=open("/dev/null", 'w'))
+        simulate_proc = subprocess.Popen(simulate_cmd, stdout=open("/dev/null", 'w'))
         simulate_proc.communicate()
         assert check_files(read_fnames)
 
@@ -418,25 +442,27 @@ def evaluate(index_base,
         if runtime_only:
             out_fname = "/dev/null"
 
+        if os.path.exists(out_fname):
+            continue
+
         # Classify all reads
-        if not os.path.exists(out_fname):
-            program_cmd = get_program_cmd(program, version, read1_fname, read2_fname, out_fname)
-            start_time = datetime.now()
-            if verbose:
-                print >> sys.stderr, "\t", start_time, " ".join(program_cmd)
-            if program in ["centrifuge"]:
-                proc = subprocess.Popen(program_cmd, stdout=open(out_fname, "w"), stderr=subprocess.PIPE)
-            else:
-                proc = subprocess.Popen(program_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            proc.communicate()
-            finish_time = datetime.now()
-            duration = finish_time - start_time
-            assert program in init_time
-            duration = duration.total_seconds() - init_time[program]
-            if duration < 0.1:
-                duration = 0.1
-            if verbose:
-                print >> sys.stderr, "\t", finish_time, "finished:", duration            
+        program_cmd = get_program_cmd(program, version, read1_fname, read2_fname, out_fname)
+        start_time = datetime.now()
+        if verbose:
+            print >> sys.stderr, "\t", start_time, " ".join(program_cmd)
+        if program in ["centrifuge"]:
+            proc = subprocess.Popen(program_cmd, stdout=open(out_fname, "w"), stderr=subprocess.PIPE)
+        else:
+            proc = subprocess.Popen(program_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc.communicate()
+        finish_time = datetime.now()
+        duration = finish_time - start_time
+        assert program in init_time
+        duration = duration.total_seconds() - init_time[program]
+        if duration < 0.1:
+            duration = 0.1
+        if verbose:
+            print >> sys.stderr, "\t", finish_time, "finished:", duration            
 
         results = {"strain"  : [0, 0, 0],
                    "species" : [0, 0, 0],
@@ -448,6 +474,8 @@ def evaluate(index_base,
         for rank in ranks:
             if runtime_only:
                 break
+            if compressed and rank == "strain":
+                continue
 
             classified, unique_classified, unclassified, raw_classified, raw_unique_classified = \
                 compare_scm(out_fname, scm_fname, taxonomy_tree, rank)
@@ -457,8 +485,15 @@ def evaluate(index_base,
             #    assert num_cases == num_fragment
 
             print >> sys.stderr, "\t\t%s" % rank
-            print >> sys.stderr, "\t\t\tclassified: {:,}, uniquely classified: {:,}".format(raw_classified, raw_unique_classified)
-            print >> sys.stderr, "\t\t\tcorrectly classified: {:,} ({:.2%}), uniquely and correctly classified: {:,} ({:.2%})".format(classified, float(classified) / num_cases, unique_classified, float(unique_classified) / num_cases)
+            print >> sys.stderr, "\t\t\tsensitivity: {:,} / {:,} ({:.2%})".format(classified, num_cases, float(classified) / num_cases)
+            print >> sys.stderr, "\t\t\tprecision  : {:,} / {:,} ({:.2%})".format(classified, raw_classified, float(classified) / raw_classified)
+            print >> sys.stderr, "\n\t\t\tfor uniquely classified ",
+            if paired:
+                print >> sys.stderr, "pairs"
+            else:
+                print >> sys.stderr, "reads"
+            print >> sys.stderr, "\t\t\t\t\tsensitivity: {:,} / {:,} ({:.2%})".format(unique_classified, num_cases, float(unique_classified) / num_cases)
+            print >> sys.stderr, "\t\t\t\t\tprecision  : {:,} / {:,} ({:.2%})".format(unique_classified, raw_unique_classified, float(unique_classified) / raw_unique_classified)
 
             # Calculate sum of squared residuals in abundance
             if rank == "strain":
@@ -503,6 +538,11 @@ if __name__ == "__main__":
                         nargs='?',
                         type=str,
                         help='Centrifuge index')
+    parser.add_argument('--index-base-for-read',
+                        dest="index_base_for_read",
+                        type=str,
+                        default="",
+                        help='index base for read (default same as index base)')    
     parser.add_argument('--num-fragment',
                         dest="num_fragment",
                         action='store',
@@ -556,7 +596,8 @@ if __name__ == "__main__":
     if not args.index_base:
         parser.print_help()
         exit(1)
-
+    if args.index_base_for_read == "":
+        args.index_base_for_read = args.index_base
     ranks = args.ranks.split(',')
     programs = []
     for program in args.programs.split(','):
@@ -566,6 +607,7 @@ if __name__ == "__main__":
             programs.append([program, ""])
             
     evaluate(args.index_base,
+             args.index_base_for_read,
              args.num_fragment * 1000000,
              args.paired,
              args.error_rate,
