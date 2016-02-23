@@ -51,6 +51,7 @@ EXTENDED OPTIONS:
 	COMPLETE_GENOMES_COMPRESSED=s
 	MAMMALIAN_TAXIDS=i
 	INCLUDE_CONAMINANTS=1
+	DONT_DUSTMASK=1
 	IDX_NAME=s
 
 EXAMPLES:
@@ -78,7 +79,7 @@ all:
 
 IDX_NAME?=$(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
 
-INDICES=b+h+v b_compressed b_compressed+h+v refseq_microbial refseq_full
+INDICES=b+h+v b_compressed b_compressed+h+v refseq_microbial refseq_full nt
 
 b+h+v: export COMPLETE_GENOMES:=archaea bacteria viral
 b+h+v: export MAMMALIAN_TAXIDS:=9606
@@ -110,16 +111,27 @@ refseq_full: export MAMMALIAN_TAXIDS:=9606 10090
 refseq_full: export INCLUDE_CONTAMINANTS:=1
 refseq_full: export IDX_NAME:=refseq_full
 
+
+nt: export IDX_NAME:=nt
+
 $(INDICES):
-	echo Here: $@: $(IDX_NAME)
+	@echo Making: $@: $(IDX_NAME)
 	$(MAKE) -f $(THIS_FILE) IDX_NAME=$(IDX_NAME)
 
 ####################################################################################################
 else ## IDX_NAME is defined
 
 DONT_DUSTMASK=
+TAXONOMY_DOWNLOAD_OPTS?=
 REFERENCE_SEQUENCES=$(call get_ref_file_names,.fna)
 TAXID_MAPS=$(call get_ref_file_names,$(TAXID_SUFFIX))
+
+ifeq (nt,$(IDX_NAME))
+REFERENCE_SEQUENCES+=nt.fna
+TAXID_MAPS+=nt.map
+TAXONOMY_DOWNLOAD_OPTS+=-g
+endif
+
 
 ifeq ($(strip $(REFERENCE_SEQUENCES)),)
 $(error REFERENCE_SEQUENCES is not set - specify at lease one of COMPLETE_GENOMES, \
@@ -151,17 +163,25 @@ $(TAXID_MAPS): | $(REFERENCE_SEQUENCES_DIR)
 	rm $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
 	$(MAKE) -f $(THIS_FILE) $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
 
+nt.gz:
+	wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
+
+nt.fna: nt.gz
+	gunzip -c nt.gz > nt.fna
+
+nt.map:
+	wget -qO- ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz | gunzip -c | \
+	sed 's/^/gi|/' > nt.map
+
+
 $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DIR)
 	@[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	centrifuge-download -o $(TMP_DIR) -d "vertebrate_mammalian" -a "Chromosome" -t $* -c 'reference genome' -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX), $(notdir $@))
-	#echo ">Vertebrate_mammalian_genome_$*"
-	#printf "Vertebrate_mammalian_genome_$*\t$*" > $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
-	#cat $(TMP_DIR)/vertebrate_mammalian/*.fna | grep  > $@.tmp && mv $@.tmp $@
 	cat $(TMP_DIR)/vertebrate_mammalian/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
-    [[ -d $(TMP_DIR)/verterbrate_mammalian ]] || mkdir -p $(TMP_DIR)/verterbrate_mammalian
+	[[ -d $(DL_DIR)/verterbrate_mammalian ]] || mkdir -p $(DL_DIR)/verterbrate_mammalian
 	mv $(TMP_DIR)/verterbrate_mammalian/* $(DL_DIR)/vertebrate_mammalian
 else
 	rm -rf $(TMP_DIR)
@@ -175,10 +195,10 @@ $(REFERENCE_SEQUENCES_DIR)/all-compressed-%.fna: | $(REFERENCE_SEQUENCES_DIR) ta
 	mv $@.tmp.fa $@ && mv $@.tmp.size $(patsubst %.fna,%.size,$@) && \
 	mv $@.tmp.map $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
-    [[ -d $(TMP_DIR)/$* ]] || mkdir -p $(TMP_DIR)/$*
+	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
 	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
 else
-	#rm -rf $(TMP_DIR)
+	rm -rf $(TMP_DIR)
 endif
 
 $(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
@@ -189,7 +209,7 @@ $(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-o
 	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
-    [[ -d $(TMP_DIR)/$* ]] || mkdir -p $(TMP_DIR)/$*
+	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
 	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
 else
 	rm -rf $(TMP_DIR)
@@ -203,7 +223,7 @@ $(REFERENCE_SEQUENCES_DIR)/all-%-chromosome_level.fna: | $(REFERENCE_SEQUENCES_D
 	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
-    [[ -d $(TMP_DIR)/$* ]] || mkdir -p $(TMP_DIR)/$*
+	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
 	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
 else
 	rm -rf $(TMP_DIR)
@@ -217,7 +237,7 @@ $(REFERENCE_SEQUENCES_DIR)/contaminants.fna: | $(REFERENCE_SEQUENCES_DIR)
 	cat $(TMP_DIR)/contaminants/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
-    [[ -d $(TMP_DIR)/contaminants ]] || mkdir -p $(TMP_DIR)/contaminants
+	[[ -d $(DL_DIR)/contaminants ]] || mkdir -p $(DL_DIR)/contaminants
 	mv $(TMP_DIR)/contaminants/* $(DL_DIR)/$*
 else
 	rm -rf $(TMP_DIR)
@@ -237,7 +257,7 @@ taxonomy/nodes.dmp: | taxonomy
 
 taxonomy: | .path-ok
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	centrifuge-download -o $(TMP_DIR)/taxonomy taxonomy
+	centrifuge-download $(TAXONOMY_DOWNLOAD_OPTS) -o $(TMP_DIR)/taxonomy taxonomy
 	mv $(TMP_DIR)/taxonomy . && rmdir $(TMP_DIR)
 
 $(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
