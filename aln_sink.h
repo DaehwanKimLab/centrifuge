@@ -2215,7 +2215,7 @@ void AlnSinkSam<index_t>::appendMate(
     }
     for(size_t i = 0; i < namelen; i++) {
         if(isspace(rd.name[i])) {
-            return;
+            break;
         }
         o.append(rd.name[i]);
     }

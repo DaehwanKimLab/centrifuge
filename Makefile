@@ -187,13 +187,14 @@ CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 GENERAL_LIST = $(wildcard scripts/*.sh) \
 	$(wildcard scripts/*.pl) \
 	$(wildcard *.py) \
+	$(wildcard *.pl) \
 	doc/manual.inc.html \
 	doc/README \
 	doc/style.css \
 	$(wildcard example/index/*.cf) \
-	$(wildcard example/reads/*.fq) \
-	$(wildcard example/reads/*.pl) \
+	$(wildcard example/reads/*.fa) \
 	example/reference/test.fa \
+	indices/Makefile \
 	$(PTHREAD_PKG) \
 	centrifuge \
 	centrifuge-build \

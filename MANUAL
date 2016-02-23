@@ -10,7 +10,7 @@ rapid, accurate, and sensitive labeling of reads and quantification of
 species on desktop computers.  The system uses a novel indexing scheme
 based on the Burrows-Wheeler transform (BWT) and the Ferragina-Manzini
 (FM) index, optimized specifically for the metagenomic classification
-problem. Centrifuge requires a relatively small index (4.7 GB for all
+problem. Centrifuge requires a relatively small index (5.8 GB for all
 complete bacterial and viral genomes plus the human genome) and
 classifies sequences at a very high speed, allowing it to process the
 millions of reads from a typical high-throughput DNA sequencing run
@@ -396,6 +396,15 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 `--solexa-quals` is also specified. Default: off.
 
 #### Classification
+
+    -k <int>
+
+It searches for at most `<int>` distinct, primary assignments for each read or pair.  
+Primary assignments mean assignments whose assignment score is equal or higher than any other assignments.
+If there are more primary assignments than this value, 
+the search will merge some of the assignments into a higher taxonomic rank.
+The assignment score for a paired-end assignment equals the sum of the assignment scores of the individual mates. 
+Default: 5
 
     --host-taxids
 

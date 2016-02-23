@@ -618,6 +618,16 @@ def simulate_reads(index_fname, base_fname, \
         tax_id, name = line.strip().split('\t')
         names[tax_id] = name
 
+    # Genome sizes
+    sizes = {}
+    size_cmd = [centrifuge_inspect,
+                "--size-table",
+                index_fname]
+    size_proc = subprocess.Popen(size_cmd, stdout=subprocess.PIPE)
+    for line in size_proc.stdout:
+        tax_id, size = line.strip().split('\t')
+        sizes[tax_id] = int(size)
+
     # Read genome sequences into memory
     genomes_fname = index_fname + ".fa"
     if not os.path.exists(genomes_fname):
@@ -669,8 +679,8 @@ def simulate_reads(index_fname, base_fname, \
         else:
             transcript_id = transcript_ids[t]
             chr, strand, transcript_len, exons = transcripts[transcript_id]
-        assert tax_id in genome_seqs
-        genome_len = len(genome_seqs[tax_id])
+        assert tax_id in genome_seqs and tax_id in sizes
+        genome_len = sizes[tax_id]
         raw_abundance = float(t_num_frags)/num_frag
         normalized_sum += (raw_abundance / genome_len)
         truth_list.append([tax_id, genome_len, t_num_frags, raw_abundance])
@@ -708,7 +718,7 @@ def simulate_reads(index_fname, base_fname, \
         t_num_frags = expr_profile[t]
         if dna:
             tax_id = genome_ids[t]
-            print >> sys.stderr, tax_id, t_num_frags
+            print >> sys.stderr, "TaxID: %s, num fragments: %d" % (tax_id, t_num_frags)
         else:
             transcript_id = transcript_ids[t]
             chr, strand, transcript_len, exons = transcripts[transcript_id]

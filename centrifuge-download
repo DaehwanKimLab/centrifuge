@@ -110,6 +110,7 @@ DATABASE="refseq"
 ASSEMBLY_LEVEL="Complete Genome"
 REFSEQ_CATEGORY=""
 TAXID=""
+DOWNLOAD_GI_MAP=0
 
 BASE_DIR="."
 N_PROC=1
@@ -140,10 +141,11 @@ WHEN USING database refseq OR genbank:
  -u                     Filter unplaced sequences.
  -m                     Mask low-complexity regions using dustmasker. Default: off.
  -l                     Modify header to include taxonomy ID. Default: off.
+ -g                     Download GI map.
 "
 
 # arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
-while getopts "o:P:d:a:c:t:urlm" OPT "$@"; do
+while getopts "o:P:d:a:c:t:urlmg" OPT "$@"; do
     case $OPT in
         o) BASE_DIR="$OPTARG" ;;
         P) N_PROC="$OPTARG" ;;
@@ -155,6 +157,7 @@ while getopts "o:P:d:a:c:t:urlm" OPT "$@"; do
 		u) FILTER_UNPLACED=1 ;;
         m) DO_DUST=1 ;;
         l) CHANGE_HEADER=1 ;;
+        g) DOWNLOAD_GI_MAP=1 ;;
         \?) echo "Invalid option: -$OPTARG" >&2 
             exit 1 
         ;;
@@ -170,18 +173,18 @@ DATABASE=$1
 
 #### TAXONOMY DOWNLOAD
 FTP="ftp://ftp.ncbi.nih.gov"
-DOWNLOAD_GI_MAP=0
 if [[ "$DATABASE" == "taxonomy" ]]; then 
   echo "Downloading NCBI taxonomy ... " >&2
   if check_or_mkdir_no_fail "$BASE_DIR"; then
     cd "$BASE_DIR" > /dev/null
-    $DL_PROG taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
-    tar -zxvf taxdump.tar.gz nodes.dmp
-    tar -zxvf taxdump.tar.gz names.dmp
-    rm taxdump.tar.gz
     if [[ "$DOWNLOAD_GI_MAP" == "1" ]]; then
-        DL_PROG gi_taxid_nucl.dmp.gz $FTP/pub/taxonomy/gi_taxid_nucl.dmp.gz
-        gunzip gi_taxid_nucl.dmp.gz
+        $DL_PROG gi_taxid_nucl.dmp.gz $FTP/pub/taxonomy/gi_taxid_nucl.dmp.gz
+        gunzip -c gi_taxid_nucl.dmp.gz | sed 's/^/gi|/' > gi_taxid_nucl.map
+	else
+        $DL_PROG taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
+        tar -zxvf taxdump.tar.gz nodes.dmp
+        tar -zxvf taxdump.tar.gz names.dmp
+        rm taxdump.tar.gz
     fi
     cd - > /dev/null
   fi
