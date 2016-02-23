@@ -270,7 +270,7 @@ public:
                 for(size_t hi = 0; hi < offsetSize; hi++, ts++) {
                     const BWTHit<index_t>& partialHit = hit.getPartialHit(hi);
                     size_t partialHitLen = partialHit.len();
-                    if(partialHitLen <= _minHitLen) continue;
+                    if(partialHitLen <= _minHitLen) continue;                    
                     if(partialHit.size() == 0) continue;
                     
                     // only keep this partial hit if it is equal to or bigger than minHitLen (default: 22 bp)
