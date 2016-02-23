@@ -85,12 +85,12 @@ b+h+v: export MAMMALIAN_TAXIDS:=9606
 b+h+v: export INCLUDE_CONTAMINANTS:=1
 b+h+v: export IDX_NAME:=b+h+v
 
-b_compressed: export COMPLETE_GENOMES:=archaea
-b_compressed: export COMPLETE_GENOMES_COMPRESSED:=bacteria
+b_compressed: export COMPLETE_GENOMES:=
+b_compressed: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
 b_compressed: export IDX_NAME:=b_compressed
 
-b_compressed+h+v: export COMPLETE_GENOMES:=archaea viral
-b_compressed+h+v: export COMPLETE_GENOMES_COMPRESSED:=bacteria
+b_compressed+h+v: export COMPLETE_GENOMES:=viral
+b_compressed+h+v: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
 b_compressed+h+v: export MAMMALIAN_TAXIDS:=9606
 b_compressed+h+v: export INCLUDE_CONTAMINANTS:=1
 b_compressed+h+v: export IDX_NAME:=b_compressed+h+v
@@ -127,8 +127,9 @@ COMPLETE_GENOMES_COMPRESSED, or MAMMALIAN_TAXIDS with the IDX_NAME ($(IDX_NAME))
 endif
 
 CF_BUILD_OPTS?= 
+SIZE_TABLES=$(addprefix $(REFERENCE_SEQUENCES_DIR)/all-compressed-,$(addsuffix .size,$(COMPLETE_GENOMES_COMPRESSED)))
 ifneq ($(strip $(COMPLETE_GENOMES_COMPRESSED)),)
-CF_BUILD_OPTS+=--size_table <(cat $(addprefix $(REFERENCE_SEQUENCES_DIR)/all-compressed-,$(addsuffix .size,$(COMPLETE_GENOMES_COMPRESSED))))
+CF_BUILD_OPTS+=--size-table <(cat $(SIZE_TABLES))
 endif
 
 CF_DOWNLOAD_OPTS?=
@@ -240,10 +241,10 @@ taxonomy: | .path-ok
 	centrifuge-download -o $(TMP_DIR)/taxonomy taxonomy
 	mv $(TMP_DIR)/taxonomy . && rmdir $(TMP_DIR)
 
-$(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
+$(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(SIZE_TABLES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
 	@echo Index building prerequisites: $^
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	time centrifuge-build -p $(THREADS) \
+	time centrifuge-build -p $(THREADS) $(CF_BUILD_OPTS) \
 		--conversion-table <(cat $(TAXID_MAPS)) \
 		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
 		$(call join_w_comma,$(REFERENCE_SEQUENCES)) $(TMP_DIR)/$(IDX_NAME) 2>&1 | tee centrifuge-build-$(IDX_NAME).log
