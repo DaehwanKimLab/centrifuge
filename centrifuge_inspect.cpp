@@ -46,6 +46,8 @@ static int name_table = 0;
 static int size_table = 0;
 static int count_kmers = 0;
 
+//#define TEST_KMER_COUNTING
+
 enum {
 	ARG_VERSION = 256,
     ARG_WRAPPER,
@@ -218,9 +220,11 @@ static uint64_t count_idx_kmers ( Ebwt<index_t>& ebwt)
 	TStr cat_ref;
 	ebwt.restore(cat_ref);
 	cerr << "Index loaded" << endl;
+#ifdef TEST_KMER_COUNTING
 	std::set<uint64_t> my_set;
+#endif
 
-	HyperLogLogPlusMinus<uint64_t> kmer_counter(10);
+	HyperLogLogPlusMinus<uint64_t> kmer_counter(16);
 	uint64_t word = 0;
 	uint64_t curr_length = 0;
 	uint8_t k = 32;
@@ -259,13 +263,15 @@ static uint64_t count_idx_kmers ( Ebwt<index_t>& ebwt)
             // shift the first two bits off the word
             word = word << 2;
             // put the base-pair code from pos at that position
-            word = word |= bp;
+            word |= bp;
 			++curr_length;
 			//cerr << "[" << i << "; " << curr_length << "; " << word << ":" << kmer_counter.cardinality()  << "]" << endl;
 			if (curr_length >= k) {
 				kmer_counter.add(word);
+#ifdef TEST_KMER_COUNTING
 				my_set.insert(word);
-				cerr << kmer_counter.cardinality()  << " vs " << my_set.size() << endl;
+				cerr << " " << kmer_counter.cardinality()  << " vs " << my_set.size() << endl;
+#endif
 			}
 
 			last_text_off = textoff;
@@ -275,10 +281,14 @@ static uint64_t count_idx_kmers ( Ebwt<index_t>& ebwt)
 	}
 	if (curr_length >= k) {
 		kmer_counter.add(word);
+#ifdef TEST_KMER_COUNTING
 		my_set.insert(word);
+#endif
 	}
 
+#ifdef TEST_KMER_COUNTING
 	cerr << "Exact count: " << my_set.size() << endl;
+#endif
 
 	return kmer_counter.cardinality();
 }
@@ -560,7 +570,7 @@ static void driver(
         	                                true,   // load names
         	                                verbose);  // verbose
         	uint64_t n_kmers = count_idx_kmers<TIndexOffU, SString<char> >(ebwt);
-        	cout << "Number of kmer that would be needed to represent reference sequence (estimated vie HyperLogLog+-): " << n_kmers << endl;
+        	cout << "Approximate number of kmers in the reference sequence: " << n_kmers << endl;
 
         } else {
             ebwt.loadIntoMemory(
