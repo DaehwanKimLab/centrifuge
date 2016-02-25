@@ -569,7 +569,7 @@ close FP1 ;
 open FP1, ">$output.size" ;
 foreach my $key ( keys %newIdToTaxId )
 {
-	print FP1 "$key\t", $idToGenomeSize{ $key }, "\n" ;
+	print FP1 $newIdToTaxId{ $key }, "\t", $idToGenomeSize{ $key }, "\n" ;
 }
 close FP1 ;
 unlink glob("tmp_*") ;
