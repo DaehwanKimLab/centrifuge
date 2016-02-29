@@ -125,11 +125,13 @@ DONT_DUSTMASK=
 TAXONOMY_DOWNLOAD_OPTS?=
 REFERENCE_SEQUENCES=$(call get_ref_file_names,.fna)
 TAXID_MAPS=$(call get_ref_file_names,$(TAXID_SUFFIX))
+CF_BUILD_OPTS?= 
 
 ifeq (nt,$(IDX_NAME))
-REFERENCE_SEQUENCES+=nt.fna
+REFERENCE_SEQUENCES+=nt-sorted.fna
 TAXID_MAPS+=nt.map
 TAXONOMY_DOWNLOAD_OPTS+=-g
+CF_BUILD_OPTS+=--ftabchars=14
 endif
 
 
@@ -138,7 +140,6 @@ $(error REFERENCE_SEQUENCES is not set - specify at lease one of COMPLETE_GENOME
 COMPLETE_GENOMES_COMPRESSED, or MAMMALIAN_TAXIDS with the IDX_NAME ($(IDX_NAME)))
 endif
 
-CF_BUILD_OPTS?= 
 SIZE_TABLES=$(addprefix $(REFERENCE_SEQUENCES_DIR)/all-compressed-,$(addsuffix .size,$(COMPLETE_GENOMES_COMPRESSED)))
 ifneq ($(strip $(COMPLETE_GENOMES_COMPRESSED)),)
 CF_BUILD_OPTS+=--size-table <(cat $(SIZE_TABLES))
@@ -160,9 +161,9 @@ endif ## ifndef IDX_NAME
 $(REFERENCE_SEQUENCES_DIR):
 	mkdir -p $(REFERENCE_SEQUENCES_DIR)
 
-$(TAXID_MAPS): | $(REFERENCE_SEQUENCES_DIR)
-	rm $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
-	$(MAKE) -f $(THIS_FILE) $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
+#$(TAXID_MAPS): | $(REFERENCE_SEQUENCES_DIR)
+#	rm $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
+#	$(MAKE) -f $(THIS_FILE) $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
 
 nt.gz:
 	wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
@@ -171,9 +172,10 @@ nt.fna: nt.gz
 	gunzip -c nt.gz > nt.fna
 
 nt.map:
-	wget -qO- ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz | gunzip -c | \
-	sed 's/^/gi|/' > nt.map
+	wget -qO- ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz | gunzip -c | sed 's/^/gi|/' > nt.map
 
+nt-sorted.fna: nt.fna nt.map
+	centrifuge-sort-nt.pl nt.fna nt.map > nt-sorted.fna
 
 $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DIR)
 	@[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
