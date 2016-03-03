@@ -558,7 +558,8 @@ public:
 	    useShmem_(false), \
 	    _refnames(EBWT_CAT), \
 	    mmFile1_(NULL), \
-	    mmFile2_(NULL)
+	    mmFile2_(NULL), \
+        _compressed(false)
 
 	/// Construct an Ebwt from the given input file
 	Ebwt(const string& in,
@@ -629,6 +630,7 @@ public:
         initial_tax_rank_num();
         
         set<uint64_t> leaves;
+        size_t num_cids = 0; // number of compressed sequences
         _uid_to_tid.clear();
         readU32(in3, this->toBe());
         uint64_t nref = readIndex<uint64_t>(in3, this->toBe());
@@ -642,6 +644,9 @@ public:
                     if(c == '\0' || c == '\n') break;
                     uid.push_back(c);
                 }
+                if(uid.find("cid") == 0) {
+                    num_cids++;
+                }
                 tid = readIndex<uint64_t>(in3, this->toBe());
                 _uid_to_tid.expand();
                 _uid_to_tid.back().first = uid;
@@ -650,6 +655,10 @@ public:
                 if(nref == _uid_to_tid.size()) break;
             }
             assert_eq(nref, _uid_to_tid.size());
+        }
+        
+        if(num_cids >= 10) {
+            this->_compressed = true;
         }
         
         _tree.clear();
@@ -1584,6 +1593,7 @@ public:
     const TaxonomyPathTable&                paths() const { return _paths; }
     const std::map<uint64_t, string>&       name() const { return _name; }
     const std::map<uint64_t, uint64_t>&     size() const { return _size; }
+    bool                                    compressed() const { return _compressed; }
     
     
 #ifdef POPCNT_CAPABILITY
@@ -2925,6 +2935,9 @@ public:
 	EList<string> _refnames; /// names of the reference sequences
 	char *mmFile1_;
 	char *mmFile2_;
+    
+    bool                             _compressed; // compressed index?
+    
 	EbwtParams<index_t> _eh;
 	bool packed_;
     
@@ -2933,6 +2946,7 @@ public:
     TaxonomyPathTable                _paths;
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
+    
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;
