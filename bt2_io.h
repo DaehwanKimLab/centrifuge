@@ -276,6 +276,8 @@ void Ebwt<index_t>::readIntoMemory(
 			throw e;
 		}
 	}
+    
+    this->_offw = this->_nPat > std::numeric_limits<uint16_t>::max();
 	
 	bool shmemLeader;
     size_t OFFSET_SIZE;
@@ -523,7 +525,6 @@ void Ebwt<index_t>::readIntoMemory(
         }
 	}
 	
-    this->_offw = this->_nPat > std::numeric_limits<uint16_t>::max();
     OFFSET_SIZE = (this->_offw ? 4 : 2);
 	_offs.reset();
     _offsw.reset();

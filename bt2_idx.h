@@ -964,40 +964,42 @@ public:
         }
         
         // Calculate average genome size
-        for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
-            uint64_t tid = tree_itr->first;
-            const TaxonomyNode& node = tree_itr->second;
-            if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
-               node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
-                size_t sum = 0, count = 0;
-                for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
-                    uint64_t c_tid = size_itr->first;
-                    map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
-                    if(tree_itr2 == _tree.end())
-                        continue;
-                    
-                    assert(tree_itr2 != _tree.end());
-                    const TaxonomyNode& c_node = tree_itr2->second;
-                    if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
-                       tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
-                        c_tid = c_node.parent_tid;
-                        while(true) {
-                            if(c_tid == tid) {
-                                sum += size_itr->second;
-                                count += 1;
-                                break;
+        if(!this->_offw) { // Skip if there are many sequences (e.g. >64K)
+            for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
+                uint64_t tid = tree_itr->first;
+                const TaxonomyNode& node = tree_itr->second;
+                if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
+                   node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
+                    size_t sum = 0, count = 0;
+                    for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
+                        uint64_t c_tid = size_itr->first;
+                        map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
+                        if(tree_itr2 == _tree.end())
+                            continue;
+                        
+                        assert(tree_itr2 != _tree.end());
+                        const TaxonomyNode& c_node = tree_itr2->second;
+                        if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
+                           tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
+                            c_tid = c_node.parent_tid;
+                            while(true) {
+                                if(c_tid == tid) {
+                                    sum += size_itr->second;
+                                    count += 1;
+                                    break;
+                                }
+                                tree_itr2 = _tree.find(c_tid);
+                                if(tree_itr2 == _tree.end())
+                                    break;
+                                if(c_tid == tree_itr2->second.parent_tid)
+                                    break;
+                                c_tid = tree_itr2->second.parent_tid;
                             }
-                            tree_itr2 = _tree.find(c_tid);
-                            if(tree_itr2 == _tree.end())
-                                break;
-                            if(c_tid == tree_itr2->second.parent_tid)
-                                break;
-                            c_tid = tree_itr2->second.parent_tid;
                         }
                     }
-                }
-                if(count > 0) {
-                    _size[tid] = sum / count;
+                    if(count > 0) {
+                        _size[tid] = sum / count;
+                    }
                 }
             }
         }
