@@ -1285,12 +1285,13 @@ public:
 
         // Read taxonomy
         {
-            TaxonomyTree tree;
+            TaxonomyTree tree = read_taxonomy_tree(taxonomy_fname);
             std::set<uint64_t> tree_color;
+
             for(std::set<uint64_t>::iterator itr = tids.begin(); itr != tids.end(); itr++) {
                 uint64_t tid = *itr;
                 if(tree.find(tid) == tree.end()) {
-                    cerr << "Warning: Taxonomy ID " << tid << " is not included in your provided taxonomy tree!" << endl;
+                    cerr << "Warning: Taxonomy ID " << tid << " is not in the provided taxonomy tree (" << taxonomy_fname << ")!" << endl;
 
                 }
                 while(tree.find(tid) != tree.end()) {

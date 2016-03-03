@@ -135,8 +135,8 @@ bacterial and viral genomes to `library/`. Low-complexity regions in the genomes
 download (parameter `-m`) using blast+'s `dustmasker`. `centrifuge-download` outputs tab-separated 
 sequence ID to taxonomy ID mappings to standard out, which are required by `centrifuge-build`.
 
-    centrifuge-download taxonomy
-    centrifuge-download -m -d "archaea,bacteria,viral" refseq > seqid2taxid.map
+    centrifuge-download -o taxonomy taxonomy
+    centrifuge-download -o library -m -d "archaea,bacteria,viral" refseq > seqid2taxid.map
 
 To build the index, first concatenate all downloaded sequences into a single file, and then
 run `centrifuge-build`:
@@ -144,9 +144,9 @@ run `centrifuge-build`:
     cat library/*/*.fna > input-sequences.fna
 
     ## build centrifuge index with 4 threads
-    centrifuge-build -p 4 --conversion-table microbial_seqid2taxid.map \
+    centrifuge-build -p 4 --conversion-table seqid2taxid.map \
                      --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
-                     input-sequences.fna a+b+v
+                     input-sequences.fna abv
 
 After building the index, all files except the index *.[123].cf files may be removed.
 If you also want to include the human and/or the mouse genome, add their sequences to 
@@ -162,11 +162,11 @@ and categorized as reference genomes by RefSeq (`-c`). The argument `-t` takes a
 list of taxonomy IDs - e.g. `9606` for human and `10090` for mouse:
 
     # download mouse and human reference genomes
-    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome' >> seqid2taxid.map
+    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome' >> seqid2taxid.map
     # only human
-    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' >> seqid2taxid.map
+    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' >> seqid2taxid.map
     # only mouse
-    centrifuge-download -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' >> seqid2taxid.map
+    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' >> seqid2taxid.map
 
 ### nt database
 
