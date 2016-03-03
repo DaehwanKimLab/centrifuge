@@ -1274,12 +1274,13 @@ public:
 
         // Read taxonomy
         {
-            std::map<uint64_t, TaxonomyNode> tree;
+            TaxonomyTree tree;
             std::set<uint64_t> tree_color;
             for(std::set<uint64_t>::iterator itr = tids.begin(); itr != tids.end(); itr++) {
                 uint64_t tid = *itr;
                 if(tree.find(tid) == tree.end()) {
-                    cerr << "Warning: " << tid << " is not included in your provided taxonomy tree!" << endl;
+                    cerr << "Warning: Taxonomy ID " << tid << " is not included in your provided taxonomy tree!" << endl;
+
                 }
                 while(tree.find(tid) != tree.end()) {
                     uint64_t parent_tid = tree[tid].parent_tid;
@@ -1578,7 +1579,7 @@ public:
 	bool        fw() const           { return fw_; }
     
     const EList<pair<string, uint64_t> >&   uid_to_tid() const { return _uid_to_tid; }
-    const std::map<uint64_t, TaxonomyNode>& tree() const { return _tree; }
+    const TaxonomyTree& tree() const { return _tree; }
     const TaxonomyPathTable&                paths() const { return _paths; }
     const std::map<uint64_t, string>&       name() const { return _name; }
     const std::map<uint64_t, uint64_t>&     size() const { return _size; }
@@ -2927,7 +2928,7 @@ public:
 	bool packed_;
     
     EList<pair<string, uint64_t> >   _uid_to_tid; // table that converts uid to tid
-    std::map<uint64_t, TaxonomyNode> _tree;
+    TaxonomyTree _tree;
     TaxonomyPathTable                _paths;
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
