@@ -22,6 +22,9 @@
 
 #include <stdlib.h>
 #include <limits>
+#include <map>
+#include <string>
+#include <sstream>
 
 /**
  * C++ version char* style "itoa": Convert integer to string
@@ -64,5 +67,28 @@ uint64_t extractIDFromRefName(const string& refName) {
     return id;
 }
 
+// Converts a numeric value to std::string (part of C++11)
+template <typename T>
+std::string to_string(T value) {
+ ostringstream ss;
+ ss << value;
+ return ss.str();
+}
 
-#endif /*ndef UTIL_H_*/
+/**
+ *
+ */
+template<typename K,typename V>
+inline
+V find_or_use_default(const std::map<K, V>& my_map, const K& query, const V default_value) {
+	typedef typename std::map<K,V>::const_iterator MapIterator;
+	MapIterator itr = my_map.find(query);
+
+	if (itr == my_map.end()) {
+		return default_value;
+	}
+
+	return itr->second;
+}
+
+#endif /*ifndef UTIL_H_*/

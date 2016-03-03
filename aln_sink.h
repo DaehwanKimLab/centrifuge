@@ -30,6 +30,7 @@
 #include "aligner_result.h"
 #include "hyperloglogplus.h"
 #include "timer.h"
+#include "taxonomy.h"
 
 
 // Forward decl
@@ -337,8 +338,8 @@ struct SpeciesMetrics {
             if(tree_itr == tree.end())
                 continue;
             const TaxonomyNode& node = tree_itr->second;
-            cerr << "\t\t\t" << tid << " (" << get_tax_rank_string(node.rank) << "): " << children.size();
-            cerr << "\t\t";
+            cerr << "\t\t\t" << tid << ": " << children.size() << "\t" << get_tax_rank(node.rank) << endl;
+            cerr << "\t\t\t\t";
             for(size_t i = 0; i < children.size(); i++) {
                 cerr << children[i];
                 if(i + 1 < children.size())

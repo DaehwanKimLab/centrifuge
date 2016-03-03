@@ -3122,10 +3122,9 @@ public:
 	UINT next_kmer(UINT word, size_t pos) const {
 		// shift the first two bits off the word
 		word = word << 2;
-
-		//cerr << "ACGT"[this->cs_[pos]] << ": ";
 		// put the base-pair code from pos at that position
 		UINT bp = (UINT)this->cs_[pos];
+
 		return (word |= bp);
 	}
 
@@ -3149,10 +3148,10 @@ public:
 					// skip non-ACGT bases
 					continue;
 				}
-				UINT shift = (UINT)(k_size - j - 1) << 1;
-				//UINT bp_shift = bp << shift;
-				//cerr << "ACGT"[ bp ] << ":" << bitset<k_size*2>(bp) << " " << shift << " " << bitset<k_size*2>(bp << shift) << endl ;
-				word |= (bp << shift);
+				// shift the first two bits off the word
+				word = word << 2;
+				// put the base-pair code from pos at that position
+				word |= bp;
 		}
 		//cerr << endl;
 		return (word);
