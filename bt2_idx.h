@@ -558,7 +558,8 @@ public:
 	    useShmem_(false), \
 	    _refnames(EBWT_CAT), \
 	    mmFile1_(NULL), \
-	    mmFile2_(NULL)
+	    mmFile2_(NULL), \
+        _compressed(false)
 
 	/// Construct an Ebwt from the given input file
 	Ebwt(const string& in,
@@ -629,6 +630,7 @@ public:
         initial_tax_rank_num();
         
         set<uint64_t> leaves;
+        size_t num_cids = 0; // number of compressed sequences
         _uid_to_tid.clear();
         readU32(in3, this->toBe());
         uint64_t nref = readIndex<uint64_t>(in3, this->toBe());
@@ -642,6 +644,9 @@ public:
                     if(c == '\0' || c == '\n') break;
                     uid.push_back(c);
                 }
+                if(uid.find("cid") == 0) {
+                    num_cids++;
+                }
                 tid = readIndex<uint64_t>(in3, this->toBe());
                 _uid_to_tid.expand();
                 _uid_to_tid.back().first = uid;
@@ -650,6 +655,10 @@ public:
                 if(nref == _uid_to_tid.size()) break;
             }
             assert_eq(nref, _uid_to_tid.size());
+        }
+        
+        if(num_cids >= 10) {
+            this->_compressed = true;
         }
         
         _tree.clear();
@@ -697,40 +706,42 @@ public:
         }
         
         // Calculate average genome size
-        for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
-            uint64_t tid = tree_itr->first;
-            const TaxonomyNode& node = tree_itr->second;
-            if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
-               node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
-                size_t sum = 0, count = 0;
-                for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
-                    uint64_t c_tid = size_itr->first;
-                    map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
-                    if(tree_itr2 == _tree.end())
-                        continue;
-                    
-                    assert(tree_itr2 != _tree.end());
-                    const TaxonomyNode& c_node = tree_itr2->second;
-                    if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
-                       tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
-                        c_tid = c_node.parent_tid;
-                        while(true) {
-                            if(c_tid == tid) {
-                                sum += size_itr->second;
-                                count += 1;
-                                break;
+        if(!this->_offw) { // Skip if there are many sequences (e.g. >64K)
+            for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
+                uint64_t tid = tree_itr->first;
+                const TaxonomyNode& node = tree_itr->second;
+                if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
+                   node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
+                    size_t sum = 0, count = 0;
+                    for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
+                        uint64_t c_tid = size_itr->first;
+                        map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
+                        if(tree_itr2 == _tree.end())
+                            continue;
+                        
+                        assert(tree_itr2 != _tree.end());
+                        const TaxonomyNode& c_node = tree_itr2->second;
+                        if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
+                           tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
+                            c_tid = c_node.parent_tid;
+                            while(true) {
+                                if(c_tid == tid) {
+                                    sum += size_itr->second;
+                                    count += 1;
+                                    break;
+                                }
+                                tree_itr2 = _tree.find(c_tid);
+                                if(tree_itr2 == _tree.end())
+                                    break;
+                                if(c_tid == tree_itr2->second.parent_tid)
+                                    break;
+                                c_tid = tree_itr2->second.parent_tid;
                             }
-                            tree_itr2 = _tree.find(c_tid);
-                            if(tree_itr2 == _tree.end())
-                                break;
-                            if(c_tid == tree_itr2->second.parent_tid)
-                                break;
-                            c_tid = tree_itr2->second.parent_tid;
                         }
                     }
-                }
-                if(count > 0) {
-                    _size[tid] = sum / count;
+                    if(count > 0) {
+                        _size[tid] = sum / count;
+                    }
                 }
             }
         }
@@ -1583,6 +1594,7 @@ public:
     const TaxonomyPathTable&                paths() const { return _paths; }
     const std::map<uint64_t, string>&       name() const { return _name; }
     const std::map<uint64_t, uint64_t>&     size() const { return _size; }
+    bool                                    compressed() const { return _compressed; }
     
     
 #ifdef POPCNT_CAPABILITY
@@ -2924,6 +2936,9 @@ public:
 	EList<string> _refnames; /// names of the reference sequences
 	char *mmFile1_;
 	char *mmFile2_;
+    
+    bool                             _compressed; // compressed index?
+    
 	EbwtParams<index_t> _eh;
 	bool packed_;
     
@@ -2932,6 +2947,7 @@ public:
     TaxonomyPathTable                _paths;
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
+    
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;

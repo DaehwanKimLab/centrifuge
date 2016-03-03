@@ -575,17 +575,19 @@ typedef int64_t THitInt;
  */
 struct ReportingParams {
 
-	explicit ReportingParams(
-		THitInt khits_)
+	explicit ReportingParams(THitInt khits_, bool compressed_)
 	{
-		init(khits_);
+		init(khits_, compressed_);
 	}
 
-	void init(
-		THitInt khits_)
+	void init(THitInt khits_, bool compressed_)
 	{
 		khits = khits_;     // -k (or high if -a)
-        ihits = khits * 4;
+        if(compressed_) {
+            ihits = khits * 4;
+        } else {
+            ihits = khits * 40;
+        }
 	}
 	
 #ifndef NDEBUG

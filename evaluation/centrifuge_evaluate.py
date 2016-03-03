@@ -578,11 +578,6 @@ if __name__ == "__main__":
                         dest='sql',
                         action='store_false',
                         help='Do not write results into a sqlite database')
-    parser.add_argument("--simulate-interval",
-                        dest="simulate_interval",
-                        type=int,
-                        default=1,
-                        help="Reads simulated at every these base pairs (default: 1)")
     parser.add_argument('-v', '--verbose',
                         dest='verbose',
                         action='store_true',

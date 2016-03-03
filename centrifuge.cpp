@@ -2219,8 +2219,8 @@ static void multiseedSearchWorker(void *vp) {
 	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
 	// Instantiate an object for holding reporting-related parameters.
-    ReportingParams rp(
-                       (allHits ? std::numeric_limits<THitInt>::max() : khits)); // -k
+    ReportingParams rp((allHits ? std::numeric_limits<THitInt>::max() : khits),
+                       ebwtFw.compressed()); // -k
 
 	// Make a per-thread wrapper for the global MHitSink object.
 	AlnSinkWrap<index_t> msinkwrap(
