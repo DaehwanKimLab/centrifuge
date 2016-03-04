@@ -759,6 +759,10 @@ range with respect to the first `<int>` characters of the query.  A larger
 
 Use `<int>` as the seed for pseudo-random number generator.
 
+    --kmer-count <int>
+
+Use `<int>` as kmer-size for counting the distinct number of k-mers in the input sequences.
+
     -q/--quiet
 
 `centrifuge-build` is verbose by default.  With this option `centrifuge-build` will
