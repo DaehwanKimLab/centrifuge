@@ -821,6 +821,7 @@ public:
          int32_t overrideOffRate = -1,
          bool doSaFile = false,
          bool doBwtFile = false,
+         int kmer_size = 0,
          bool verbose = false,
          bool passMemExc = false,
          bool sanityCheck = false) :
@@ -887,6 +888,7 @@ public:
 							 fout2,
                              saOut,
                              bwtOut,
+                             kmer_size,
                              file,
                              conversion_table_fname,
                              taxonomy_fname,
@@ -1148,6 +1150,7 @@ public:
 	                    ofstream& out2,
                         ofstream* saOut,
                         ofstream* bwtOut,
+                        int kmer_size,
                         const string& base_fname,
                         const string& conversion_table_fname,
                         const string& taxonomy_fname,
@@ -1484,7 +1487,7 @@ public:
 				assert(bsa.suffixItrIsReset());
 				assert_eq(bsa.size(), s.length()+1);
 				VMSG_NL("Converting suffix-array elements to index image");
-				buildToDisk(bsa, s, out1, out2, saOut, bwtOut);
+				buildToDisk(bsa, s, out1, out2, saOut, bwtOut, szs, kmer_size);
 				out1.flush(); out2.flush();
                 bool failed = out1.fail() || out2.fail();
                 if(saOut != NULL) {
@@ -2014,7 +2017,7 @@ public:
 	template <typename TStr> static TStr join(EList<TStr>& l, uint32_t seed);
 	template <typename TStr> static TStr join(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, uint32_t seed);
 	template <typename TStr> void joinToDisk(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, TStr& ret, ostream& out1, ostream& out2);
-	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut);
+	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut, const EList<RefRecord>& szs, int kmer_size);
 
 	// I/O
 	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams<index_t> *params, bool mmSweep, bool loadNames, bool startVerbose);
@@ -3248,7 +3251,9 @@ void Ebwt<index_t>::buildToDisk(
                                 ostream& out1,
                                 ostream& out2,
                                 ostream* saOut,
-                                ostream* bwtOut)
+                                ostream* bwtOut,
+                                const EList<RefRecord>& szs,
+                                int kmer_size)
 {
 	const EbwtParams<index_t>& eh = this->_eh;
 
@@ -3269,7 +3274,7 @@ void Ebwt<index_t>::buildToDisk(
 	// Save # of occurrences of each character as we walk along the bwt
 	index_t occ[4] = {0, 0, 0, 0};
 	index_t occSave[4] = {0, 0, 0, 0};
-
+    
 	// Record rows that should "absorb" adjacent rows in the ftab.
 	// The absorbed rows represent suffixes shorter than the ftabChars
 	// cutoff.
@@ -3342,6 +3347,25 @@ void Ebwt<index_t>::buildToDisk(
         writeIndex<index_t>(*bwtOut, len+1, this->toBe());
     }
     
+    // Count the number of distinct k-mers if kmer_size is non-zero
+    EList<uint8_t> kmer;
+    size_t kmer_count = 0;
+    EList<size_t> acc_szs;
+    if(kmer_size > 0) {
+        kmer.resize(kmer_size);
+        kmer.fillZero();
+        for(size_t i = 0; i < szs.size(); i++) {
+            if(szs[i].first) {
+                size_t size = 0;
+                if(acc_szs.size() > 0) {
+                    size = acc_szs.back();
+                }
+                acc_szs.expand();
+                acc_szs.back() = size;
+            }
+            acc_szs.back() += szs[i].len;
+        }
+    }
 	while(side < ebwtTotSz) {
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
@@ -3416,6 +3440,25 @@ void Ebwt<index_t>::buildToDisk(
 					assert_lt(absorbCnt, 255);
 					absorbCnt++;
 				}
+                // Update the number of distinct k-mers
+                if(kmer_size > 0) {
+                    size_t idx = acc_szs.bsearchLoBound(saElt);
+                    assert_lt(idx, acc_szs.size());
+                    if((acc_szs[idx]-saElt) >= kmer_size) {
+                        bool distinct = false;
+                        for(int i = 0; i < kmer_size; i++) {
+                            assert_lt((index_t)i, len-saElt);
+                            uint8_t bp = s[saElt+i];
+                            if(kmer[i] != bp) {
+                                distinct = true;
+                            }
+                            kmer[i] = bp;
+                        }
+                        if(distinct || kmer_count <= 0) {
+                            kmer_count++;
+                        }
+                    }
+                }
 				// Suffix array offset boundary? - update offset array
 				if((si & eh._offMask) == si) {
 					assert_lt((si >> eh._offRate), eh._offsLen);
@@ -3589,6 +3632,10 @@ void Ebwt<index_t>::buildToDisk(
 	for(index_t i = 0; i < eftabLen; i++) {
 		writeIndex<index_t>(out1, eftab[i], this->toBe());
 	}
+    
+    if(kmer_size > 0) {
+        cerr << "Number of distinct " << kmer_size << "-mer is " << kmer_count << endl;
+    }
 
 	// Note: if you'd like to sanity-check the Ebwt, you'll have to
 	// read it back into memory first!

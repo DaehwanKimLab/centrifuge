@@ -74,6 +74,7 @@ static bool writeRef;
 static bool justRef;
 static bool reverseEach;
 static string wrapper;
+static int kmer_count;
 
 static void resetOptions() {
 	verbose        = true;  // be talkative (default)
@@ -109,6 +110,7 @@ static void resetOptions() {
 	justRef        = false; // *just* write compact reference, don't index
 	reverseEach    = false;
     wrapper.clear();
+    kmer_count     = 0; // k : k-mer to be counted
 }
 
 // Argument constants for getopts
@@ -131,7 +133,8 @@ enum {
     ARG_CONVERSION_TABLE,
     ARG_TAXONOMY_TREE,
     ARG_NAME_TABLE,
-    ARG_SIZE_TABLE
+    ARG_SIZE_TABLE,
+    ARG_KMER_COUNT,
 };
 
 /**
@@ -170,6 +173,7 @@ static void printUsage(ostream& out) {
 	    << "    --seed <int>            seed for random number generator" << endl
 	    << "    -q/--quiet              verbose output (for debugging)" << endl
         << "    -p/--threads <int>      number of alignment threads to launch (1)" << endl
+        << "    --kmer-count <int>      k size for counting the number of distinct k-mer" << endl
 	    << "    -h/--help               print detailed description of tool and its options" << endl
 	    << "    --usage                 print this usage message" << endl
 	    << "    --version               print version information and quit" << endl
@@ -217,7 +221,7 @@ static struct option long_options[] = {
 	{(char*)"ntoa",           no_argument,       0,            ARG_NTOA},
 	{(char*)"justref",        no_argument,       0,            '3'},
 	{(char*)"noref",          no_argument,       0,            'r'},
-	{(char*)"color",          no_argument,       0,            'C'},
+	{(char*)"kmer-count",     required_argument, 0,            ARG_KMER_COUNT},
     {(char*)"sa",             no_argument,       0,            ARG_SA},
 	{(char*)"reverse-each",   no_argument,       0,            ARG_REVERSE_EACH},
 	{(char*)"usage",          no_argument,       0,            ARG_USAGE},
@@ -340,6 +344,9 @@ static void parseOptions(int argc, const char **argv) {
                 break;
             case ARG_SIZE_TABLE:
                 size_table_fname = optarg;
+                break;
+            case ARG_KMER_COUNT:
+                kmer_count = parseNumber<int>(1, "--kmer-count arg must be at least 1");
                 break;
 			case 'a': autoMem = false; break;
 			case 'q': verbose = false; break;
@@ -490,6 +497,7 @@ static void driver(
                           -1,           // override offRate
                           doSaFile,     // make a file with just the suffix array in it
                           doBwtFile,    // make a file with just the BWT string in it
+                          kmer_count,   // Count the number of distinct k-mers if non-zero
                           verbose,      // be talkative
                           autoMem,      // pass exceptions up to the toplevel so that we can adjust memory settings automatically
                           sanityCheck); // verify results and internal consistency

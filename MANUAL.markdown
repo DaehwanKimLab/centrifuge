@@ -1234,6 +1234,14 @@ Use `<int>` as the seed for pseudo-random number generator.
 
 </td></tr><tr><td>
 
+    --kmer-count <int>
+
+</td><td>
+
+Use `<int>` as kmer-size for counting the distinct number of k-mers in the input sequences.
+
+</td></tr><tr><td>
+
     -q/--quiet
 
 </td><td>
