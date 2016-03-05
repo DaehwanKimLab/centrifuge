@@ -18,7 +18,7 @@ use Cwd 'abs_path' ;
 my $CWD = dirname( abs_path( $0 ) ) ;
 my $PWD = abs_path( "./" ) ;
 
-my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-map header_to_taxid_map -o compressed -noCompress -t 1 -maxG -1 -noDustmasker]\n" ;
+my $usage = "USAGE: perl ".basename($0)." path_to_download_files path_to_taxnonomy [-map header_to_taxid_map -o compressed -noCompress -t 1 -maxG 50000000 -noDustmasker]\n" ;
 
 my $level = "species" ;
 my $output = "compressed" ;
@@ -27,7 +27,7 @@ my $numOfThreads = 1 ;
 my $noCompress = 0 ;
 my $noDustmasker = 0 ;
 my $verbose = 0;
-my $maxGenomeSizeForCompression = -1 ;
+my $maxGenomeSizeForCompression = 50000000 ;
 my $mapFile = "" ;
 
 GetOptions ("level|l=s" => \$level,
@@ -125,7 +125,7 @@ find ( { wanted=>sub {
 	if ( $noCompress == 1 )
 	{
 		# it seems the find will change the working directory
-		#system_call( "cat $PWD/$fullfile >> $PWD/tmp_output.fa" ) ;
+		system_call( "cat $PWD/$fullfile >> $PWD/tmp_output.fa" ) ;
 		if ( defined $idToTaxId{ $headId } )
 		{
 			$newIdToTaxId{ $headId } = $idToTaxId{ $headId } ;
@@ -199,13 +199,13 @@ if ( $noCompress == 1 )
 # Remove the Ns from the file
 	if ( $noDustmasker == 1 )
 	{
-		system_call("$bssPath/centrifuge-RemoveN tmp_output.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
+		system_call("perl $bssPath/centrifuge-RemoveN.pl tmp_output.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 	}
 	else
 	{
-		system_call("$bssPath/centrifuge-RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
+		system_call("perl $bssPath/centrifuge-RemoveN.pl tmp_output.fa > tmp_output_fmt.fa") ;
 		system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
-		system_call("$bssPath/centrifuge-RemoveN tmp_output_dustmasker.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
+		system_call("perl $bssPath/centrifuge-RemoveN.pl tmp_output_dustmasker.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 	}
 }
 
@@ -469,7 +469,7 @@ sub solve
 				open FP1, $file ;
 				while ( <FP1> )
 				{
-					chomp ;
+					#chomp ;
 					next if ( /^>/ ) ;
 					$seq .= $_ ;
 				}
@@ -548,13 +548,13 @@ foreach $i ( keys %fileUsed )
 # Remove the Ns from the file
 if ( $noDustmasker == 1 )
 {
-	system_call("$bssPath/centrifuge-RemoveN tmp_output.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
+	system_call("perl $bssPath/centrifuge-RemoveN.pl tmp_output.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 }
 else
 {
-	system_call("$bssPath/centrifuge-RemoveN tmp_output.fa > tmp_output_fmt.fa") ;
+	system_call("perl $bssPath/centrifuge-RemoveN.pl tmp_output.fa > tmp_output_fmt.fa") ;
 	system_call( "dustmasker -infmt fasta -in tmp_output_fmt.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > tmp_output_dustmasker.fa" ) ;
-	system_call("$bssPath/centrifuge-RemoveN tmp_output_dustmasker.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
+	system_call("perl $bssPath/centrifuge-RemoveN.pl tmp_output_dustmasker.fa | perl $bssPath/centrifuge-RemoveEmptySequence.pl > $output.fa") ;
 }
 
 # Output the mapping of the ids to species
