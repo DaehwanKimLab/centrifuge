@@ -247,8 +247,9 @@ public:
 	 * from or as the sequences themselves (i.e. if -c was used).
 	 */
 	static PatternSource* patsrcFromStrings(
-		const PatternParams& p,
-		const EList<string>& qs);
+                                            const PatternParams& p,
+                                            const EList<string>& qs,
+                                            int nthreads);
 
 	/**
 	 * Return the number of reads attempted.
@@ -327,6 +328,7 @@ public:
 		const EList<string>& q1,    // qualities associated with m1
 		const EList<string>& q2,    // qualities associated with m2
 		const PatternParams& p,     // read-in params
+                                                    int nthreads,
 		bool verbose);              // be talkative?
 
 protected:
@@ -1637,12 +1639,14 @@ class SRAPatternSource : public PatternSource {
 public:
     SRAPatternSource(
                      const EList<string>& sra_accs,
-                     const PatternParams& p) :
+                     const PatternParams& p,
+                     const size_t nthreads = 1) :
     PatternSource(p),
     sra_accs_(sra_accs),
     sra_acc_cur_(0),
     skip_(p.skip),
     first_(true),
+    nthreads_(nthreads),
     sra_run_(NULL),
     sra_it_(NULL),
     sra_data_(NULL),
@@ -1770,11 +1774,13 @@ protected:
     TReadId skip_;           // number of reads to skip
     bool first_;
     
+    size_t nthreads_;
+    
     ngs::ReadCollection* sra_run_;
     ngs::ReadIterator* sra_it_;
     
     SRA_Data* sra_data_;
-    tthread::thread* io_thread_;    
+    tthread::thread* io_thread_;
 };
 
 #endif

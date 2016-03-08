@@ -46,8 +46,9 @@ using namespace std;
  * from or as the sequences themselves (i.e. if -c was used).
  */
 PatternSource* PatternSource::patsrcFromStrings(
-	const PatternParams& p,
-	const EList<string>& qs)
+                                                const PatternParams& p,
+                                                const EList<string>& qs,
+                                                int nthreads)
 {
 	switch(p.format) {
 		case FASTA:       return new FastaPatternSource(qs, p);
@@ -60,7 +61,7 @@ PatternSource* PatternSource::patsrcFromStrings(
 		case QSEQ:        return new QseqPatternSource(qs, p);
 #ifdef USE_SRA
         case SRA_FASTA:
-        case SRA_FASTQ: return new SRAPatternSource(qs, p);
+        case SRA_FASTQ: return new SRAPatternSource(qs, p, nthreads);
 #endif
 		default: {
 			cerr << "Internal error; bad patsrc format: " << p.format << endl;
@@ -337,6 +338,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 	const EList<string>& q1,   // qualities associated with m1
 	const EList<string>& q2,   // qualities associated with m2
 	const PatternParams& p,    // read-in parameters
+                                                              int nthreads,
 	bool verbose)              // be talkative?
 {
 	EList<PatternSource*>* a  = new EList<PatternSource*>();
@@ -353,7 +355,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 			tmp.push_back(m12[i]);
 			assert_eq(1, tmp.size());
 		}
-		ab->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		ab->push_back(PatternSource::patsrcFromStrings(p, *qs, nthreads));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -369,7 +371,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
             tmp.push_back(sra_accs[i]);
             assert_eq(1, tmp.size());
         }
-        ab->push_back(PatternSource::patsrcFromStrings(p, *qs));
+        ab->push_back(PatternSource::patsrcFromStrings(p, *qs, nthreads));
         if(!p.fileParallel) {
             break;
         }
@@ -387,7 +389,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 			tmpSeq.push_back(m1[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		a->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		a->push_back(PatternSource::patsrcFromStrings(p, *qs, nthreads));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -404,7 +406,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 			tmpSeq.push_back(m2[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		b->push_back(PatternSource::patsrcFromStrings(p, *qs));
+		b->push_back(PatternSource::patsrcFromStrings(p, *qs, nthreads));
 		if(!p.fileParallel) {
 			break;
 		}
@@ -424,7 +426,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 			tmpSeq.push_back(si[i]);
 			assert_eq(1, tmpSeq.size());
 		}
-		patsrc = PatternSource::patsrcFromStrings(p, *qs);
+		patsrc = PatternSource::patsrcFromStrings(p, *qs, nthreads);
 		assert(patsrc != NULL);
 		a->push_back(patsrc);
 		b->push_back(NULL);
@@ -435,7 +437,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 
 	PairedPatternSource *patsrc = NULL;
 #ifdef USE_SRA
-	if(m12.size() > 0 || sra_accs.size() > 0) {
+    if(m12.size() > 0 || sra_accs.size() > 0) {
 #else
     if(m12.size() > 0) {
 #endif
@@ -1522,258 +1524,260 @@ void tooManyQualities(const BTString& read_name) {
 
 #ifdef USE_SRA
     
-struct SRA_Read {
-    BTString    name;      // read name
-    BTDnaString patFw;     // forward-strand sequence
-    BTString    qual;      // quality values
-    
-    void reset() {
-        name.clear();
-        patFw.clear();
-        qual.clear();
-    }
-};
-
-static const uint64_t SRA_buffer_size = 16 * 1024;
-    
-struct SRA_Data {
-    uint64_t read_pos;
-    uint64_t write_pos;
-    bool     done;
-    pair<SRA_Read, SRA_Read> paired_reads[SRA_buffer_size];
-    
-    ngs::ReadIterator* sra_it;
-    
-    SRA_Data() {
-        read_pos = 0;
-        write_pos = 0;
-        done = false;
-        sra_it = NULL;
-    }
-    
-    bool isFull() {
-        assert_leq(read_pos, write_pos);
-        assert_geq(read_pos + SRA_buffer_size, write_pos);
-        return read_pos + SRA_buffer_size <= write_pos;
-    }
-    
-    bool isEmpty() {
-        assert_leq(read_pos, write_pos);
-        assert_geq(read_pos + SRA_buffer_size, write_pos);
-        return read_pos == write_pos;
-    }
-    
-    pair<SRA_Read, SRA_Read>& getPairForRead() {
-        assert(!isEmpty());
-        return paired_reads[read_pos % SRA_buffer_size];
-    }
-    
-    pair<SRA_Read, SRA_Read>& getPairForWrite() {
-        assert(!isFull());
-        return paired_reads[write_pos % SRA_buffer_size];
-    }
-    
-    void advanceReadPos() {
-        assert(!isEmpty());
-        read_pos++;
-    }
-    
-    void advanceWritePos() {
-        assert(!isFull());
-        write_pos++;
-    }
-};
-
-static void SRA_IO_Worker(void *vp)
-{
-    SRA_Data* sra_data = (SRA_Data*)vp;
-    assert(sra_data != NULL);
-    ngs::ReadIterator* sra_it = sra_data->sra_it;
-    assert(sra_it != NULL);
-    
-    while(!sra_data->done) {
-        while(sra_data->isFull()) {
-#if defined(_TTHREAD_WIN32_)
-            Sleep(1);
-#elif defined(_TTHREAD_POSIX_)
-            const static timespec ts = {0, 1000000};  // 1 millisecond
-            nanosleep(&ts, NULL);
-#endif
+    struct SRA_Read {
+        SStringExpandable<char, 64>      name;      // read name
+        SDnaStringExpandable<128, 2>     patFw;     // forward-strand sequence
+        SStringExpandable<char, 128, 2>  qual;      // quality values
+        
+        void reset() {
+            name.clear();
+            patFw.clear();
+            qual.clear();
         }
-        pair<SRA_Read, SRA_Read>& pair = sra_data->getPairForWrite();
-        SRA_Read& ra = pair.first;
-        SRA_Read& rb = pair.second;
-        bool exception_thrown = false;
-        try {
-            if(!sra_it->nextRead() || !sra_it->nextFragment()) {
+    };
+    
+    static const uint64_t buffer_size_per_thread = 4096;
+    
+    struct SRA_Data {
+        uint64_t read_pos;
+        uint64_t write_pos;
+        uint64_t buffer_size;
+        bool     done;
+        EList<pair<SRA_Read, SRA_Read> > paired_reads;
+        
+        ngs::ReadIterator* sra_it;
+        
+        SRA_Data() {
+            read_pos = 0;
+            write_pos = 0;
+            buffer_size = buffer_size_per_thread;
+            done = false;
+            sra_it = NULL;
+        }
+        
+        bool isFull() {
+            assert_leq(read_pos, write_pos);
+            assert_geq(read_pos + buffer_size, write_pos);
+            return read_pos + buffer_size <= write_pos;
+        }
+        
+        bool isEmpty() {
+            assert_leq(read_pos, write_pos);
+            assert_geq(read_pos + buffer_size, write_pos);
+            return read_pos == write_pos;
+        }
+        
+        pair<SRA_Read, SRA_Read>& getPairForRead() {
+            assert(!isEmpty());
+            return paired_reads[read_pos % buffer_size];
+        }
+        
+        pair<SRA_Read, SRA_Read>& getPairForWrite() {
+            assert(!isFull());
+            return paired_reads[write_pos % buffer_size];
+        }
+        
+        void advanceReadPos() {
+            assert(!isEmpty());
+            read_pos++;
+        }
+        
+        void advanceWritePos() {
+            assert(!isFull());
+            write_pos++;
+        }
+    };
+    
+    static void SRA_IO_Worker(void *vp)
+    {
+        SRA_Data* sra_data = (SRA_Data*)vp;
+        assert(sra_data != NULL);
+        ngs::ReadIterator* sra_it = sra_data->sra_it;
+        assert(sra_it != NULL);
+        
+        while(!sra_data->done) {
+            while(sra_data->isFull()) {
+#if defined(_TTHREAD_WIN32_)
+                Sleep(1);
+#elif defined(_TTHREAD_POSIX_)
+                const static timespec ts = {0, 1000000};  // 1 millisecond
+                nanosleep(&ts, NULL);
+#endif
+            }
+            pair<SRA_Read, SRA_Read>& pair = sra_data->getPairForWrite();
+            SRA_Read& ra = pair.first;
+            SRA_Read& rb = pair.second;
+            bool exception_thrown = false;
+            try {
+                if(!sra_it->nextRead() || !sra_it->nextFragment()) {
+                    ra.reset();
+                    rb.reset();
+                    sra_data->done = true;
+                    return;
+                }
+                
+                // Read the name out of the first field
+                ngs::StringRef rname = sra_it->getReadId();
+                ra.name.install(rname.data(), rname.size());
+                assert(!ra.name.empty());
+                
+                ngs::StringRef ra_seq = sra_it->getFragmentBases();
+                if(gTrim5 + gTrim3 < (int)ra_seq.size()) {
+                    ra.patFw.installChars(ra_seq.data() + gTrim5, ra_seq.size() - gTrim5 - gTrim3);
+                }
+                ngs::StringRef ra_qual = sra_it->getFragmentQualities();
+                if(ra_seq.size() == ra_qual.size() && gTrim5 + gTrim3 < (int)ra_qual.size()) {
+                    ra.qual.install(ra_qual.data() + gTrim5, ra_qual.size() - gTrim5 - gTrim3);
+                } else {
+                    ra.qual.resize(ra.patFw.length());
+                    ra.qual.fill('I');
+                }
+                assert_eq(ra.patFw.length(), ra.qual.length());
+                
+                if(!sra_it->nextFragment()) {
+                    rb.reset();
+                } else {
+                    // rb.name = ra.name;
+                    ngs::StringRef rb_seq = sra_it->getFragmentBases();
+                    if(gTrim5 + gTrim3 < (int)rb_seq.size()) {
+                        rb.patFw.installChars(rb_seq.data() + gTrim5, rb_seq.size() - gTrim5 - gTrim3);
+                    }
+                    ngs::StringRef rb_qual = sra_it->getFragmentQualities();
+                    if(rb_seq.size() == rb_qual.size() && gTrim5 + gTrim3 < (int)rb_qual.size()) {
+                        rb.qual.install(rb_qual.data() + gTrim5, rb_qual.size() - gTrim5 - gTrim3);
+                    } else {
+                        rb.qual.resize(rb.patFw.length());
+                        rb.qual.fill('I');
+                    }
+                    assert_eq(rb.patFw.length(), rb.qual.length());
+                }
+                sra_data->advanceWritePos();
+            } catch(ngs::ErrorMsg & x) {
+                cerr << x.toString () << endl;
+                exception_thrown = true;
+            } catch(exception & x) {
+                cerr << x.what () << endl;
+                exception_thrown = true;
+            } catch(...) {
+                cerr << "unknown exception\n";
+                exception_thrown = true;
+            }
+            
+            if(exception_thrown) {
                 ra.reset();
                 rb.reset();
                 sra_data->done = true;
-                return;
+                cerr << "An error happened while fetching SRA reads. Please rerun HISAT2. You may want to disable the SRA cache if you didn't (see the instructions at https://github.com/ncbi/sra-tools/wiki/Toolkit-Configuration).\n";
+                exit(1);
             }
-            
-            // Read the name out of the first field
-            ngs::StringRef rname = sra_it->getReadId();
-            ra.name.install(rname.data(), rname.size());
-            assert(!ra.name.empty());
-            
-            ngs::StringRef ra_seq = sra_it->getFragmentBases();
-            if(gTrim5 + gTrim3 < ra_seq.size()) {
-                ra.patFw.installChars(ra_seq.data() + gTrim5, ra_seq.size() - gTrim5 - gTrim3);
-            }
-            ngs::StringRef ra_qual = sra_it->getFragmentQualities();
-            if(ra_seq.size() == ra_qual.size() && gTrim5 + gTrim3 < ra_qual.size()) {
-                ra.qual.install(ra_qual.data() + gTrim5, ra_qual.size() - gTrim5 - gTrim3);
-            } else {
-                ra.qual.resize(ra.patFw.length());
-                ra.qual.fill('I');
-            }
-            assert_eq(ra.patFw.length(), ra.qual.length());
-            
-            if(!sra_it->nextFragment()) {
+        }
+    }
+    
+    SRAPatternSource::~SRAPatternSource() {
+        if(io_thread_) delete io_thread_;
+        if(sra_data_) delete sra_data_;
+        if(sra_it_) delete sra_it_;
+        if(sra_run_) delete sra_run_;
+    }
+    
+    /// Read another pair of patterns from a FASTA input file
+    bool SRAPatternSource::readPair(
+                                    Read& ra,
+                                    Read& rb,
+                                    TReadId& rdid,
+                                    TReadId& endid,
+                                    bool& success,
+                                    bool& done,
+                                    bool& paired)
+    {
+        assert(sra_run_ != NULL && sra_it_ != NULL);
+        success = true;
+        done = false;
+        while(sra_data_->isEmpty()) {
+            if(sra_data_->done && sra_data_->isEmpty()) {
+                ra.reset();
                 rb.reset();
-            } else {
-                // rb.name = ra.name;
-                ngs::StringRef rb_seq = sra_it->getFragmentBases();
-                if(gTrim5 + gTrim3 < rb_seq.size()) {
-                    rb.patFw.installChars(rb_seq.data() + gTrim5, rb_seq.size() - gTrim5 - gTrim3);
-                }
-                ngs::StringRef rb_qual = sra_it->getFragmentQualities();
-                if(rb_seq.size() == rb_qual.size() && gTrim5 + gTrim3 < rb_qual.size()) {
-                    rb.qual.install(rb_qual.data() + gTrim5, rb_qual.size() - gTrim5 - gTrim3);
-                } else {
-                    rb.qual.resize(rb.patFw.length());
-                    rb.qual.fill('I');
-                }
-                assert_eq(rb.patFw.length(), rb.qual.length());
+                success = false;
+                done = true;
+                return false;
             }
             
-            sra_data->advanceWritePos();
-            
-#if 0
-            // ra.readOrigBuf.install(fb_.lastN(), fb_.lastNLen());
-            
+#if defined(_TTHREAD_WIN32_)
+            Sleep(1);
+#elif defined(_TTHREAD_POSIX_)
+            const static timespec ts = {0, 1000000}; // 1 millisecond
+            nanosleep(&ts, NULL);
 #endif
-        } catch(ngs::ErrorMsg & x) {
-            cerr << x.toString () << endl;
-            exception_thrown = true;
-        } catch(exception & x) {
-            cerr << x.what () << endl;
-            exception_thrown = true;
-        } catch(...) {
-            cerr << "unknown exception\n";
-            exception_thrown = true;
         }
         
-        if(exception_thrown) {
-            ra.reset();
+        pair<SRA_Read, SRA_Read>& pair = sra_data_->getPairForRead();
+        ra.name.install(pair.first.name.buf(), pair.first.name.length());
+        ra.patFw.install(pair.first.patFw.buf(), pair.first.patFw.length());
+        ra.qual.install(pair.first.qual.buf(), pair.first.qual.length());
+        ra.trimmed3 = gTrim3;
+        ra.trimmed5 = gTrim5;
+        if(pair.second.patFw.length() > 0) {
+            rb.name.install(pair.first.name.buf(), pair.first.name.length());
+            rb.patFw.install(pair.second.patFw.buf(), pair.second.patFw.length());
+            rb.qual.install(pair.second.qual.buf(), pair.second.qual.length());
+            rb.trimmed3 = gTrim3;
+            rb.trimmed5 = gTrim5;
+            paired = true;
+        } else {
             rb.reset();
-            sra_data->done = true;
+        }
+        sra_data_->advanceReadPos();
+        
+        rdid = endid = readCnt_;
+        readCnt_++;
+        
+        return true;
+    }
+    
+    void SRAPatternSource::open() {
+        string version = "centrifuge-";
+        version += CENTRIFUGE_VERSION;
+        ncbi::NGS::setAppVersionString(version.c_str());
+        assert(!sra_accs_.empty());
+        while(sra_acc_cur_ < sra_accs_.size()) {
+            // Open read
+            if(sra_it_) {
+                delete sra_it_;
+                sra_it_ = NULL;
+            }
+            if(sra_run_) {
+                delete sra_run_;
+                sra_run_ = NULL;
+            }
+            try {
+                // open requested accession using SRA implementation of the API
+                sra_run_ = new ngs::ReadCollection(ncbi::NGS::openReadCollection(sra_accs_[sra_acc_cur_]));
+                // compute window to iterate through
+                size_t MAX_ROW = sra_run_->getReadCount();
+                sra_it_ = new ngs::ReadIterator(sra_run_->getReadRange(1, MAX_ROW, ngs::Read::all));
+                
+                // create a buffer for SRA data
+                sra_data_ = new SRA_Data;
+                sra_data_->sra_it = sra_it_;
+                sra_data_->buffer_size = nthreads_ * buffer_size_per_thread;
+                sra_data_->paired_reads.resize(sra_data_->buffer_size);
+                
+                // create a thread for handling SRA data access
+                io_thread_ = new tthread::thread(SRA_IO_Worker, (void*)sra_data_);
+                // io_thread_->join();
+            } catch(...) {
+                if(!errs_[sra_acc_cur_]) {
+                    cerr << "Warning: Could not access \"" << sra_accs_[sra_acc_cur_].c_str() << "\" for reading; skipping..." << endl;
+                    errs_[sra_acc_cur_] = true;
+                }
+                sra_acc_cur_++;
+                continue;
+            }
             return;
         }
-    }
-}
-
-SRAPatternSource::~SRAPatternSource() {
-    if(io_thread_) delete io_thread_;
-    if(sra_data_) delete sra_data_;
-    if(sra_it_) delete sra_it_;
-    if(sra_run_) delete sra_run_;
-}
-
-/// Read another pair of patterns from a FASTA input file
-bool SRAPatternSource::readPair(
-                                Read& ra,
-                                Read& rb,
-                                TReadId& rdid,
-                                TReadId& endid,
-                                bool& success,
-                                bool& done,
-                                bool& paired)
-{
-    assert(sra_run_ != NULL && sra_it_ != NULL);
-    success = true;
-    done = false;
-    while(sra_data_->isEmpty()) {
-        if(sra_data_->done && sra_data_->isEmpty()) {
-            ra.reset();
-            rb.reset();
-            success = false;
-            done = true;
-            return false;
-        }
-        
-#if defined(_TTHREAD_WIN32_)
-        Sleep(1);
-#elif defined(_TTHREAD_POSIX_)
-        const static timespec ts = {0, 1000000}; // 1 millisecond
-        nanosleep(&ts, NULL);
-#endif
-    }
-    
-    pair<SRA_Read, SRA_Read>& pair = sra_data_->getPairForRead();
-    ra.name = pair.first.name;
-    ra.patFw = pair.first.patFw;
-    ra.qual = pair.first.qual;
-    ra.trimmed3 = gTrim3;
-    ra.trimmed5 = gTrim5;
-    if(pair.second.patFw.length() > 0) {
-        rb.name = pair.first.name;
-        rb.patFw = pair.second.patFw;
-        rb.qual = pair.second.qual;
-        rb.trimmed3 = gTrim3;
-        rb.trimmed5 = gTrim5;
-        paired = true;
-    } else {
-        rb.reset();
-    }
-    sra_data_->advanceReadPos();
-    
-    rdid = endid = readCnt_;
-    readCnt_++;
-    
-    return true;
-}
-
-void SRAPatternSource::open() {
-    assert(!sra_accs_.empty());
-    while(sra_acc_cur_ < sra_accs_.size()) {
-        // Open read
-        if(sra_it_) {
-            delete sra_it_;
-            sra_it_ = NULL;
-        }
-        if(sra_run_) {
-            delete sra_run_;
-            sra_run_ = NULL;
-        }
-        try {
-            // open requested accession using SRA implementation of the API
-            sra_run_ = new ngs::ReadCollection(ncbi::NGS::openReadCollection(sra_accs_[sra_acc_cur_]));
-            // compute window to iterate through
-            size_t MAX_ROW = sra_run_->getReadCount();
-            sra_it_ = new ngs::ReadIterator(sra_run_->getReadRange(1, MAX_ROW, ngs::Read::all));
-            
-            // create a buffer for SRA data
-            sra_data_ = new SRA_Data;
-            sra_data_->sra_it = sra_it_;
-            
-            // create a thread for handling SRA data access
-            io_thread_ = new tthread::thread(SRA_IO_Worker, (void*)sra_data_);
-            // io_thread_->join();
-        } catch(...) {
-            if(!errs_[sra_acc_cur_]) {
-                cerr << "Warning: Could not access \"" << sra_accs_[sra_acc_cur_].c_str() << "\" for reading; skipping..." << endl;
-                errs_[sra_acc_cur_] = true;
-            }
-            sra_acc_cur_++;
-            continue;
-        }
+        cerr << "Error: No input SRA accessions were valid" << endl;
+        exit(1);
         return;
     }
-    cerr << "Error: No input SRA accessions were valid" << endl;
-    exit(1);
-    return;
-}
-
+    
 #endif

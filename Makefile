@@ -93,11 +93,12 @@ endif
 
 USE_SRA = 0
 SRA_DEF =
-SRA_LIB = 
+SRA_LIB =
+SERACH_INC = 
 ifeq (1,$(USE_SRA))
 	SRA_DEF = -DUSE_SRA
-	SRA_LIB = -lncbi-ngs-c++ -lngs-c++ -lncbi-vdb-static -ldl
-	INC += -I$(NCBI_NGS_DIR)/include -I$(NCBI_VDB_DIR)/include
+	SRA_LIB = -lncbi-ngs-c++-static -lngs-c++-static -lncbi-vdb-static -ldl
+	SEARCH_INC += -I$(NCBI_NGS_DIR)/include -I$(NCBI_VDB_DIR)/include
 	SEARCH_LIBS += -L$(NCBI_NGS_DIR)/lib64 -L$(NCBI_VDB_DIR)/lib64
 endif
 
@@ -256,7 +257,7 @@ DEFS=-fno-strict-aliasing \
 centrifuge-class: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
-	$(INC) \
+	$(INC) $(SEARCH_INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
 	$(LIBS) $(SEARCH_LIBS)
@@ -264,7 +265,7 @@ centrifuge-class: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEAR
 centrifuge-class-debug: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
-	$(INC) \
+	$(INC) $(SEARCH_INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
 	$(LIBS) $(SEARCH_LIBS)

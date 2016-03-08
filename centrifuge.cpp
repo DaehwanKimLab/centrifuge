@@ -249,6 +249,10 @@ static string classification_rank;
 static EList<uint64_t> host_taxIDs;
 static EList<uint64_t> excluded_taxIDs;
 
+#ifdef USE_SRA
+static EList<string> sra_accs;
+#endif
+
 #define DMAX std::numeric_limits<double>::max()
 
 static void resetOptions() {
@@ -447,6 +451,10 @@ static void resetOptions() {
     host_taxIDs.clear();
     classification_rank = "strain";
     excluded_taxIDs.clear();
+    
+#ifdef USE_SRA
+    sra_accs.clear();
+#endif
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -607,6 +615,9 @@ static struct option long_options[] = {
     {(char*)"no-traverse",      no_argument,       0,        ARG_NO_TRAVERSE},
     {(char*)"classification-rank", required_argument,    0,  ARG_CLASSIFICATION_RANK},
     {(char*)"exclude-taxids",      required_argument,    0,  ARG_EXCLUDE_TAXIDS},
+#ifdef USE_SRA
+    {(char*)"sra-acc",   required_argument, 0,        ARG_SRA_ACC},
+#endif
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -656,8 +667,12 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		tool_name = "hisat";
 	}
-	out << "Usage: " << endl
-	    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <sam>] [--report-file <report>]" << endl
+    out << "Usage: " << endl
+#ifdef USE_SRA
+    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number>} [-S <filename>] [--report-file <report>]" << endl
+#else
+    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <filename>] [--report-file <report>]" << endl
+#endif
 	    << endl
 		<<     "  <cf-idx>   Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
 	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
@@ -672,6 +687,9 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
+#ifdef USE_SRA
+    out <<     "  <SRA accession number>        Comma-separated list of SRA accession numbers, e.g. --sra-acc SRR353653,SRR353654." << endl;
+#endif
 	out <<     "  <filename>      File for classification output (default: stdout)" << endl
 	    <<     "  <report>   File for tabular report output (default: " << reportFile << ")" << endl
 	    << endl
@@ -698,6 +716,9 @@ static void printUsage(ostream& out) {
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
         << "  --min-hitlen       " << endl
+#ifdef USE_SRA
+        << "  --sra-acc          SRA accession ID" << endl
+#endif
 		<< endl
 		<< "Classification:" << endl
 		<< "  --min-hitlen <int>    minimum length of partial hits (default " << minHitLen << ", must be greater than 15)" << endl
@@ -1340,6 +1361,12 @@ static void parseOption(int next_option, const char *arg) {
             }
             break;
         }
+#ifdef USE_SRA
+        case ARG_SRA_ACC: {
+            tokenize(arg, ",", sra_accs); format = SRA_FASTA;
+            break;
+        }
+#endif
 		default:
 			printUsage(cerr);
 			throw 1;
@@ -2730,10 +2757,14 @@ static void driver(
 		mates1,      // mate1's, from -1 arg
 		mates2,      // mate2's, from -2 arg
 		mates12,     // both mates on each line, from --12 arg
+#ifdef USE_SRA
+                                                                           sra_accs,    // SRA accessions
+#endif
 		qualities,   // qualities associated with singles
 		qualities1,  // qualities associated with m1
 		qualities2,  // qualities associated with m2
 		pp,          // read read-in parameters
+                                                                           nthreads,
 		gVerbose || startVerbose); // be talkative
 	// Open hit output file
 	if(gVerbose || startVerbose) {
@@ -3076,11 +3107,18 @@ int centrifuge(int argc, const char **argv) {
 
 			// Get query filename
 			bool got_reads = !queries.empty() || !mates1.empty() || !mates12.empty();
+#ifdef USE_SRA
+            got_reads = got_reads || !sra_accs.empty();
+#endif
 			if(optind >= argc) {
 				if(!got_reads) {
 					printUsage(cerr);
 					cerr << "***" << endl
-					     << "Error: Must specify at least one read input with -U/-1/-2" << endl;
+#ifdef USE_SRA
+                    << "Error: Must specify at least one read input with -U/-1/-2/--sra-acc" << endl;
+#else
+                    << "Error: Must specify at least one read input with -U/-1/-2" << endl;
+#endif
 					return 1;
 				}
 			} else if(!got_reads) {

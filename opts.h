@@ -162,9 +162,6 @@ enum {
     ARG_NO_SPLICED_ALIGNMENT,
     ARG_RNA_STRANDNESS,
     ARG_SPLICESITE_DB_ONLY,
-#ifdef USE_SRA
-    ARG_SRA_ACC,
-#endif
     ARG_MIN_HITLEN,              // --min-hitlen
     ARG_MIN_TOTALLEN,            // --min-totallen
     ARG_HOST_TAXIDS,             // --host-taxids
@@ -173,6 +170,9 @@ enum {
     ARG_NO_TRAVERSE,             // --no-traverse
     ARG_CLASSIFICATION_RANK,
     ARG_EXCLUDE_TAXIDS,
+#ifdef USE_SRA
+    ARG_SRA_ACC,
+#endif
 };
 
 #endif

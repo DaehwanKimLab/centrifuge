@@ -3446,25 +3446,20 @@ void Ebwt<index_t>::buildToDisk(
 				}
                 // Update the number of distinct k-mers
                 if(kmer_size > 0) {
-		  size_t idx = acc_szs.bsearchLoBound(saElt);
-		  assert_lt(idx, acc_szs.size());
-		  for(size_t k = 0; k < kmer_size; k++) {
-		    if((acc_szs[idx]-saElt) > k) {
-		      uint8_t bp = s[saElt+k];
-		      if(kmer[k] != bp || kmer_count[k] <= 0) {
-			kmer_count[k]++;
-			if(k + 1 == kmer_size && kmer_count[k] % 1000000 == 0) {
-			  for(size_t kk = 0; kk < kmer_size; kk++) {
-			    cerr << kk+1 << "-mer count: " << (kmer_count[kk] / 1000000) << "M" << endl;
-			  }
-			}
-		      }
-		      kmer[k] = bp;
-		    }
-		    else {
-		      break;
-		    }
-		  }
+                    size_t idx = acc_szs.bsearchLoBound(saElt);
+                    assert_lt(idx, acc_szs.size());
+                    for(size_t k = 0; k < kmer_size; k++) {
+                        if((acc_szs[idx]-saElt) > k) {
+                            uint8_t bp = s[saElt+k];
+                            if(kmer[k] != bp || kmer_count[k] <= 0) {
+                                kmer_count[k]++;
+                            }
+                            kmer[k] = bp;
+                        }
+                        else {
+                            break;
+                        }
+                    }
                 }
 				// Suffix array offset boundary? - update offset array
 				if((si & eh._offMask) == si) {

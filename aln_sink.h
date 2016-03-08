@@ -2288,7 +2288,8 @@ void AlnSinkSam<index_t>::appendMate(
     o.append('\t');
     
     // confidence
-    sprintf(buf, "%d",(int)rs->summedHitLen());
+    size_t rdlen = rd.patFw.length() + (rdo != NULL ? rdo->patFw.length() : 0);
+    sprintf(buf, "%d / %d",(int)rs->summedHitLen(), (int)rdlen);
     o.append(buf);
     o.append('\t');
 
