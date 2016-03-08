@@ -33,7 +33,10 @@
             </ul>
 	    </li>
 	    <li>
-	      We provide a Centrifuge index (<i>nt</i> index) for NCBI nucleotide non-redundant sequences collected from plasmids, organelles, viruses, archaea, bacteria, and eukaryotes, totaling ~120 billion bps. 
+	      We provide a Centrifuge index (<i>nt</i> index) for NCBI nucleotide non-redundant sequences collected from plasmids, organelles, viruses, archaea, bacteria, and eukaryotes, totaling ~109 billion bps. Centrifuge is a very good alternative to Megablast (or Blast) for searching through this huge database.
+	    </li>
+	    <li>
+	      Fixed Centrifuge's scripts related to sequence downloading and index building.
 	    </li>
           </ul>
           <br/>
