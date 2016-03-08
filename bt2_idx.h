@@ -3351,11 +3351,13 @@ void Ebwt<index_t>::buildToDisk(
     
     // Count the number of distinct k-mers if kmer_size is non-zero
     EList<uint8_t> kmer;
-    size_t kmer_count = 0;
+    EList<size_t> kmer_count;
     EList<size_t> acc_szs;
     if(kmer_size > 0) {
         kmer.resize(kmer_size);
         kmer.fillZero();
+	kmer_count.resize(kmer_size);
+	kmer_count.fillZero();
         for(size_t i = 0; i < szs.size(); i++) {
             if(szs[i].first) {
                 size_t size = 0;
@@ -3444,22 +3446,25 @@ void Ebwt<index_t>::buildToDisk(
 				}
                 // Update the number of distinct k-mers
                 if(kmer_size > 0) {
-                    size_t idx = acc_szs.bsearchLoBound(saElt);
-                    assert_lt(idx, acc_szs.size());
-                    if((acc_szs[idx]-saElt) >= kmer_size) {
-                        bool distinct = false;
-                        for(int i = 0; i < kmer_size; i++) {
-                            assert_lt((index_t)i, len-saElt);
-                            uint8_t bp = s[saElt+i];
-                            if(kmer[i] != bp) {
-                                distinct = true;
-                            }
-                            kmer[i] = bp;
-                        }
-                        if(distinct || kmer_count <= 0) {
-                            kmer_count++;
-                        }
-                    }
+		  size_t idx = acc_szs.bsearchLoBound(saElt);
+		  assert_lt(idx, acc_szs.size());
+		  for(size_t k = 0; k < kmer_size; k++) {
+		    if((acc_szs[idx]-saElt) > k) {
+		      uint8_t bp = s[saElt+k];
+		      if(kmer[k] != bp || kmer_count[k] <= 0) {
+			kmer_count[k]++;
+			if(k + 1 == kmer_size && kmer_count[k] % 1000000 == 0) {
+			  for(size_t kk = 0; kk < kmer_size; kk++) {
+			    cerr << kk+1 << "-mer count: " << (kmer_count[kk] / 1000000) << "M" << endl;
+			  }
+			}
+		      }
+		      kmer[k] = bp;
+		    }
+		    else {
+		      break;
+		    }
+		  }
                 }
 				// Suffix array offset boundary? - update offset array
 				if((si & eh._offMask) == si) {
@@ -3636,7 +3641,9 @@ void Ebwt<index_t>::buildToDisk(
 	}
     
     if(kmer_size > 0) {
-        cerr << "Number of distinct " << kmer_size << "-mer is " << kmer_count << endl;
+      for(size_t k = 0; k < kmer_size; k++) {
+        cerr << "Number of distinct " << k+1 << "-mers is " << kmer_count[k] << endl;
+      }
     }
 
 	// Note: if you'd like to sanity-check the Ebwt, you'll have to
