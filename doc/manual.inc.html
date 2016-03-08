@@ -59,6 +59,7 @@
 <p>Building Centrifuge from source requires a GNU-like environment with GCC, GNU Make and other basics. It should be possible to build Centrifuge on most vanilla Linux installations or on a Mac installation with <a href="http://developer.apple.com/xcode/">Xcode</a> installed. Centrifuge can also be built on Windows using <a href="http://www.cygwin.com/">Cygwin</a> or <a href="http://www.mingw.org/">MinGW</a> (MinGW recommended). For a MinGW build the choice of what compiler is to be used is important since this will determine if a 32 or 64 bit code can be successfully compiled using it. If there is a need to generate both 32 and 64 bit on the same machine then a multilib MinGW has to be properly installed. <a href="http://www.mingw.org/wiki/msys">MSYS</a>, the <a href="http://cygwin.com/packages/mingw-zlib/">zlib</a> library, and depending on architecture <a href="http://sourceware.org/pthreads-win32/">pthreads</a> library are also required. We are recommending a 64 bit build since it has some clear advantages in real life research problems. In order to simplify the MinGW setup it might be worth investigating popular MinGW personal builds since these are coming already prepared with most of the toolchains needed.</p>
 <p>First, download the [source package] from the Releases secion on the right side. Unzip the file, change to the unzipped directory, and build the Centrifuge tools by running GNU <code>make</code> (usually with the command <code>make</code>, but sometimes with <code>gmake</code>) with no arguments. If building with MinGW, run <code>make</code> from the MSYS environment.</p>
 <p>Centrifuge is using the multithreading software model in order to speed up execution times on SMP architectures where this is possible. On POSIX platforms (like linux, Mac OS, etc) it needs the pthread library. Although it is possible to use pthread library on non-POSIX platform like Windows, due to performance reasons Centrifuge will try to use Windows native multithreading if possible.</p>
+<p>For the support of SRA data access in HISAT2, please download and install the <a href="https://github.com/ncbi/ngs/wiki/Downloads">NCBI-NGS</a> toolkit. When running <code>make</code>, specify additional variables as follow. <code>make USE_SRA=1 NCBI_NGS_DIR=/path/to/NCBI-NGS-directory NCBI_VDB_DIR=/path/to/NCBI-NGS-directory</code>, where <code>NCBI_NGS_DIR</code> and <code>NCBI_VDB_DIR</code> will be used in Makefile for -I and -L compilation options. For example, $(NCBI_NGS_DIR)/include and $(NCBI_NGS_DIR)/lib64 will be used.</p>
 <h1 id="running-centrifuge">Running Centrifuge</h1>
 <h2 id="adding-to-path">Adding to PATH</h2>
 <p>By adding your new Centrifuge directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH environment variable</a>, you ensure that whenever you run <code>centrifuge</code>, <code>centrifuge-build</code>, <code>centrifuge-download</code> or <code>centrifuge-inspect</code> from the command line, you will get the version you just installed without having to specify the entire path. This is recommended for most users. To do this, follow your operating system's instructions for adding the directory to your <a href="http://en.wikipedia.org/wiki/PATH_(variable)">PATH</a>.</p>
@@ -159,7 +160,7 @@ The seventh column is the proportion of this genome normalized by its genomic le
 </ol>
 <h2 id="command-line">Command Line</h2>
 <h3 id="usage">Usage</h3>
-<pre><code>centrifuge [options]* -x &lt;centrifuge-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt;}</code></pre>
+<pre><code>centrifuge [options]* -x &lt;centrifuge-idx&gt; {-1 &lt;m1&gt; -2 &lt;m2&gt; | -U &lt;r&gt; | --sra-acc &lt;SRA accession number&gt;} [--report-file &lt;report file name&gt; -S &lt;classification output file name&gt;]</code></pre>
 <h3 id="main-arguments">Main arguments</h3>
 <table><tr><td>
 
@@ -185,6 +186,12 @@ The seventh column is the proportion of this genome normalized by its genomic le
 </td><td>
 
 <p>Comma-separated list of files containing unpaired reads to be aligned, e.g. <code>lane1.fq,lane2.fq,lane3.fq,lane4.fq</code>. Reads may be a mix of different lengths. If <code>-</code> is specified, <code>centrifuge</code> gets the reads from the &quot;standard in&quot; or &quot;stdin&quot; filehandle.</p>
+</td></tr><tr><td>
+
+<pre><code>--sra-acc &lt;SRA accession number&gt;</code></pre>
+</td><td>
+
+<p>Comma-separated list of SRA accession numbers, e.g. <code>--sra-acc SRR353653,SRR353654</code>. Information about read types is available at http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?sp=runinfo&amp;acc=<b>sra-acc</b>&amp;retmode=xml, where <b>sra-acc</b> is SRA accession number. If users run HISAT2 on a computer cluster, it is recommended to disable SRA-related caching (see the instruction at <a href="https://github.com/ncbi/sra-tools/wiki/Toolkit-Configuration">SRA-MANUAL</a>).</p>
 </td></tr><tr><td>
 
 <pre><code>-S &lt;filename&gt;</code></pre>

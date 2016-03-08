@@ -102,7 +102,7 @@ ifeq (1,$(USE_SRA))
 	SEARCH_LIBS += -L$(NCBI_NGS_DIR)/lib64 -L$(NCBI_VDB_DIR)/lib64
 endif
 
-LIBS = $(PTHREAD_LIB) $(SRA_LIB)
+LIBS = $(PTHREAD_LIB)
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
 	edit.cpp bt2_idx.cpp \
@@ -247,8 +247,7 @@ DEFS=-fno-strict-aliasing \
 	 $(CFLAGS) \
      $(PREF_DEF) \
      $(MM_DEF) \
-     $(SHMEM_DEF) \
-     $(SRA_DEF) 
+     $(SHMEM_DEF)
 
 #
 # centrifuge targets
@@ -256,16 +255,16 @@ DEFS=-fno-strict-aliasing \
 
 centrifuge-class: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
+	$(DEFS) $(SRA_DEF) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
 	$(INC) $(SEARCH_INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
-	$(LIBS) $(SEARCH_LIBS)
+	$(LIBS) $(SRA_LIB) $(SEARCH_LIBS)
 
 centrifuge-class-debug: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
-	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
-	$(INC) $(SEARCH_INC) \
+	$(DEFS) $(SRA_DEF) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
+	$(INC) $(SRA_LIB) $(SEARCH_INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
 	$(LIBS) $(SEARCH_LIBS)

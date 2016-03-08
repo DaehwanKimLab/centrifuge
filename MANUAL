@@ -60,6 +60,12 @@ it is possible to use pthread library on non-POSIX platform like Windows, due
 to performance reasons Centrifuge will try to use Windows native multithreading
 if possible.
 
+For the support of SRA data access in HISAT2, please download and install the [NCBI-NGS] toolkit.
+When running `make`, specify additional variables as follow.
+`make USE_SRA=1 NCBI_NGS_DIR=/path/to/NCBI-NGS-directory NCBI_VDB_DIR=/path/to/NCBI-NGS-directory`,
+where `NCBI_NGS_DIR` and `NCBI_VDB_DIR` will be used in Makefile for -I and -L compilation options.
+For example, $(NCBI_NGS_DIR)/include and $(NCBI_NGS_DIR)/lib64 will be used.  
+
 [Cygwin]:   http://www.cygwin.com/
 [MinGW]:    http://www.mingw.org/
 [MSYS]:     http://www.mingw.org/wiki/msys
@@ -68,6 +74,7 @@ if possible.
 [GnuWin32]: http://gnuwin32.sf.net/packages/coreutils.htm
 [Xcode]:    http://developer.apple.com/xcode/
 [Github site]: https://github.com/infphilo/centrifuge
+[NCBI-NGS]: https://github.com/ncbi/ngs/wiki/Downloads
 
 Running Centrifuge
 =============
@@ -273,7 +280,7 @@ Command Line
 
 ### Usage
 
-    centrifuge [options]* -x <centrifuge-idx> {-1 <m1> -2 <m2> | -U <r>}
+    centrifuge [options]* -x <centrifuge-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number>} [--report-file <report file name> -S <classification output file name>]
 
 ### Main arguments
 
@@ -306,6 +313,14 @@ Comma-separated list of files containing unpaired reads to be aligned, e.g.
 `lane1.fq,lane2.fq,lane3.fq,lane4.fq`.  Reads may be a mix of different lengths.
 If `-` is specified, `centrifuge` gets the reads from the "standard in" or "stdin"
 filehandle.
+
+    --sra-acc <SRA accession number>
+
+Comma-separated list of SRA accession numbers, e.g. `--sra-acc SRR353653,SRR353654`.
+Information about read types is available at http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?sp=runinfo&acc=<b>sra-acc</b>&retmode=xml,
+where <b>sra-acc</b> is SRA accession number.  If users run HISAT2 on a computer cluster, it is recommended to disable SRA-related caching (see the instruction at [SRA-MANUAL]).
+
+[SRA-MANUAL]:	     https://github.com/ncbi/sra-tools/wiki/Toolkit-Configuration
 
     -S <filename>
 
