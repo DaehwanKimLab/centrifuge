@@ -267,7 +267,7 @@ centrifuge-class-debug: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) 
 	$(INC) $(SRA_LIB) $(SEARCH_INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
-	$(LIBS) $(SEARCH_LIBS)
+	$(LIBS) $(SRA_LIB) $(SEARCH_LIBS)
 
 centrifuge-build-bin: centrifuge_build.cpp $(SHARED_CPPS) $(HEADERS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
