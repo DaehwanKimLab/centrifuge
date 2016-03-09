@@ -137,7 +137,7 @@ CENTRIFUGE_REPORT_CPPS_MAIN=$(BUILD_CPPS)
 
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
 VERSION = $(shell cat VERSION)
-GIT_VERSION = $(shell command -v git 2>&1 > /dev/null && git describe --long --tags --dirty --always || cat VERSION)
+GIT_VERSION = $(shell command -v git 2>&1 > /dev/null && git describe --long --tags --dirty --always --abbrev=10 || cat VERSION)
 
 # Convert BITS=?? to a -m flag
 BITS=32
