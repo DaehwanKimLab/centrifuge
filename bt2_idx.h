@@ -3448,11 +3448,13 @@ void Ebwt<index_t>::buildToDisk(
                 if(kmer_size > 0) {
                     size_t idx = acc_szs.bsearchLoBound(saElt);
                     assert_lt(idx, acc_szs.size());
+                    bool different = false;
                     for(size_t k = 0; k < kmer_size; k++) {
                         if((acc_szs[idx]-saElt) > k) {
                             uint8_t bp = s[saElt+k];
-                            if(kmer[k] != bp || kmer_count[k] <= 0) {
+                            if(kmer[k] != bp || kmer_count[k] <= 0 || different) {
                                 kmer_count[k]++;
+                                different = true;
                             }
                             kmer[k] = bp;
                         }

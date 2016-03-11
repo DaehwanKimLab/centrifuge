@@ -584,9 +584,9 @@ struct ReportingParams {
 	{
 		khits = khits_;     // -k (or high if -a)
         if(compressed_) {
-            ihits = khits * 4;
+            ihits = max<THitInt>(khits, 5) * 4;
         } else {
-            ihits = khits * 40;
+            ihits = max<THitInt>(khits, 5) * 40;
         }
 	}
 	
