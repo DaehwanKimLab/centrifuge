@@ -137,6 +137,7 @@ CENTRIFUGE_REPORT_CPPS_MAIN=$(BUILD_CPPS)
 
 SEARCH_FRAGMENTS = $(wildcard search_*_phase*.c)
 VERSION = $(shell cat VERSION)
+GIT_VERSION = $(shell command -v git 2>&1 > /dev/null && git describe --long --tags --dirty --always --abbrev=10 || cat VERSION)
 
 # Convert BITS=?? to a -m flag
 BITS=32
@@ -239,7 +240,7 @@ both: centrifuge-class centrifuge-build-bin
 both-debug: centrifuge-class-debug centrifuge-build-bin-debug
 
 DEFS=-fno-strict-aliasing \
-     -DCENTRIFUGE_VERSION="\"`cat VERSION`\"" \
+     -DCENTRIFUGE_VERSION="\"$(GIT_VERSION)\"" \
      -DBUILD_HOST="\"`hostname`\"" \
      -DBUILD_TIME="\"`date`\"" \
      -DCOMPILER_VERSION="\"`$(CXX) -v 2>&1 | tail -1`\"" \
