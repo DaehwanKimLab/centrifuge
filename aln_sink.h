@@ -386,7 +386,7 @@ struct SpeciesMetrics {
 #endif
                 
                 if(tid_to_num.find(tid) == tid_to_num.end()) {
-                    tid_to_num[tid] = tid_to_num.size();
+                    tid_to_num[tid] = p.size();
                     p.push_back(1.0 / ids.ids.size() * count);
                     map<uint64_t, uint64_t>::const_iterator size_itr = size_table.find(tid);
                     if(size_itr != size_table.end()) {
