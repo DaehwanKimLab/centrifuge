@@ -197,8 +197,11 @@ struct SpeciesMetrics {
                    const map<uint64_t, EList<uint64_t> >& ancestors,
                    const map<uint64_t, uint64_t>& tid_to_num,
                    const EList<double>& p,
-                   EList<double>& p_next)
+                   EList<double>& p_next,
+                   const EList<size_t>& len)
     {
+        assert_eq(p.size(), len.size());
+        
         // E step
         p_next.fill(0.0);
         // for each assigned read set
@@ -260,10 +263,10 @@ struct SpeciesMetrics {
         // M step
         double sum = 0.0;
         for(size_t i = 0; i < p_next.size(); i++) {
-            sum += p_next[i];
+            sum += (p_next[i] / len[i]);
         }
         for(size_t i = 0; i < p_next.size(); i++) {
-            p_next[i] /= sum;
+            p_next[i] = p_next[i] / len[i] / sum;
         }
     }
     
@@ -355,10 +358,13 @@ struct SpeciesMetrics {
         
         uint64_t test_tid = 0, test_tid2 = 0;
 #endif
+        // Lengths of genomes (or contigs)
+        const map<uint64_t, uint64_t>& size_table = ebwt.size();
         
         // Initialize probabilities
         map<uint64_t, uint64_t> tid_to_num; // taxonomic ID to corresponding element of a list
         EList<double> p;
+        EList<size_t> len; // genome lengths
         for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
             const IDs& ids = itr->first;
             uint64_t count = itr->second;
@@ -381,8 +387,14 @@ struct SpeciesMetrics {
 #endif
                 
                 if(tid_to_num.find(tid) == tid_to_num.end()) {
-                    tid_to_num[tid] = tid_to_num.size();
+                    tid_to_num[tid] = p.size();
                     p.push_back(1.0 / ids.ids.size() * count);
+                    map<uint64_t, uint64_t>::const_iterator size_itr = size_table.find(tid);
+                    if(size_itr != size_table.end()) {
+                        len.push_back(size_itr->second);
+                    } else {
+                        len.push_back(std::numeric_limits<size_t>::max());
+                    }
                 } else {
                     uint64_t num = tid_to_num[tid];
                     assert_lt(num, p.size());
@@ -391,13 +403,15 @@ struct SpeciesMetrics {
             }
         }
         
+        assert_eq(p.size(), len.size());
+        
         {
             double sum = 0.0;
             for(size_t i = 0; i < p.size(); i++) {
-                sum += p[i];
+                sum += (p[i] / len[i]);
             }
             for(size_t i = 0; i < p.size(); i++) {
-                p[i] /= sum;
+                p[i] = (p[i] / len[i]) / sum;
             }
         }
         
@@ -423,8 +437,8 @@ struct SpeciesMetrics {
             //    Varadhan, R. & Roland, C. Scand. J. Stat. 35, 335–353 (2008).
             //    Also, this algorithm is used in Sailfish - http://www.nature.com/nbt/journal/v32/n5/full/nbt.2862.html
 #if 1
-            EM(observed, ancestors, tid_to_num, p, p_next);
-            EM(observed, ancestors, tid_to_num, p_next, p_next2);
+            EM(observed, ancestors, tid_to_num, p, p_next, len);
+            EM(observed, ancestors, tid_to_num, p_next, p_next2, len);
             double sum_squared_r = 0.0, sum_squared_v = 0.0;
             for(size_t i = 0; i < p.size(); i++) {
                 p_r[i] = p_next[i] - p[i];
@@ -437,11 +451,11 @@ struct SpeciesMetrics {
                 for(size_t i = 0; i < p.size(); i++) {
                     p_next2[i] = max(0.0, p[i] - 2 * gamma * p_r[i] + gamma * gamma * p_v[i]);
                 }
-                EM(observed, ancestors, tid_to_num, p_next2, p_next);
+                EM(observed, ancestors, tid_to_num, p_next2, p_next, len);
             }
             
 #else
-            EM(observed, ancestors, tid_to_num, p, p_next);
+            EM(observed, ancestors, tid_to_num, p, p_next, len);
 #endif
             
             diff = 0.0;
@@ -456,44 +470,25 @@ struct SpeciesMetrics {
         cerr << "Number of iterations in EM algorithm: " << num_iteration << endl;
         cerr << "Probability diff. (P - P_prev) in the last iteration: " << diff << endl;
         
-        // Lengths of genomes (or contigs)
-        const map<uint64_t, uint64_t>& size_table = ebwt.size();
-        
-        EList<double>& p_len = p_next;
-        // Calculate abundance without genome size taken into account
         {
+            // Calculate abundance normalized by genome size
+            abundance_len.clear();
+            double sum = 0.0;
+            for(map<uint64_t, uint64_t>::iterator itr = tid_to_num.begin(); itr != tid_to_num.end(); itr++) {
+                uint64_t tid = itr->first;
+                uint64_t num = itr->second;
+                assert_lt(num, p.size());
+                abundance_len[tid] = p[num];
+                sum += (p[num] * len[num]);
+            }
+            
+            // Calculate abundance without genome size taken into account
             abundance.clear();
             for(map<uint64_t, uint64_t>::iterator itr = tid_to_num.begin(); itr != tid_to_num.end(); itr++) {
                 uint64_t tid = itr->first;
                 uint64_t num = itr->second;
                 assert_lt(num, p.size());
-                abundance[tid] = p[num];
-                map<uint64_t, uint64_t>::const_iterator size_itr = size_table.find(tid);
-                if(size_itr != size_table.end()) {
-                    p_len[num] = p[num] / size_itr->second;
-                } else {
-                    assert(false);
-                    p_len[num] = 0.0;
-                }
-            }
-        }
-        
-        // Calculate abundance normalized by genome size
-        {
-            double sum = 0.0;
-            for(size_t i = 0; i < p_next.size(); i++) {
-                sum += p_len[i];
-            }
-            for(size_t i = 0; i < p_next.size(); i++) {
-                p_len[i] /= sum;
-            }
-            abundance_len.clear();
-            for(map<uint64_t, uint64_t>::iterator itr = tid_to_num.begin(); itr != tid_to_num.end(); itr++) {
-                uint64_t tid = itr->first;
-                uint64_t num = itr->second;
-                assert_lt(num, p.size());
-                abundance_len[tid] = p_len[num];
-                // cerr << "Species " << id << ": " << p[num] << " \t(" << p_len[num] << ")" << endl;
+                abundance[tid] = (p[num] * len[num]) / sum;
             }
         }
     }
@@ -585,9 +580,9 @@ struct ReportingParams {
 	{
 		khits = khits_;     // -k (or high if -a)
         if(compressed_) {
-            ihits = khits * 4;
+            ihits = max<THitInt>(khits, 5) * 4;
         } else {
-            ihits = khits * 40;
+            ihits = max<THitInt>(khits, 5) * 40;
         }
 	}
 	
