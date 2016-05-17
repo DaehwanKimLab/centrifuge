@@ -6,8 +6,6 @@
 # Copyright 2013-2016, Derrick Wood <dwood@cs.jhu.edu>
 #
 
-
-
 use strict;
 use warnings;
 use Getopt::Long;
