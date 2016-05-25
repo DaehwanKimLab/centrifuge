@@ -202,10 +202,10 @@ TODO: Add toy example for nodes.dmp, names.dmp and seqid2taxid.map
 
 ### Centrifuge classification output
 
-The following example shows classification assignments for a read.  The assignment output has 7 columns.
+The following example shows classification assignments for a read.  The assignment output has 8 columns.
 
-    readID    seqID   taxID score	   2ndBestScore	   hitLength	numMatches
-    1_1	      gi|4    9646  4225	   0		       80 / 80			1
+    readID    seqID   taxID score	   2ndBestScore	   hitLength	queryLength	numMatches
+    1_1	      gi|4    9646  4225	   0		       80	80		1
 
     The first column is the read ID from a raw sequencing read (e.g., 1_1 in the example).
     The second column is the sequence ID of the genomic sequence, where the read is classified (e.g., gi|4).
@@ -213,7 +213,8 @@ The following example shows classification assignments for a read.  The assignme
     The fourth column is the score for the classification, which is the weighted sum of hits (e.g., 4225)
     The fifth column is the score for the next best classification (e.g., 0).
     The sixth column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80).
-    The seventh column is the number of classifications, indicating how many assignments were made (e.g.,1).
+    The seventh column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80). 
+    The eighth column is the number of classifications, indicating how many assignments were made (e.g.,1).
 
 ### Centrifuge summary output (the default filename is centrifuge_report.csv)
 

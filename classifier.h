@@ -424,6 +424,8 @@ public:
                     if(_hitMap[i].rank > rank) continue;
                     if(rank + 1 >= _hitMap[i].path.size()) continue;
                     uint64_t parent_taxID = _hitMap[i].path[rank + 1];
+                    
+                    // Daehwan: we may want to traverse up the tree more until we get non-zero taxID.
                     if(parent_taxID == 0) continue;
                     
                     size_t j = 0;

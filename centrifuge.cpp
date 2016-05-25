@@ -2899,7 +2899,7 @@ static void driver(
 					fout->writeString(buf);
 				}
 				// Write header for read-results file
-				fout->writeChars("readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
+				fout->writeChars("readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n");
 				break;
 			}
 			default:

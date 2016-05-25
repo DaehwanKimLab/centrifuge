@@ -195,7 +195,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 	doc/style.css \
 	$(wildcard example/index/*.cf) \
 	$(wildcard example/reads/*.fa) \
-	example/reference/test.fa \
+	$(wildcard example/reference/*) \
 	indices/Makefile \
 	$(PTHREAD_PKG) \
 	centrifuge \
