@@ -43,7 +43,7 @@ def compare_scm(centrifuge_out, true_out, taxonomy_tree, rank):
         if first:
             first = False
             continue
-        read_name, seq_id, tax_id, score, _, _, _ = line.strip().split('\t')
+        read_name, seq_id, tax_id, score, _, _, _, _ = line.strip().split('\t')
         # Traverse up taxonomy tree to match the given rank parameter
         rank_tax_id = tax_id
         if rank != "strain":
@@ -497,7 +497,7 @@ def evaluate(index_base,
 
             # Calculate sum of squared residuals in abundance
             if rank == "strain":
-                abundance_SSR = compare_abundance("centrifuge_report.csv", truth_fname, taxonomy_tree, debug)
+                abundance_SSR = compare_abundance("centrifuge_report.tsv", truth_fname, taxonomy_tree, debug)
                 print >> sys.stderr, "\t\t\tsum of squared residuals in abundance: {}".format(abundance_SSR)
 
         if runtime_only:

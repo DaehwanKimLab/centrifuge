@@ -445,7 +445,7 @@ static void resetOptions() {
 	bowtie2p5 = false;
     minHitLen = 22;
     minTotalLen = 0;
-    reportFile = "centrifuge_report.csv";
+    reportFile = "centrifuge_report.tsv";
     abundance_analysis = true;
     tree_traverse = true;
     host_taxIDs.clear();

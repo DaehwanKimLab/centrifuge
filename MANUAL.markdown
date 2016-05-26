@@ -230,7 +230,7 @@ The following example shows classification assignments for a read.  The assignme
     The seventh column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80). 
     The eighth column is the number of classifications, indicating how many assignments were made (e.g.,1).
 
-### Centrifuge summary output (the default filename is centrifuge_report.csv)
+### Centrifuge summary output (the default filename is centrifuge_report.tsv)
 
 The following example shows a classification summary for each genome or taxonomic unit.  The assignment output has 7 columns.
 
@@ -392,7 +392,7 @@ File to write classification results to.  By default, assignments are written to
 
 </td><td>
 
-File to write a classification summary to (default: centrifuge_report.csv).
+File to write a classification summary to (default: centrifuge_report.tsv).
 
 </td></tr></table>
 
@@ -1482,7 +1482,7 @@ Stay in the directory created in the previous step, which now contains the
 This runs the Centrifuge classifier, which classifies a set of unpaired reads to the
 the genomes using the index generated in the previous step.
 The classification results are reported to stdout, and a
-short classification summary is written to centrifuge-species_report.csv.
+short classification summary is written to centrifuge-species_report.tsv.
 
 You will see something like this:
 
