@@ -15,7 +15,7 @@
 <li><a href="#nt-database">nt database</a></li>
 <li><a href="#custom-database">Custom database</a></li>
 <li><a href="#centrifuge-classification-output">Centrifuge classification output</a></li>
-<li><a href="#centrifuge-summary-output-the-default-filename-is-centrifuge_report.csv">Centrifuge summary output (the default filename is centrifuge_report.csv)</a></li>
+<li><a href="#centrifuge-summary-output-the-default-filename-is-centrifuge_report.tsv">Centrifuge summary output (the default filename is centrifuge_report.tsv)</a></li>
 </ul></li>
 <li><a href="#inspecting-the-centrifuge-index">Inspecting the Centrifuge index</a></li>
 <li><a href="#wrapper">Wrapper</a></li>
@@ -128,7 +128,7 @@ The fifth column is the score for the next best classification (e.g., 0).
 The sixth column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80).
 The seventh column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80). 
 The eighth column is the number of classifications, indicating how many assignments were made (e.g.,1).</code></pre>
-<h3 id="centrifuge-summary-output-the-default-filename-is-centrifuge_report.csv">Centrifuge summary output (the default filename is centrifuge_report.csv)</h3>
+<h3 id="centrifuge-summary-output-the-default-filename-is-centrifuge_report.tsv">Centrifuge summary output (the default filename is centrifuge_report.tsv)</h3>
 <p>The following example shows a classification summary for each genome or taxonomic unit. The assignment output has 7 columns.</p>
 <pre><code>name                                                            taxID   taxRank    genomeSize   numReads   numUniqueReads   abundance
 Wigglesworthia glossinidia endosymbiont of Glossina brevipalpis 36870   leaf       703004       5981       5964             0.0152317
@@ -204,7 +204,7 @@ The seventh column is the proportion of this genome normalized by its genomic le
 <pre><code>--report-file &lt;filename&gt;</code></pre>
 </td><td>
 
-<p>File to write a classification summary to (default: centrifuge_report.csv).</p>
+<p>File to write a classification summary to (default: centrifuge_report.tsv).</p>
 </td></tr></table>
 
 <h3 id="options">Options</h3>
@@ -863,7 +863,7 @@ Sequence-N  &lt;name&gt;  &lt;len&gt;</code></pre>
 <h2 id="classifying-example-reads">Classifying example reads</h2>
 <p>Stay in the directory created in the previous step, which now contains the <code>test</code> index files. Next, run:</p>
 <pre><code>$CENTRIFUGE_HOME/centrifuge -f -x test $CENTRIFUGE_HOME/example/reads/input.fa</code></pre>
-<p>This runs the Centrifuge classifier, which classifies a set of unpaired reads to the the genomes using the index generated in the previous step. The classification results are reported to stdout, and a short classification summary is written to centrifuge-species_report.csv.</p>
+<p>This runs the Centrifuge classifier, which classifies a set of unpaired reads to the the genomes using the index generated in the previous step. The classification results are reported to stdout, and a short classification summary is written to centrifuge-species_report.tsv.</p>
 <p>You will see something like this:</p>
 <pre><code>readID  seqID taxID     score   2ndBestScore    hitLength   numMatches
 C_1 gi|7     9913      4225 4225        80      2
