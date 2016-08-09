@@ -201,6 +201,8 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 	centrifuge \
 	centrifuge-build \
 	centrifuge-inspect \
+	centrifuge-download \
+	$(wildcard centrifuge-*.pl) \
 	AUTHORS \
 	LICENSE \
 	NEWS \

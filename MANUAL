@@ -413,6 +413,10 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 
 #### Classification
 
+    --min-hitlen <int>
+
+Minimum length of partial hits, which must be greater than 15 (default: 22)"
+
     -k <int>
 
 It searches for at most `<int>` distinct, primary assignments for each read or pair.  
