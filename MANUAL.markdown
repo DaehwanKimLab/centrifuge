@@ -575,6 +575,18 @@ integers, e.g., `40 40 30 40`..., rather than ASCII characters, e.g., `II?I`....
 
 <table>
 
+<tr><td id="centrifuge-options-min-hitlen">
+
+[`--min-hitlen`]: #centrifuge-options-min-hitlen
+
+    --min-hitlen <int>
+
+</td><td>
+
+Minimum length of partial hits, which must be greater than 15 (default: 22)"
+
+</td></tr>
+
 <tr><td id="centrifuge-options-k">
 
 [`-k`]: #centrifuge-options-k

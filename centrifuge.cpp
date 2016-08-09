@@ -715,7 +715,6 @@ static void printUsage(ostream& out) {
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
-        << "  --min-hitlen       " << endl
 #ifdef USE_SRA
         << "  --sra-acc          SRA accession ID" << endl
 #endif
