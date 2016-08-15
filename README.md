@@ -16,6 +16,8 @@ desktop computers
 
 The Centrifuge hompage is  http://www.ccb.jhu.edu/software/centrifuge
 
+The Centrifuge preprint is available at http://biorxiv.org/content/early/2016/05/25/054965.abstract
+
 The Centrifuge poster is available at http://www.ccb.jhu.edu/people/infphilo/data/Centrifuge-poster.pdf
 
 For more details on installing and running Centrifuge, look at MANUAL
