@@ -11,7 +11,7 @@ library(ggplot2)
 
 ```{r}
 
-abundance.cmp <- read.delim("abundance.cmp", stringsAsFactors = FALSE)
+abundance.cmp <- read.delim("abundance_k5.cmp", stringsAsFactors = FALSE)
 levels <- c("species", "genus", "family", "order", "class", "phylum")
 abundance.cmp$rank <- factor(abundance.cmp$rank, levels = levels)
 abundance.cmp$log_true <- log(abundance.cmp$true)
