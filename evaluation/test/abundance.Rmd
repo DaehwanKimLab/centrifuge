@@ -1,0 +1,26 @@
+---
+title: "Centrifuge abundance"
+author: "Daehwan Kim"
+date: "August 15, 2016"
+output: html_document
+---
+
+```{r setup}
+library(ggplot2)
+```
+
+```{r}
+
+abundance_cmp <- read.delim("abundance_family.cmp", stringsAsFactors = FALSE)
+head(abundance_cmp)
+
+ggplot(abundance_cmp) + 
+  geom_point(aes(x = true, y = calc)) +
+  xlab("abundance (truth)") + ylab("abundance (centrifuge)") +
+  facet_grid(rank ~) + 
+  # geom_text(aes(x = true, y = calc, label = name),
+  #          check_overlap = TRUE, hjust = 0, nudge_x = 0.01) +
+  geom_abline(slope = 1, color = "red")
+
+
+```

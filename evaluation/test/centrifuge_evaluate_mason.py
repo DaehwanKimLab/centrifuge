@@ -154,7 +154,7 @@ def evaluate(index_base,
     tax_ids = set()
     tax_cmd = [centrifuge_inspect,
                "--conversion-table",
-               "%s/%s" % (index_path, index_base)]
+               "%s/%s" % (index_path, "b+h+v")]
     tax_proc = subprocess.Popen(tax_cmd, stdout=subprocess.PIPE)
     for line in tax_proc.stdout:
         _, tax_id = line.strip().split()
@@ -164,7 +164,7 @@ def evaluate(index_base,
     # Read taxonomic tree
     tax_tree_cmd = [centrifuge_inspect,
                     "--taxonomy-tree",
-                    "%s/%s" % (index_path, index_base)]    
+                    "%s/%s" % (index_path, "b+h+v")]    
     tax_tree_proc = subprocess.Popen(tax_tree_cmd, stdout=subprocess.PIPE, stderr=open("/dev/null", 'w'))
     taxonomy_tree = read_taxonomy_tree(tax_tree_proc.stdout)
 
@@ -216,9 +216,118 @@ def evaluate(index_base,
         print >> sys.stderr, "\t\t\t\t\tprecision  : {:,} / {:,} ({:.2%})".format(unique_classified, raw_unique_classified, float(unique_classified) / raw_unique_classified)
 
         # Calculate sum of squared residuals in abundance
+        """
         if rank == "strain":
             abundance_SSR = compare_abundance("centrifuge_report.tsv", truth_fname, taxonomy_tree, debug)
             print >> sys.stderr, "\t\t\tsum of squared residuals in abundance: {}".format(abundance_SSR)
+        """
+
+    # calculate true abundance
+    true_abundance = {}
+    total_sum = 0.0
+    num_genomes, num_species = 0, 0
+    for line in open("abundance.txt"):
+        seqID, taxID, genomeSize, reads, reads10K, genomeName = line.strip().split(',')[:6]
+        genomeSize, reads, reads10K = int(genomeSize), int(reads), int(reads10K)
+        if reads <= 0:
+            continue
+        num_genomes += 1
+        while True:
+            if taxID not in taxonomy_tree:
+                rank_taxID = ""
+                break
+            parent_taxID, rank = taxonomy_tree[taxID]
+            if rank == "species":
+                rank_taxID = taxID
+                break
+            if taxID == parent_taxID:
+                rank_taxID = ""
+                break
+            taxID = parent_taxID
+        if rank_taxID == "":
+            continue
+        assert rank == "species"
+        num_species += 1
+        total_sum += (reads / float(genomeSize))
+        if rank_taxID not in true_abundance:
+            true_abundance[rank_taxID] = 0.0
+        true_abundance[rank_taxID] += (reads / float(genomeSize))
+    for taxID, reads in true_abundance.items():
+        true_abundance[taxID] /= total_sum
+
+    print >> sys.stderr, "number of genomes:", num_genomes
+    print >> sys.stderr, "number of species:", num_species
+    print >> sys.stderr, "number of uniq species:", len(true_abundance)
+
+    read_fname = "centrifuge_data/bacteria_sim10M/bacteria_sim10M.fa"
+    summary_fname = "centrifuge.summary"
+    centrifuge_cmd = ["%s/centrifuge" % program_bin_base,
+                      # "-k", "20",
+                      # "--min-hitlen", "15",
+                      "--report-file", summary_fname,
+                      "-f",
+                      "-p", "3",
+                      "%s/%s" % (index_path, index_base),
+                      read_fname]
+
+    if verbose:
+        print >> sys.stderr, ' '.join(centrifuge_cmd)
+
+    out_fname = "centrifuge.output"
+    proc = subprocess.Popen(centrifuge_cmd, stdout=open(out_fname, "w"), stderr=subprocess.PIPE)
+    proc.communicate()
+
+    calc_abundance = {}
+    for taxID in true_abundance.keys():
+        calc_abundance[taxID] = 0.0
+    first = True
+    for line in open(summary_fname):
+        if first:
+            first = False
+            continue
+        name, taxID, taxRank, genomeSize, numReads, numUniqueReads, abundance = line.strip().split("\t")
+        genomeSize, numReads, numUniqueReads, abundance = int(genomeSize), int(numReads), int(numUniqueReads), float(abundance)
+        calc_abundance[taxID] = abundance
+
+        # DK - for debugging purposes
+        """
+        if taxID in true_abundance:
+            print >> sys.stderr, "%s: %.6f vs. %.6f" % (taxID, abundance, true_abundance[taxID])
+        """
+
+    abundance_file = open("abundance.cmp", 'w')
+    print >> abundance_file, "taxID\ttrue\tcalc\trank"
+    for rank in ranks:
+        if rank == "strain":
+            continue
+        true_abundance_rank, calc_abundance_rank = {}, {}
+        for taxID in true_abundance.keys():
+            assert taxID in calc_abundance
+            rank_taxID = taxID
+            while True:
+                if rank_taxID not in taxonomy_tree:
+                    rank_taxID = ""
+                    break
+                parent_taxID, cur_rank = taxonomy_tree[rank_taxID]
+                if cur_rank == rank:
+                    break
+                if rank_taxID == parent_taxID:
+                    rank_taxID = ""
+                    break
+                rank_taxID = parent_taxID
+            if rank_taxID not in true_abundance_rank:
+                true_abundance_rank[rank_taxID] = 0.0
+                calc_abundance_rank[rank_taxID] = 0.0
+            true_abundance_rank[rank_taxID] += true_abundance[taxID]
+            calc_abundance_rank[rank_taxID] += calc_abundance[taxID]
+
+        ssr = 0.0 # Sum of Squared Residuals
+        for taxID in true_abundance_rank.keys():
+            assert taxID in calc_abundance_rank
+            ssr += (true_abundance_rank[taxID] - calc_abundance_rank[taxID]) ** 2
+            print >> abundance_file, "%s\t%.6f\t%.6f\t%s" % (taxID, true_abundance_rank[taxID], calc_abundance_rank[taxID], rank)
+        print >> sys.stderr, "%s) Sum of squared residuals: %.6f" % (rank, ssr)
+    abundance_file.close()
 
 
 

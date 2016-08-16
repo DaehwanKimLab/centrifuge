@@ -156,6 +156,7 @@ struct SpeciesMetrics {
 		}
 
         // Only consider good hits for abundance analysis
+        // DK - for debugging purposes
         if(score >= max_score) {
             cur_ids.ids.push_back(taxID);
             if(cur_ids.ids.size() == nresult) {
