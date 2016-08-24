@@ -28,6 +28,7 @@ For more details on installing and running Centrifuge, look at MANUAL
     git clone https://github.com/infphilo/centrifuge
     cd centrifuge
     make
+    sudo make install prefix=/usr/local
 
 ### Building indexes
 

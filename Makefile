@@ -186,6 +186,13 @@ CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 	centrifuge-class-debug \
 	centrifuge-inspect-bin-debug
 
+CENTRIFUGE_SCRIPT_LIST = 	centrifuge \
+	centrifuge-build \
+	centrifuge-inspect \
+	centrifuge-download \
+	$(wildcard centrifuge-*.pl)
+
+
 GENERAL_LIST = $(wildcard scripts/*.sh) \
 	$(wildcard scripts/*.pl) \
 	$(wildcard *.py) \
@@ -198,11 +205,7 @@ GENERAL_LIST = $(wildcard scripts/*.sh) \
 	$(wildcard example/reference/*) \
 	indices/Makefile \
 	$(PTHREAD_PKG) \
-	centrifuge \
-	centrifuge-build \
-	centrifuge-inspect \
-	centrifuge-download \
-	$(wildcard centrifuge-*.pl) \
+	$(CENTRIFUGE_SCRIPT_LIST) \
 	AUTHORS \
 	LICENSE \
 	NEWS \
@@ -403,6 +406,26 @@ doc/manual.inc.html: MANUAL.markdown
 
 MANUAL: MANUAL.markdown
 	perl doc/strip_markdown.pl < $^ > $@
+
+prefix=/usr/local
+
+.PHONY: install
+install: all
+	mkdir -p $(prefix)/bin
+	mkdir -p $(prefix)/share/centrifuge/indices
+	for file in $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_SCRIPT_LIST); do \
+		install -m 0755 $$file $(prefix)/bin ; \
+		install -m 0644 indices/Makefile $(prefix)/share/centrifuge/indices; \
+		install -d -m 0644 doc $(prefix)/share/centrifuge/doc; \
+	done
+
+.PHONY: uninstall
+uninstall: all
+	for file in $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_SCRIPT_LIST); do \
+		rm -v $(prefix)/bin/$$file ; \
+		rm -v $(prefix)/share/centrifuge; \
+	done
+
 
 .PHONY: clean
 clean:
