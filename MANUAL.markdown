@@ -245,6 +245,7 @@ The following example shows a classification summary for each genome or taxonomi
     The sixth column is the number of reads uniquely classified to this genomic sequence (e.g., 5964).
     The seventh column is the proportion of this genome normalized by its genomic length (e.g., 0.0152317).
 
+As the GenBank database is incomplete (i.e., many more genomes remain to be identified and added), and reads have sequencing errors, classification programs including Centrifuge often report many false assignments.  In order to perform more conservative analyses, users may want to discard assignments for reads having a matching length (8th column in the output of Centrifuge) of 40% or lower.  It may be also helpful to use a score (4th column) for filtering out some assignments.   Our future research plans include working on developing methods that estimate confidence scores for assignments.
 
 
 
