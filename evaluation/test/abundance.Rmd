@@ -1,0 +1,53 @@
+---
+title: "Centrifuge abundance"
+# author: "Daehwan Kim"
+date: "August 15, 2016"
+output: html_document
+---
+
+```{r setup}
+library(ggplot2)
+```
+
+```{r}
+
+abundance.cmp <- read.delim("abundance_k5.cmp", stringsAsFactors = FALSE)
+levels <- c("species", "genus", "family", "order", "class", "phylum")
+abundance.cmp$rank <- factor(abundance.cmp$rank, levels = levels)
+abundance.cmp$log_true <- log(abundance.cmp$true)
+abundance.cmp$log_calc <- log(abundance.cmp$calc)
+head(abundance.cmp)
+
+ggplot(abundance.cmp) + 
+  geom_bar(aes(x = log_true), binwidth = 0.2) +
+  xlab("abundance (log_truth)") +
+  facet_wrap(~ rank, scales = "free_y")
+
+ggplot(abundance.cmp) + 
+  geom_bar(aes(x = log_calc), binwidth = 0.2) +
+  xlab("abundance (log_calc)") +
+  facet_wrap(~ rank, scales = "free_y")
+
+ggplot(abundance.cmp) + 
+  geom_point(aes(x = true, y = calc), size = 0.7) +
+  xlab("abundance (truth)") + ylab("abundance (centrifuge)") +
+  facet_wrap(~ rank)  + 
+  # geom_text(aes(x = true, y = calc, label = name),
+  #          check_overlap = TRUE, hjust = 0, nudge_x = 0.01) +
+  geom_abline(slope = 1, color = "red")
+
+ggplot(abundance.cmp) + 
+  geom_point(aes(x = log_true, y = log_calc), size = 0.7) +
+  xlab("abundance (log_truth)") + ylab("abundance (log_centrifuge)") +
+  facet_wrap(~ rank)  + 
+  geom_abline(slope = 1, color = "red")
+
+for(level in levels) {
+  print(level)
+  abundance.cmp.rank <- abundance.cmp[abundance.cmp$rank==level,]
+  for(method in c("pearson", "spearman", "kendall")) {
+    print(paste(' ', method))
+    print(paste('  ', cor(abundance.cmp.rank$true, abundance.cmp.rank$calc, method=method)))
+  }
+}
+```

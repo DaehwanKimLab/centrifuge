@@ -156,6 +156,7 @@ struct SpeciesMetrics {
 		}
 
         // Only consider good hits for abundance analysis
+        // DK - for debugging purposes
         if(score >= max_score) {
             cur_ids.ids.push_back(taxID);
             if(cur_ids.ids.size() == nresult) {
@@ -2283,9 +2284,13 @@ void AlnSinkSam<index_t>::appendMate(
     o.append(buf);
     o.append('\t');
     
-    // confidence
+    // hit length
+    itoa10<int64_t>(rs->summedHitLen(), buf);
+    o.append(buf);
+    o.append('\t');
+    
     size_t rdlen = rd.patFw.length() + (rdo != NULL ? rdo->patFw.length() : 0);
-    sprintf(buf, "%d / %d",(int)rs->summedHitLen(), (int)rdlen);
+    itoa10<size_t>(rdlen, buf);
     o.append(buf);
     o.append('\t');
 

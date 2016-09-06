@@ -1,0 +1,161 @@
+#!/usr/bin/perl
+
+# Give a Kraken-style report from a Centrifuge output
+#
+# Based on kraken-report by Derrick Wood
+# Copyright 2013-2016, Derrick Wood <dwood@cs.jhu.edu>
+#
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+my ($centrifuge_index, $min_score, $min_length);
+my $only_unique = 1;
+my $show_zeros = 0;
+my $is_cnts_table = 0;
+my $PROG = "centrifuge-kreport";
+
+GetOptions(
+  "help" => \&display_help,
+  "x=s" => \$centrifuge_index,
+  "show-zeros" => \$show_zeros,
+  "is-report-file" => \$is_cnts_table,
+  "min-score=i" => \$min_score,
+  "min-length=i"=> \$min_length,
+  "only-unique" => \$only_unique
+) or usage();
+
+usage() unless defined $centrifuge_index;
+usage() unless defined $ARGV[0];
+
+sub usage {
+  my $exit_code = @_ ? shift : 64;
+  print STDERR "Usage: centrifuge-kreport -x <index name> [--show-zeros] [--min-score=SCORE] [--is-counts] [--min-length=LENGTH] <centrifuge output file(s)>\n";
+  exit $exit_code;
+}
+
+sub display_help {
+  usage(0);
+}
+
+my (%child_lists, %name_map, %rank_map);
+print STDERR "Loading taxonomy ...\n";
+load_taxonomy();
+
+my %taxo_counts;
+my $seq_count = 0;
+$taxo_counts{0} = 0;
+if ($is_cnts_table) {
+  while (<>) {
+    my ($taxid,$count) = split;
+    $taxo_counts{$taxid} = $count;
+    $seq_count += $count;
+  }
+} else {
+  <>;
+  while (<>) {
+    my (undef,$seqID,$taxid,$score, undef,$hitLength,$numMatches) = split /\t/;
+    my ($l,$rl) = split(/ \/ /,$hitLength);
+    #print STDERR "undef,$seqID,$taxid,$score, undef,$hitLength,$numMatches: $l || $rl\n";
+    next if $only_unique && $numMatches > 1;
+    next if defined $min_length && $l < $min_length;
+    next if defined $min_score && $score < $min_score;
+    $taxo_counts{$taxid} += 1/$numMatches;
+    $seq_count++;
+  }
+}
+my $classified_count = $seq_count - $taxo_counts{0};
+
+my %clade_counts = %taxo_counts;
+dfs_summation(1);
+
+for (keys %name_map) {
+  $clade_counts{$_} ||= 0;
+}
+
+printf "%6.2f\t%d\t%d\t%s\t%d\t%s%s\n",
+  $clade_counts{0} * 100 / $seq_count,
+  $clade_counts{0}, $taxo_counts{0}, "U",
+  0, "", "unclassified";
+dfs_report(1, 0);
+
+sub dfs_report {
+  my $node = shift;
+  my $depth = shift;
+  if (! $clade_counts{$node} && ! $show_zeros) {
+    return;
+  }
+  printf "%6.2f\t%d\t%d\t%s\t%d\t%s%s\n",
+    ($clade_counts{$node} || 0) * 100 / $seq_count,
+    ($clade_counts{$node} || 0),
+    ($taxo_counts{$node} || 0),
+    rank_code($rank_map{$node}),
+    $node,
+    "  " x $depth,
+    $name_map{$node};
+  my $children = $child_lists{$node};
+  if ($children) {
+    my @sorted_children = sort { $clade_counts{$b} <=> $clade_counts{$a} } @$children;
+    for my $child (@sorted_children) {
+      dfs_report($child, $depth + 1);
+    }
+  }
+}
+
+sub rank_code {
+  my $rank = shift;
+  for ($rank) {
+    $_ eq "species" and return "S";
+    $_ eq "genus" and return "G";
+    $_ eq "family" and return "F";
+    $_ eq "order" and return "O";
+    $_ eq "class" and return "C";
+    $_ eq "phylum" and return "P";
+    $_ eq "kingdom" and return "K";
+    $_ eq "superkingdom" and return "D";
+  }
+  return "-";
+}
+
+sub dfs_summation {
+  my $node = shift;
+  my $children = $child_lists{$node};
+  if ($children) {
+    for my $child (@$children) {
+      dfs_summation($child);
+      $clade_counts{$node} += ($clade_counts{$child} || 0);
+    }
+  }
+}
+
+sub load_taxonomy {
+
+  print STDERR "Loading names file ...\n";
+  open NAMES, "-|", "centrifuge-inspect --name-table $centrifuge_index"
+    or die "$PROG: can't open names file: $!\n";
+  while (<NAMES>) {
+    chomp;
+    s/\t\|$//;
+    my @fields = split /\t/;
+    my ($node_id, $name) = @fields[0,1];
+    $name_map{$node_id} = $name;
+  }
+  close NAMES;
+
+  print STDERR "Loading nodes file ...\n";
+  open NODES, "-|", "centrifuge-inspect --taxonomy-tree $centrifuge_index"
+    or die "$PROG: can't open nodes file: $!\n";
+  while (<NODES>) {
+    chomp;
+    my @fields = split /\t\|\t/;
+    my ($node_id, $parent_id, $rank) = @fields[0,1,2];
+    if ($node_id == 1) {
+      $parent_id = 0;
+    }
+    $child_lists{$parent_id} ||= [];
+    push @{ $child_lists{$parent_id} }, $node_id;
+    $rank_map{$node_id} = $rank;
+  }
+  close NODES;
+}

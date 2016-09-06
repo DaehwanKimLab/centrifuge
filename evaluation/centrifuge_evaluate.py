@@ -43,7 +43,7 @@ def compare_scm(centrifuge_out, true_out, taxonomy_tree, rank):
         if first:
             first = False
             continue
-        read_name, seq_id, tax_id, score, _, _, _ = line.strip().split('\t')
+        read_name, seq_id, tax_id, score, _, _, _, _ = line.strip().split('\t')
         # Traverse up taxonomy tree to match the given rank parameter
         rank_tax_id = tax_id
         if rank != "strain":
@@ -497,7 +497,7 @@ def evaluate(index_base,
 
             # Calculate sum of squared residuals in abundance
             if rank == "strain":
-                abundance_SSR = compare_abundance("centrifuge_report.csv", truth_fname, taxonomy_tree, debug)
+                abundance_SSR = compare_abundance("centrifuge_report.tsv", truth_fname, taxonomy_tree, debug)
                 print >> sys.stderr, "\t\t\tsum of squared residuals in abundance: {}".format(abundance_SSR)
 
         if runtime_only:
@@ -534,26 +534,26 @@ def evaluate(index_base,
 if __name__ == "__main__":
     parser = ArgumentParser(
         description='Centrifuge evaluation')
-    parser.add_argument('index_base',
+    parser.add_argument("index_base",
                         nargs='?',
                         type=str,
                         help='Centrifuge index')
-    parser.add_argument('--index-base-for-read',
+    parser.add_argument("--index-base-for-read",
                         dest="index_base_for_read",
                         type=str,
                         default="",
                         help='index base for read (default same as index base)')    
-    parser.add_argument('--num-fragment',
+    parser.add_argument("--num-fragment",
                         dest="num_fragment",
                         action='store',
                         type=int,
                         default=1,
                         help='Number of fragments in millions (default: 1)')
-    parser.add_argument('--paired',
+    parser.add_argument("--paired",
                         dest='paired',
                         action='store_true',
                         help='Paired-end reads')
-    parser.add_argument('--error-rate',
+    parser.add_argument("--error-rate",
                         dest='error_rate',
                         action='store',
                         type=float,
@@ -570,19 +570,19 @@ if __name__ == "__main__":
                         type=str,
                         default="centrifuge",
                         help="A comma-separated list of aligners (default: centrifuge)")
-    parser.add_argument('--runtime-only',
+    parser.add_argument("--runtime-only",
                         dest='runtime_only',
                         action='store_true',
                         help='Just check runtime without evaluation')    
-    parser.add_argument('--no-sql',
+    parser.add_argument("--no-sql",
                         dest='sql',
                         action='store_false',
                         help='Do not write results into a sqlite database')
-    parser.add_argument('-v', '--verbose',
+    parser.add_argument("-v", "--verbose",
                         dest='verbose',
                         action='store_true',
                         help='also print some statistics to stderr')
-    parser.add_argument('--debug',
+    parser.add_argument("--debug",
                         dest='debug',
                         action='store_true',
                         help='Debug')

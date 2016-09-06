@@ -33,15 +33,15 @@
 <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads"><h2><u>Releases</u></h2></a>
 <div class="box">
  <ul>
-   <table width="100%"><tbody><tr><td>version 1.0.1-beta</td> <td align="right">3/08/2016</td></tr>
+   <table width="100%"><tbody><tr><td>version 1.0.2-beta</td> <td align="right">5/25/2016</td></tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.1-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.2-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
        </tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.1-beta-Linux_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Linux x86_64 binary</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.2-beta-Linux_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Linux x86_64 binary</a></td>
        </tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.1-beta-OSX_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/hisat'); ">&nbsp;&nbsp;&nbsp;Mac OS X x86_64 binary</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.2-beta-OSX_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Mac OS X x86_64 binary</a></td>
        </tr>
    </tbody></table>
  </ul>
@@ -101,7 +101,7 @@
 <h2>Publications</h2>
 <div class="box">
  <ul>
-   <li><p>Kim D, Song L, Breitwieser F, and Salzberg SL. <a href="http://www.ccb.jhu.edu/people/infphilo/data/Centrifuge-poster.pdf"><b>Centrifuge: rapid and accurate classification of metagenomic sequences</b></a>. <i>Cold Spring Harbor Laboratory Meeting on the Biology of Genomes. Cold Spring Harbor, NY. May 2015</i> 2015</p></li>
+   <li><p>Kim D, Song L, Breitwieser F, and Salzberg SL. <a href="http://biorxiv.org/content/early/2016/05/25/054965"><b>Centrifuge: rapid and sensitive classification of metagenomic sequences</b></a>. <i>bioRxiv</i> 2016</p></li>
  </ul>
 </div>
 

@@ -445,7 +445,7 @@ static void resetOptions() {
 	bowtie2p5 = false;
     minHitLen = 22;
     minTotalLen = 0;
-    reportFile = "centrifuge_report.csv";
+    reportFile = "centrifuge_report.tsv";
     abundance_analysis = true;
     tree_traverse = true;
     host_taxIDs.clear();
@@ -715,7 +715,6 @@ static void printUsage(ostream& out) {
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
-        << "  --min-hitlen       " << endl
 #ifdef USE_SRA
         << "  --sra-acc          SRA accession ID" << endl
 #endif
@@ -2899,7 +2898,7 @@ static void driver(
 					fout->writeString(buf);
 				}
 				// Write header for read-results file
-				fout->writeChars("readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tnumMatches\n");
+				fout->writeChars("readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n");
 				break;
 			}
 			default:

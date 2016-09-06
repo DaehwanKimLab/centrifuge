@@ -216,6 +216,7 @@
 		E869A04A1C2095A8007600C2 /* centrifugex */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = centrifugex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E869A0551C2095B5007600C2 /* centrifuge-inspectx */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "centrifuge-inspectx"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E869A0601C2095CA007600C2 /* centrifuge-compressx */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "centrifuge-compressx"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E8D181651D64DB4D00CC784A /* taxonomy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = taxonomy.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -335,6 +336,7 @@
 				E86143771C20833200D5C240 /* sse_util.h */,
 				E86143781C20833200D5C240 /* sstring.h */,
 				E86143791C20833200D5C240 /* str_util.h */,
+				E8D181651D64DB4D00CC784A /* taxonomy.h */,
 				E861437A1C20833200D5C240 /* threading.h */,
 				E861437B1C20833200D5C240 /* timer.h */,
 				E861437C1C20833200D5C240 /* tinythread.h */,

@@ -424,6 +424,8 @@ public:
                     if(_hitMap[i].rank > rank) continue;
                     if(rank + 1 >= _hitMap[i].path.size()) continue;
                     uint64_t parent_taxID = _hitMap[i].path[rank + 1];
+                    
+                    // Traverse up the tree more until we get non-zero taxID.
                     if(parent_taxID == 0) continue;
                     
                     size_t j = 0;
@@ -450,7 +452,7 @@ public:
                         if(_hitMap[i].rank != rank) continue;
                         if(rank + 1 >= _hitMap[i].path.size()) continue;
                         if(parent_taxID == _hitMap[i].path[rank + 1]) {
-                            _hitMap[i].uniqueID = 0;
+                            _hitMap[i].uniqueID = std::numeric_limits<uint64_t>::max();
                             _hitMap[i].rank = rank + 1;
                             _hitMap[i].taxID = parent_taxID;
                             _hitMap[i].leaf = false;
@@ -525,7 +527,6 @@ public:
                     continue;
             }
             const EList<pair<string, uint64_t> >& uid_to_tid = ebwtFw.uid_to_tid();
-            assert_lt(hitCount.uniqueID, uid_to_tid.size());
             const std::map<uint64_t, TaxonomyNode>& tree = ebwtFw.tree();
             uint8_t taxRank = RANK_UNKNOWN;
             std::map<uint64_t, TaxonomyNode>::const_iterator itr = tree.find(hitCount.taxID);
@@ -537,7 +538,7 @@ public:
             rs.init(
                     hitCount.score,
                     max_score,
-                    uid_to_tid[hitCount.uniqueID].first,
+                    hitCount.uniqueID < uid_to_tid.size() ? uid_to_tid[hitCount.uniqueID].first : get_tax_rank_string(taxRank),
                     hitCount.taxID,
                     taxRank,
                     hitCount.summedHitLen,
