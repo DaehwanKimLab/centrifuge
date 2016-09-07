@@ -59,7 +59,7 @@ struct TaxonomyNode {
 };
 
 struct TaxonomyPathTable {
-    static const size_t nranks = 7;
+    static const size_t nranks = 9;
 
     map<uint64_t, uint32_t> tid_to_pid;  // from taxonomic ID to path ID
     ELList<uint64_t> paths;
@@ -81,6 +81,11 @@ struct TaxonomyPathTable {
                 return 5;
             case RANK_PHYLUM:
                 return 6;
+            case RANK_KINGDOM:
+            case RANK_SUPER_KINGDOM:
+                return 7;
+            case RANK_DOMAIN:
+                return 8;
             default:
                 return std::numeric_limits<uint8_t>::max();
         }
@@ -90,14 +95,17 @@ struct TaxonomyPathTable {
                     const std::map<uint64_t, TaxonomyNode>& tree)
     {
         map<uint32_t, uint32_t> rank_map;
-        rank_map[RANK_STRAIN]      = 0;
-        rank_map[RANK_SUB_SPECIES] = 0;
-        rank_map[RANK_SPECIES]     = 1;
-        rank_map[RANK_GENUS]       = 2;
-        rank_map[RANK_FAMILY]      = 3;
-        rank_map[RANK_ORDER]       = 4;
-        rank_map[RANK_CLASS]       = 5;
-        rank_map[RANK_PHYLUM]      = 6;
+        rank_map[RANK_STRAIN]        = 0;
+        rank_map[RANK_SUB_SPECIES]   = 0;
+        rank_map[RANK_SPECIES]       = 1;
+        rank_map[RANK_GENUS]         = 2;
+        rank_map[RANK_FAMILY]        = 3;
+        rank_map[RANK_ORDER]         = 4;
+        rank_map[RANK_CLASS]         = 5;
+        rank_map[RANK_PHYLUM]        = 6;
+        rank_map[RANK_KINGDOM]       = 7;
+        rank_map[RANK_SUPER_KINGDOM] = 7;
+        rank_map[RANK_DOMAIN]        = 8;
 
         tid_to_pid.clear();
         paths.clear();
