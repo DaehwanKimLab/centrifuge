@@ -42,6 +42,7 @@ enum {
     RANK_SUPER_PHYLUM,
     RANK_TRIBE,
     RANK_VARIETAS,
+    RANK_LIFE,
     RANK_MAX
 };
 
@@ -232,6 +233,7 @@ inline static const char* get_tax_rank_string(uint8_t rank) {
         case RANK_SUPER_PHYLUM:  return "superphylum";
         case RANK_TRIBE:         return "tribe";
         case RANK_VARIETAS:      return "varietas";
+        case RANK_LIFE:          return "life";
         default:                 return "no rank";
     };
 }
@@ -291,6 +293,8 @@ inline static uint8_t get_tax_rank_id(const char* rank) {
         return RANK_TRIBE;
     } else if(strcmp(rank, "varietas") == 0) {
         return RANK_VARIETAS;
+    } else if(strcmp(rank, "life") == 0) {
+        return RANK_LIFE;
     } else {
         return RANK_UNKNOWN;
     }

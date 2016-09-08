@@ -422,9 +422,8 @@ public:
                         _hitMap[i].leaf = false;
                     }
                     if(_hitMap[i].rank > rank) continue;
-                    if(rank + 1 >= _hitMap[i].path.size()) continue;
-                    uint64_t parent_taxID = _hitMap[i].path[rank + 1];
                     
+                    uint64_t parent_taxID = (rank + 1 >= _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
                     // Traverse up the tree more until we get non-zero taxID.
                     if(parent_taxID == 0) continue;
                     
@@ -441,7 +440,14 @@ public:
                         _hitTaxCount.back().second = parent_taxID;
                     }
                 }
-                if(_hitTaxCount.size() <= 0) break;
+                if(_hitTaxCount.size() <= 0) {
+                    if(rank < _hitMap[0].path.size()) {
+                        rank++;
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
                 _hitTaxCount.sort();
                 size_t j = _hitTaxCount.size();
                 while(j-- > 0) {
@@ -450,8 +456,8 @@ public:
                     for(size_t i = 0; i < _hitMap.size(); i++) {
                         assert_geq(_hitMap[i].rank, rank);
                         if(_hitMap[i].rank != rank) continue;
-                        if(rank + 1 >= _hitMap[i].path.size()) continue;
-                        if(parent_taxID == _hitMap[i].path[rank + 1]) {
+                        uint64_t cur_parent_taxID = (rank + 1 >= _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
+                        if(parent_taxID == cur_parent_taxID) {
                             _hitMap[i].uniqueID = std::numeric_limits<uint64_t>::max();
                             _hitMap[i].rank = rank + 1;
                             _hitMap[i].taxID = parent_taxID;
@@ -486,7 +492,9 @@ public:
                     if(_hitMap.size() <= (size_t)rp.khits)
                         break;
                 }
-                rank += 1;
+                rank++;
+                if(rank > _hitMap[0].path.size())
+                    break;
             }
         }
         if(_hitMap.size() > (size_t)rp.khits)
