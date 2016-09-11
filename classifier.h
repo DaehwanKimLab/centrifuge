@@ -380,10 +380,23 @@ public:
         for(size_t i = 0; i < _hitMap.size(); i++) {
             _hitMap[i].finalize(this->_paired, this->_mate1fw, this->_mate2fw);
         }
+
+        // See if some of the assignments corresponde to host taxIDs
+        int64_t best_score = 0;
+        bool only_host_taxIDs = false;
+        for(size_t gi = 0; gi < _hitMap.size(); gi++) {
+            if(_hitMap[gi].score > best_score) {
+                best_score = _hitMap[gi].score;
+                only_host_taxIDs = (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
+            } else if(_hitMap[gi].score == best_score) {
+                only_host_taxIDs |= (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
+            }
+        }
+ 
         
         // If the number of hits is more than -k,
         //   traverse up the taxonomy tree to reduce the number
-        if(_hitMap.size() > (size_t)rp.khits) {
+        if (!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits) {
             // Count the number of the best hits
             uint32_t best_score = _hitMap[0].score;
             for(size_t i = 1; i < _hitMap.size(); i++) {
@@ -497,7 +510,7 @@ public:
                     break;
             }
         }
-        if(_hitMap.size() > (size_t)rp.khits)
+        if(!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits)
             return 0;
        
 #if 0
@@ -515,18 +528,7 @@ public:
             max_score += (rdlen > 15 ? (rdlen - 15) * (rdlen - 15) : 0);
         }
         
-        // See if some of the assignments corresponde to host taxIDs
-        int64_t best_score = 0;
-        bool only_host_taxIDs = false;
-        for(size_t gi = 0; gi < _hitMap.size(); gi++) {
-            if(_hitMap[gi].score > best_score) {
-                best_score = _hitMap[gi].score;
-                only_host_taxIDs = (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
-            } else if(_hitMap[gi].score == best_score) {
-                only_host_taxIDs |= (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
-            }
-        }
-        
+       
         for(size_t gi = 0; gi < _hitMap.size(); gi++) {
             assert_gt(_hitMap[gi].score, 0);
             HitCount<index_t>& hitCount = _hitMap[gi];
