@@ -11,7 +11,7 @@ use warnings;
 use Getopt::Long;
 
 my ($centrifuge_index, $min_score, $min_length);
-my $only_unique = 1;
+my $only_unique = 0;
 my $show_zeros = 0;
 my $is_cnts_table = 0;
 my $PROG = "centrifuge-kreport";
@@ -31,7 +31,7 @@ usage() unless defined $ARGV[0];
 
 sub usage {
   my $exit_code = @_ ? shift : 64;
-  print STDERR "Usage: centrifuge-kreport -x <index name> [--show-zeros] [--min-score=SCORE] [--is-counts] [--min-length=LENGTH] <centrifuge output file(s)>\n";
+  print STDERR "Usage: centrifuge-kreport -x <index name> [--only-unique] [--show-zeros] [--min-score=SCORE] [--is-counts] [--min-length=LENGTH] <centrifuge output file(s)>\n";
   exit $exit_code;
 }
 
@@ -55,11 +55,9 @@ if ($is_cnts_table) {
 } else {
   <>;
   while (<>) {
-    my (undef,$seqID,$taxid,$score, undef,$hitLength,$numMatches) = split /\t/;
-    my ($l,$rl) = split(/ \/ /,$hitLength);
-    #print STDERR "undef,$seqID,$taxid,$score, undef,$hitLength,$numMatches: $l || $rl\n";
+    my (undef,$seqID,$taxid,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
     next if $only_unique && $numMatches > 1;
-    next if defined $min_length && $l < $min_length;
+    next if defined $min_length && $hitLength < $min_length;
     next if defined $min_score && $score < $min_score;
     $taxo_counts{$taxid} += 1/$numMatches;
     $seq_count++;
@@ -73,6 +71,8 @@ dfs_summation(1);
 for (keys %name_map) {
   $clade_counts{$_} ||= 0;
 }
+
+die "No sequence matches with given settings" unless $seq_count > 0;
 
 printf "%6.2f\t%d\t%d\t%s\t%d\t%s%s\n",
   $clade_counts{0} * 100 / $seq_count,
