@@ -205,9 +205,10 @@ struct SpeciesMetrics {
         
         // E step
         p_next.fill(0.0);
+        // for each assigned read set
         for(map<IDs, uint64_t>::const_iterator itr = observed.begin(); itr != observed.end(); itr++) {
-            const EList<uint64_t, 5>& ids = itr->first.ids;
-            uint64_t count = itr->second;
+            const EList<uint64_t, 5>& ids = itr->first.ids; // all ids assigned to the read set
+            uint64_t count = itr->second; // number of reads in the read set
             double psum = 0.0;
             for(size_t i = 0; i < ids.size(); i++) {
                 uint64_t tid = ids[i];

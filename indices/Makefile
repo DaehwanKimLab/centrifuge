@@ -128,7 +128,11 @@ TAXID_MAPS=$(call get_ref_file_names,$(TAXID_SUFFIX))
 CF_BUILD_OPTS?= 
 
 ifeq (nt,$(IDX_NAME))
+ifeq ($(strip $(DONT_DUSTMASK)),)
+REFERENCE_SEQUENCES+=nt-dusted.fna
+else
 REFERENCE_SEQUENCES+=nt-sorted.fna
+endif
 TAXID_MAPS+=nt.map
 TAXONOMY_DOWNLOAD_OPTS+=-g
 CF_BUILD_OPTS+=--ftabchars=14
@@ -176,6 +180,9 @@ nt.map:
 
 nt-sorted.fna: nt.fna nt.map
 	centrifuge-sort-nt.pl nt.fna nt.map > nt-sorted.fna
+
+nt-dusted.fna: nt-sorted.fna
+	 dustmasker -infmt fasta -in nt-sorted.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > nt-dusted.fna
 
 $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DIR)
 	@[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)

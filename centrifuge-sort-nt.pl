@@ -1,11 +1,11 @@
 #! /usr/bin/env perl
 #
-# Short description for sort-nt.pl
+# Sort nt file sequences according to their taxonomy ID
 #
 # Author fbreitwieser <fbreitwieser@sherman>
-# Version 0.1
+# Version 0.2
 # Copyright (C) 2016 fbreitwieser <fbreitwieser@sherman>
-# Modified On 2016-02-28 12:56
+# Modified On 2016-09-22
 # Created  2016-02-28 12:56
 #
 use strict;
@@ -48,7 +48,7 @@ while ( <$FP1> ) {
 close $FP1;
 
 print STDERR "Outputting sorted FASTA ...\n";
-foreach my $taxid (keys %taxid_to_gi) {
+foreach my $taxid (sort {$a <=> $b} keys %taxid_to_gi) {
     my @gis = @{$taxid_to_gi{$taxid}};
     my @sorted_gis = sort { $gi_to_pos{$a}->[0] <=> $gi_to_pos{$b}->[0] } @gis;
     foreach (@sorted_gis) {
