@@ -170,6 +170,8 @@ enum {
     ARG_NO_TRAVERSE,             // --no-traverse
     ARG_CLASSIFICATION_RANK,
     ARG_EXCLUDE_TAXIDS,
+    ARG_OUT_FMT,
+    ARG_TAB_FMT_COLS,
 #ifdef USE_SRA
     ARG_SRA_ACC,
 #endif
