@@ -29,7 +29,8 @@ RefRecord fastaRefReadSize(
 	FileBuf& in,
 	const RefReadInParams& rparms,
 	bool first,
-	BitpairOutFileBuf* bpout)
+	BitpairOutFileBuf* bpout,
+	int& n_empty_ref_sequences)
 {
 	int c;
 	static int lastc = '>'; // last character seen
@@ -62,12 +63,13 @@ RefRecord fastaRefReadSize(
 		do {
 			if((c = in.getPastNewline()) == -1) {
 				// No more input
-				cerr << "Warning: Encountered empty reference sequence" << endl;
+				cerr << "Warning: Encountered empty reference sequence at end of file" << endl;
 				lastc = -1;
 				return RefRecord(0, 0, true);
 			}
 			if(c == '>') {
-				cerr << "Warning: Encountered empty reference sequence" << endl;
+				++ n_empty_ref_sequences;
+				//cerr << "Warning: Encountered empty reference sequence" << endl;
 			}
 			// continue until a non-name, non-comment line
 		} while (c == '>');
@@ -187,6 +189,7 @@ RefRecord fastaRefReadSize(
 		}
 		c = in.get();
 	}
+
 	lastc = c;
 	return RefRecord((TIndexOffU)off, (TIndexOffU)len, first);
 }
@@ -282,6 +285,8 @@ fastaRefReadSizes(
 	TIndexOffU unambigTot = 0;
 	size_t bothTot = 0;
 	assert_gt(in.size(), 0);
+	int n_empty_ref_sequences = 0;
+
 	// For each input istream
 	for(size_t i = 0; i < in.size(); i++) {
 		bool first = true;
@@ -290,7 +295,7 @@ fastaRefReadSizes(
 		while(!in[i]->eof()) {
 			RefRecord rec;
 			try {
-				rec = fastaRefReadSize(*in[i], rparms, first, bpout);
+				rec = fastaRefReadSize(*in[i], rparms, first, bpout, n_empty_ref_sequences);
 				if((unambigTot + rec.len) < unambigTot) {
 					throw RefTooLongException();
 				}
@@ -319,6 +324,10 @@ fastaRefReadSizes(
 		assert(!in[i]->eof());
 #endif
 	}
+	if (n_empty_ref_sequences > 0) {
+		cerr << "Warning: Encountered " << n_empty_ref_sequences << " empty reference sequence(s)" << endl;
+	}
+
 	assert_geq(bothTot, 0);
 	assert_geq(unambigTot, 0);
 	return make_pair(
