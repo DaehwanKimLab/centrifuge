@@ -134,7 +134,6 @@ else
 REFERENCE_SEQUENCES+=nt-sorted.fna
 endif
 TAXID_MAPS+=nt.map
-TAXONOMY_DOWNLOAD_OPTS+=-g
 CF_BUILD_OPTS+=--ftabchars=14
 endif
 
@@ -170,19 +169,28 @@ $(REFERENCE_SEQUENCES_DIR):
 #	$(MAKE) -f $(THIS_FILE) $(patsubst %$(TAXID_SUFFIX),%.fna, $@)
 
 nt.gz:
-	wget ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
+	curl -o nt.gz ftp://ftp.ncbi.nih.gov/blast/db/FASTA/nt.gz
 
 nt.fna: nt.gz
 	gunzip -c nt.gz > nt.fna
 
-nt.map:
-	wget -qO- ftp://ftp.ncbi.nih.gov/pub/taxonomy/gi_taxid_nucl.dmp.gz | gunzip -c | sed 's/^/gi|/' > nt.map
+accession2taxid/nucl_gb.accession2taxid.gz:
+	mkdir -p accession2taxid
+	curl ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz > accession2taxid/nucl_gb.accession2taxid.gz
 
-nt-sorted.fna: nt.fna nt.map
-	centrifuge-sort-nt.pl nt.fna nt.map > nt-sorted.fna
+accession2taxid/nucl_wgs.accession2taxid.gz:
+	mkdir -p accession2taxid
+	curl ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz > accession2taxid/nucl_wgs.accession2taxid.gz
 
-nt-dusted.fna: nt-sorted.fna
-	 dustmasker -infmt fasta -in nt-sorted.fa -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' > nt-dusted.fna
+nt.map: nt-sorted.fna
+
+nt-sorted.fna: nt.fna accession2taxid/nucl_gb.accession2taxid.gz accession2taxid/nucl_wgs.accession2taxid.gz
+	centrifuge-sort-nt.pl -m nt.map -a nt-acs-wo-mapping.txt \
+		nt.fna accession2taxid/nucl_gb.accession2taxid.gz accession2taxid/nucl_wgs.accession2taxid.gz \
+		> nt-sorted.fna
+
+nt-dusted.fna: nt-sorted.fna | .dustmasker-ok
+	 dustmasker -infmt fasta -in nt-sorted.fna -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' | grep -v '^\$'  > nt-dusted.fna
 
 $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DIR)
 	@[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
@@ -262,13 +270,12 @@ endif
 endif
 	
 
-taxonomy/names.dmp: | taxonomy
-taxonomy/nodes.dmp: | taxonomy
-
-taxonomy: | .path-ok
+taxonomy/names.dmp: taxonomy/nodes.dmp
+taxonomy/nodes.dmp: | .path-ok
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	centrifuge-download $(TAXONOMY_DOWNLOAD_OPTS) -o $(TMP_DIR)/taxonomy taxonomy
-	mv $(TMP_DIR)/taxonomy . && rmdir $(TMP_DIR)
+	mkdir -p taxonomy
+	mv $(TMP_DIR)/taxonomy/* taxonomy && rmdir $(TMP_DIR)/taxonomy && rmdir $(TMP_DIR)
 
 $(IDX_NAME).1.cf: $(REFERENCE_SEQUENCES) $(SIZE_TABLES) $(TAXID_MAPS) taxonomy/nodes.dmp taxonomy/names.dmp | .path-ok
 	@echo Index building prerequisites: $^
