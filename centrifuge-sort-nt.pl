@@ -30,8 +30,8 @@ OPTIONS:
 
 GetOptions(
 	"m|map=s" => \$new_map_file,
-	"a=s" => $ac_wo_mapping_file,
-	"h|help" => \$opt_help) or die "Error in command line arguments");
+	"a=s" => \$ac_wo_mapping_file,
+	"h|help" => \$opt_help) or die "Error in command line arguments";
 
 scalar(@ARGV) >= 2 or die $USAGE;
 if (defined $opt_help) {
