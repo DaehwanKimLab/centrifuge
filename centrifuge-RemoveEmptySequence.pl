@@ -1,4 +1,4 @@
-#!/bin/perl
+#!/usr/bin/env perl
 
 # remove the headers with empty sequences. possible introduced by dustmask
 

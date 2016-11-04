@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 # Give a Kraken-style report from a Centrifuge output
 #
