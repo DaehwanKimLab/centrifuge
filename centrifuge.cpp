@@ -1,20 +1,20 @@
 /*
  * Copyright 2014, Daehwan Kim <infphilo@gmail.com>
  *
- * This file is part of HISAT.
+ * This file is part of Centrifuge.
  *
- * HISAT is free software: you can redistribute it and/or modify
+ * Centrifuge is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * HISAT is distributed in the hope that it will be useful,
+ * Centrifuge is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with HISAT.  If not, see <http://www.gnu.org/licenses/>.
+ * along with Centrifuge.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdlib.h>
@@ -662,16 +662,16 @@ static void printArgDesc(ostream& out) {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, www.ccb.jhu.edu/people/infphilo)" << endl;
+	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by the Centrifuge developer team (centrifuge.metagenomics@gmail.com)" << endl;
 	string tool_name = "centrifuge-class";
 	if(wrapper == "basic-0") {
-		tool_name = "hisat";
+		tool_name = "centrifuge";
 	}
     out << "Usage: " << endl
 #ifdef USE_SRA
-    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number>} [-S <filename>] [--report-file <report>]" << endl
+    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number>} [-S <filename>] [--report-file <report>]" << endl
 #else
-    << "  " << tool_name.c_str() << " [options]* -x <bt2-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <filename>] [--report-file <report>]" << endl
+    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <filename>] [--report-file <report>]" << endl
 #endif
 	    << endl
 		<<     "  <cf-idx>   Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
