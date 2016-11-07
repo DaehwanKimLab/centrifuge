@@ -58,6 +58,14 @@ function download_n_process() {
 }
 export -f download_n_process
 
+
+
+function download_n_process_nofail() {
+    download_n_process "$@" || true
+}
+export -f download_n_process_nofail
+
+
 ceol=`tput el` # terminfo clr_eol
 
 function count {
@@ -286,13 +294,13 @@ for DOMAIN in $DOMAINS; do
     [[ $N_EXPECTED -gt 0 ]] || { echo "Domain $DOMAIN has no genomes with specified filter." >&2; exit 1; }
     echo "Downloading $N_EXPECTED $DOMAIN genomes at assembly level $ASSEMBLY_LEVEL ... (will take a while)" >&2
     cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
-       tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _ | count $N_EXPECTED
+       tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
     echo >&2
 
     if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
     	echo "Downloadinging rna sequence files" >&2
         cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
-            tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process "$@"' _ | count $N_EXPECTED
+            tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
         echo >&2
     fi
 done
