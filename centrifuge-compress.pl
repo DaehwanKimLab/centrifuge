@@ -72,6 +72,26 @@ my $idMapLock : shared ;
 
 my $step = 1 ;
 
+# check the depended softwares
+if ( `which jellyfish` eq "" )
+{
+	die "Could not find Jellyfish.\n" ;
+}
+else
+{
+	my $version = `jellyfish --version` ;
+	chomp $version ;
+	if ( ( split /\s+/, $version )[1] lt 2 )
+	{
+		die "Jellyfish on your system is ", $version, " , centrifuge-compress.pl requires at least 2.0.0\n" ;
+	}
+}
+
+if ( `which nucmer` eq "" )
+{
+	die "Could not find Nucmer.\n"
+}
+
 if ( `which dustmasker` eq "" ) 
 {
 	print STDERR "Could not find dustmasker. And will turn on -noDustmasker option.\n" ;
