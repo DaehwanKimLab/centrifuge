@@ -34,14 +34,14 @@ OPTIONS:
 
 STANDARD TARGETS:
 
-    b_compressed        Download all bacteria genomes from RefSeq,
+    p_compressed        Download all bacteria genomes from RefSeq,
                         and compresses them at the species level
 
-    b_compressed+h+v    b_compressed + human genome and transcripts,
+    p_compressed+h+v    p_compressed + human genome and transcripts,
                         contaminant sequences from UniVec and EmVec,
                         and all viral genomes
 
-    b+h+v               As above, but with uncompressed bacterial genomes
+    p+h+v               As above, but with uncompressed bacterial genomes
 
 Alternatively, a IDX_NAME and one or more genomes may be specified as
 options to build a custom database.
@@ -57,10 +57,10 @@ EXTENDED OPTIONS:
 EXAMPLES:
 	# Make an index with all complete bacterial and archaeal genomes, and compress
 	# the bacterial genomes to the species level
-	make b_compressed
+	make p_compressed
 
 	# same as:
-	make COMPLETE_GENOMES=archaea COMPLETE_GENOMES_COMPRESSED=bacteria IDX_NAME=b_compressed
+	make COMPLETE_GENOMES=archaea COMPLETE_GENOMES_COMPRESSED=bacteria IDX_NAME=p_compressed
 	
 	# Make an index with just the human genome
 	make IDX_NAME=h MAMMALIAN_TAXIDS=9606
@@ -79,22 +79,22 @@ all:
 
 IDX_NAME?=$(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
 
-INDICES=b+h+v b_compressed b_compressed+h+v refseq_microbial refseq_full nt
+INDICES=p+h+v p_compressed p_compressed+h+v refseq_microbial refseq_full nt
 
-b+h+v: export COMPLETE_GENOMES:=archaea bacteria viral
-b+h+v: export MAMMALIAN_TAXIDS:=9606
-b+h+v: export INCLUDE_CONTAMINANTS:=1
-b+h+v: export IDX_NAME:=b+h+v
+p+h+v: export COMPLETE_GENOMES:=archaea bacteria viral
+p+h+v: export MAMMALIAN_TAXIDS:=9606
+p+h+v: export INCLUDE_CONTAMINANTS:=1
+p+h+v: export IDX_NAME:=p+h+v
 
-b_compressed: export COMPLETE_GENOMES:=
-b_compressed: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
-b_compressed: export IDX_NAME:=b_compressed
+p_compressed: export COMPLETE_GENOMES:=
+p_compressed: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
+p_compressed: export IDX_NAME:=b_compressed
 
-b_compressed+h+v: export COMPLETE_GENOMES:=viral
-b_compressed+h+v: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
-b_compressed+h+v: export MAMMALIAN_TAXIDS:=9606
-b_compressed+h+v: export INCLUDE_CONTAMINANTS:=1
-b_compressed+h+v: export IDX_NAME:=b_compressed+h+v
+p_compressed+h+v: export COMPLETE_GENOMES:=viral
+p_compressed+h+v: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
+p_compressed+h+v: export MAMMALIAN_TAXIDS:=9606
+p_compressed+h+v: export INCLUDE_CONTAMINANTS:=1
+p_compressed+h+v: export IDX_NAME:=b_compressed+h+v
 
 refseq_microbial: export COMPLETE_GENOMES:=archaea bacteria fungi protozoa viral
 refseq_microbial: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
