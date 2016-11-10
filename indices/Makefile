@@ -88,13 +88,13 @@ p+h+v: export IDX_NAME:=p+h+v
 
 p_compressed: export COMPLETE_GENOMES:=
 p_compressed: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
-p_compressed: export IDX_NAME:=b_compressed
+p_compressed: export IDX_NAME:=p_compressed
 
 p_compressed+h+v: export COMPLETE_GENOMES:=viral
 p_compressed+h+v: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
 p_compressed+h+v: export MAMMALIAN_TAXIDS:=9606
 p_compressed+h+v: export INCLUDE_CONTAMINANTS:=1
-p_compressed+h+v: export IDX_NAME:=b_compressed+h+v
+p_compressed+h+v: export IDX_NAME:=p_compressed+h+v
 
 refseq_microbial: export COMPLETE_GENOMES:=archaea bacteria fungi protozoa viral
 refseq_microbial: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
