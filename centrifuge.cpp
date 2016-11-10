@@ -249,11 +249,36 @@ static string classification_rank;
 static EList<uint64_t> host_taxIDs;
 static EList<uint64_t> excluded_taxIDs;
 
+
+static string tab_fmt_col_def;
+static bool sam_format;
+static EList<uint32_t> tab_fmt_cols;
+static EList<string> tab_fmt_cols_str;
+static map<string, uint32_t> col_name_map;
+
 #ifdef USE_SRA
 static EList<string> sra_accs;
 #endif
 
 #define DMAX std::numeric_limits<double>::max()
+
+
+static void parse_col_fmt(const string arg, EList<string>& tab_fmt_cols_str, EList<uint32_t>& tab_fmt_cols) {
+    tab_fmt_cols.clear();
+    tab_fmt_cols_str.clear();
+    tokenize(arg, ",", tab_fmt_cols_str);
+    for(size_t i = 0; i < tab_fmt_cols_str.size(); i++) {
+        map<string, uint32_t>::iterator it = col_name_map.find(tab_fmt_cols_str[i]);
+        if (it == col_name_map.end()) {
+            cerr << "Column definition "  << tab_fmt_cols_str[i] << " invalid." << endl;
+            exit(1);
+        }
+        tab_fmt_cols.push_back(it->second);
+    }
+
+}
+
+
 
 static void resetOptions() {
 
@@ -451,6 +476,47 @@ static void resetOptions() {
     host_taxIDs.clear();
     classification_rank = "strain";
     excluded_taxIDs.clear();
+	sam_format = false;
+
+    col_name_map["readID"] = READ_ID;
+    col_name_map["seqID"] = SEQ_ID;
+    col_name_map["taxLevel"] = TAX_RANK;
+    col_name_map["taxRank"] = TAX_RANK;
+    col_name_map["taxID"] = TAX_ID;
+    col_name_map["taxName"] = TAX_NAME;
+    col_name_map["score"] = SCORE;
+    col_name_map["2ndBestScore"] = SCORE2;
+    col_name_map["hitLength"] = HIT_LENGTH;
+    col_name_map["queryLength"] = QUERY_LENGTH;
+    col_name_map["numMatches"] = NUM_MATCHES;
+    col_name_map["readSeq"] = SEQ;
+    col_name_map["readQual"] = QUAL;
+
+    // SAM names
+    col_name_map["QNAME"] = READ_ID;
+    col_name_map["FLAG"] = PLACEHOLDER_ZERO;
+    col_name_map["RNAME"] = TAX_ID;
+    col_name_map["POS"] = PLACEHOLDER_ZERO;
+    col_name_map["MAPQ"] = PLACEHOLDER_ZERO;
+    col_name_map["CIGAR"] = PLACEHOLDER;
+    col_name_map["RNEXT"] = SEQ_ID;
+    col_name_map["PNEXT"] = PLACEHOLDER_ZERO;
+    col_name_map["TLEN"] = PLACEHOLDER_ZERO;
+    col_name_map["SEQ"] = SEQ;
+    col_name_map["QUAL"] = QUAL;
+
+    // further columns
+    col_name_map["SEQ1"] = SEQ1;
+    col_name_map["SEQ2"] = SEQ2;
+    col_name_map["QUAL1"] = QUAL1;
+    col_name_map["QUAL2"] = QUAL2;
+    col_name_map["readSeq1"] = SEQ1;
+    col_name_map["readSeq2"] = SEQ2;
+    col_name_map["readQual1"] = QUAL1;
+    col_name_map["readQual2"] = QUAL2;
+
+    tab_fmt_col_def = "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches";
+    parse_col_fmt(tab_fmt_col_def, tab_fmt_cols_str, tab_fmt_cols);
     
 #ifdef USE_SRA
     sra_accs.clear();
@@ -614,7 +680,9 @@ static struct option long_options[] = {
     {(char*)"no-abundance",     no_argument,       0,        ARG_NO_ABUNDANCE},
     {(char*)"no-traverse",      no_argument,       0,        ARG_NO_TRAVERSE},
     {(char*)"classification-rank", required_argument,    0,  ARG_CLASSIFICATION_RANK},
-    {(char*)"exclude-taxids",      required_argument,    0,  ARG_EXCLUDE_TAXIDS},
+    {(char*)"exclude-taxids",   required_argument, 0,  ARG_EXCLUDE_TAXIDS},
+    {(char*)"out-fmt",          required_argument, 0,  ARG_OUT_FMT},
+    {(char*)"tab-fmt-cols",     required_argument, 0,  ARG_TAB_FMT_COLS},
 #ifdef USE_SRA
     {(char*)"sra-acc",   required_argument, 0,        ARG_SRA_ACC},
 #endif
@@ -729,7 +797,10 @@ static void printUsage(ostream& out) {
 	//if(wrapper == "basic-0") {
 	//	out << "  --bam              output directly to BAM (by piping through 'samtools view')" << endl;
 	//}
-	out << "  -t/--time          print wall-clock time taken by search phases" << endl;
+	out << "  --out-fmt <str>       define output format, either 'tab' or 'sam' (tab)" << endl
+		<< "  --tab-fmt-cols <str>  columns in tabular format, comma separated " << endl 
+        << "                          default: " << tab_fmt_col_def << endl;
+	out << "  -t/--time             print wall-clock time taken by search phases" << endl;
 	if(wrapper == "basic-0") {
 	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
 	    << "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
@@ -738,11 +809,11 @@ static void printUsage(ostream& out) {
 	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
 		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
 	}
-	out << "  --quiet            print nothing to stderr except serious errors" << endl
-	//  << "  --refidx           refer to ref. seqs by 0-based index rather than name" << endl
-		<< "  --met-file <path>  send metrics to file at <path> (off)" << endl
-		<< "  --met-stderr       send metrics to stderr (off)" << endl
-		<< "  --met <int>        report internal counters & metrics every <int> secs (1)" << endl
+	out << "  --quiet               print nothing to stderr except serious errors" << endl
+	//  << "  --refidx              refer to ref. seqs by 0-based index rather than name" << endl
+		<< "  --met-file <path>     send metrics to file at <path> (off)" << endl
+		<< "  --met-stderr          send metrics to stderr (off)" << endl
+		<< "  --met <int>           report internal counters & metrics every <int> secs (1)" << endl
 		<< endl
 	    << " Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
@@ -1360,6 +1431,24 @@ static void parseOption(int next_option, const char *arg) {
             }
             break;
         }
+	    case ARG_OUT_FMT: {
+            if (strcmp(arg, "sam") == 0) {
+                sam_format = true;
+                parse_col_fmt("QNAME,FLAG,RNAME,POS,MAPQ,CIGAR,RNEXT,PNEXT,TLEN,SEQ,QUAL",
+                              tab_fmt_cols_str, tab_fmt_cols);
+            } else if (strcmp(arg, "default") == 0 || strcmp(arg, "tab") == 0) {
+
+            } else {
+                cerr << "Invalid output format " << arg << "!" << endl;
+                exit(1);
+            }
+			break;
+	    }
+		case ARG_TAB_FMT_COLS: {
+            parse_col_fmt(arg, tab_fmt_cols_str, tab_fmt_cols);
+    		break;
+		}
+
 #ifdef USE_SRA
         case ARG_SRA_ACC: {
             tokenize(arg, ",", sra_accs); format = SRA_FASTA;
@@ -2892,13 +2981,22 @@ static void driver(
                                                  &ebwt,
                                                  oq,           // output queue
                                                  refnames,     // reference names
+                                                 tab_fmt_cols, // columns in tab format
                                                  gQuiet);      // don't print alignment summary at end
                 if(!samNoHead) {
 					BTString buf;
+                    // TODO: Write '@SQ\tSN:AA\tLN:length fields
 					fout->writeString(buf);
 				}
 				// Write header for read-results file
-				fout->writeChars("readID\tseqID\ttaxID\tscore\t2ndBestScore\thitLength\tqueryLength\tnumMatches\n");
+                if (!sam_format) {
+                fout->writeChars(tab_fmt_cols_str[0].c_str());
+                for (size_t i = 1; i < tab_fmt_cols_str.size(); ++i) {
+                    fout->writeChars("\t");
+                    fout->writeChars(tab_fmt_cols_str[i].c_str());
+                }
+                fout->writeChars("\n");
+                }
 				break;
 			}
 			default:
@@ -2975,8 +3073,10 @@ static void driver(
             }
             reportOfb << endl;
 			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
+
                 uint64_t taxid = it->first;
                 if(taxid == 0) continue;
+
                 std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
                 if(name_itr != name_map.end()) {
                     reportOfb << name_itr->second;
@@ -2984,6 +3084,7 @@ static void driver(
                     reportOfb << taxid;
                 }
                 reportOfb << '\t' << taxid << '\t';
+
                 uint8_t rank = 0;
                 bool leaf = false;
                 std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);

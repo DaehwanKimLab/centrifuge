@@ -766,9 +766,11 @@ public:
 	explicit AlnSink(
                      OutputQueue& oq,
                      const StrList& refnames,
+                     const EList<uint32_t>& tab_fmt_cols,
                      bool quiet) :
     oq_(oq),
     refnames_(refnames),
+    tab_fmt_cols_(tab_fmt_cols),
     quiet_(quiet)
 	{
 	}
@@ -968,6 +970,7 @@ protected:
 	OutputQueue&       oq_;           // output queue
 	int                numWrappers_;  // # threads owning a wrapper for this HitSink
 	const StrList&     refnames_;     // reference names
+	const EList<uint32_t>&     tab_fmt_cols_; // Columns that are printed in tabular format
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReportingMetrics   met_;          // global repository of reporting metrics
 };
@@ -1369,9 +1372,11 @@ public:
                Ebwt<index_t>*   ebwt,
                OutputQueue&     oq,           // output queue
                const StrList&   refnames,     // reference names
+			   const EList<uint32_t>&   tab_fmt_cols, // columns to output in the tabular format
                bool             quiet) :
     AlnSink<index_t>(oq,
                      refnames,
+					 tab_fmt_cols,
                      quiet),
     ebwt_(ebwt)
     { }
@@ -1984,6 +1989,17 @@ itoa10(x, buf); \
 o.append(buf); \
 }
 
+#define WRITE_STRING(o, x) { \
+o.append(x.c_str()); \
+}
+
+template <typename T> inline 
+void appendNumber(BTString& o, const T x, char* buf) {
+	itoa10<T>(x, buf);
+	o.append(buf);
+}
+
+
 /**
  * Print a seed summary to the first output stream in the outs_ list.
  */
@@ -2182,6 +2198,80 @@ void AlnSink<index_t>::appendSeedSummary(
 	o.append('\n');
 }
 
+
+inline
+void appendReadID(BTString& o, const BTString & rd_name) {
+    size_t namelen = rd_name.length();
+    if(namelen >= 2 &&
+       rd_name[namelen-2] == '/' &&
+       (rd_name[namelen-1] == '1' || rd_name[namelen-1] == '2' || rd_name[namelen-1] == '3'))
+    {
+        namelen -= 2;
+    }
+    for(size_t i = 0; i < namelen; i++) {
+        if(isspace(rd_name[i])) {
+            break;
+        }
+        o.append(rd_name[i]);
+    }
+}
+
+inline
+void appendSeqID(BTString& o, const AlnRes* rs, const std::map<uint64_t, TaxonomyNode>& tree) { 
+    bool leaf = true;
+    std::map<uint64_t, TaxonomyNode>::const_iterator itr = tree.find(rs->taxID());
+    if(itr != tree.end()) {
+        const TaxonomyNode& node = itr->second;
+        leaf = node.leaf;
+    }
+
+    // unique ID
+    if(leaf) {
+        o.append(rs->uid().c_str());
+    } else {
+        o.append(get_tax_rank_string(rs->taxRank()));
+    }
+}
+
+inline 
+void appendTaxID(BTString& o, uint64_t tid) {
+
+	char buf[1024];
+    uint64_t tid1 = tid & 0xffffffff;
+    uint64_t tid2 = tid >> 32;
+    itoa10<int64_t>(tid1, buf);
+    o.append(buf);
+
+    if(tid2 > 0) {
+        o.append(".");
+        itoa10<int64_t>(tid2, buf);
+        o.append(buf);
+    }
+}
+
+
+enum FIELD_DEF {
+	PLACEHOLDER=0,
+	PLACEHOLDER_STAR,
+	PLACEHOLDER_ZERO,
+    READ_ID,
+	SEQ_ID,
+	TAX_ID,
+	TAX_RANK,
+	TAX_NAME,
+	SCORE,
+	SCORE2,
+	HIT_LENGTH,
+	QUERY_LENGTH,
+	NUM_MATCHES,
+	SEQ,
+	SEQ1,
+	SEQ2,
+	QUAL,
+	QUAL1,
+	QUAL2
+};
+
 /**
  * Append a single hit to the given output stream in Bowtie's
  * verbose-mode format.
@@ -2203,24 +2293,51 @@ void AlnSinkSam<index_t>::appendMate(
 	if(rs == NULL) {
 		return;
 	}
+
 	char buf[1024];
+	bool firstfield = true;
+	uint64_t taxid =  rs->taxID();
+	const basic_string<char> empty_string = "";
 
-    // QNAME
-    size_t namelen = rd.name.length();
-    if(namelen >= 2 &&
-       rd.name[namelen-2] == '/' &&
-       (rd.name[namelen-1] == '1' || rd.name[namelen-1] == '2' || rd.name[namelen-1] == '3'))
-    {
-        namelen -= 2;
-    }
-    for(size_t i = 0; i < namelen; i++) {
-        if(isspace(rd.name[i])) {
-            break;
-        }
-        o.append(rd.name[i]);
-    }
-    o.append('\t');
+	for (int i=0; i < this->tab_fmt_cols_.size(); ++i) {
+		BEGIN_FIELD;
+		switch (this->tab_fmt_cols_[i]) {
+			case READ_ID:      appendReadID(o, rd.name); break;
+			case SEQ_ID:       appendSeqID(o, rs, ebwt.tree()); break;
+			case SEQ:          o.append((string(rd.patFw.toZBuf()) + 
+										(rdo == NULL? "" : "N" + string(rdo->patFw.toZBuf()))).c_str()); break;
+			case QUAL:         o.append((string(rd.qual.toZBuf()) + 
+										(rdo == NULL? "" : "I" + string(rdo->qual.toZBuf()))).c_str()); break;
 
+			case SEQ1:         o.append(rd.patFw.toZBuf()); break;
+			case QUAL1:        o.append(rd.qual.toZBuf()); break;
+			case SEQ2:         o.append(rdo == NULL? empty_string.c_str() : rdo->patFw.toZBuf()); break;
+			case QUAL2:        o.append(rdo == NULL? empty_string.c_str() : rdo->qual.toZBuf()); break;
+
+			case TAX_ID:       appendTaxID(o, taxid); break;
+			case TAX_RANK:     o.append(get_tax_rank_string(rs->taxRank())); break;
+			case TAX_NAME:     o.append(find_or_use_default(ebwt.name(), taxid, empty_string).c_str()); break;
+
+			case SCORE:        appendNumber<uint64_t>(o, rs->score(), buf); break;
+			case SCORE2:       appendNumber<uint64_t>(o,
+									   (summ.secbest().valid()? summ.secbest().score() : 0),
+									   buf); break;
+			case HIT_LENGTH:   appendNumber<uint64_t>(o, rs->summedHitLen(), buf); break;
+			case QUERY_LENGTH: appendNumber<uint64_t>(o, 
+									   (rd.patFw.length() + (rdo != NULL ? rdo->patFw.length() : 0)),
+									   buf); break;
+			case NUM_MATCHES:  appendNumber<uint64_t>(o, n_results, buf); break;
+			case PLACEHOLDER:  o.append("");
+			case PLACEHOLDER_STAR:  o.append("*");
+			case PLACEHOLDER_ZERO:  o.append("0");
+			default: ;
+		}
+
+	}
+	o.append("\n");
+
+
+	// species counting
 	sm.addSpeciesCounts(
                         rs->taxID(),
                         rs->score(),
@@ -2240,65 +2357,7 @@ void AlnSinkSam<index_t>::appendMate(
 	}
 
 //    (sc[rs->speciesID_])++;
-    
-    const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
-    bool leaf = true;
-    std::map<uint64_t, TaxonomyNode>::const_iterator itr = tree.find(rs->taxID());
-    if(itr != tree.end()) {
-        const TaxonomyNode& node = itr->second;
-        leaf = node.leaf;
-    }
-
-    // unique ID
-    if(leaf) {
-        o.append(rs->uid().c_str());
-    } else {
-        o.append(get_tax_rank_string(rs->taxRank()));
-    }
-    o.append('\t');
-    
-    // tax ID
-    uint64_t tid = rs->taxID();
-    uint64_t tid1 = tid & 0xffffffff;
-    uint64_t tid2 = tid >> 32;
-    itoa10<int64_t>(tid1, buf);
-    o.append(buf);
-    if(tid2 > 0) {
-        o.append(".");
-        itoa10<int64_t>(tid2, buf);
-        o.append(buf);
-    }
-    o.append('\t');
-    
-    // score
-    itoa10<int64_t>(rs->score(), buf);
-    o.append(buf);
-    o.append('\t');
-    
-    // second best score
-    if(summ.secbest().valid()) {
-        itoa10<int64_t>(summ.secbest().score(), buf);
-    } else {
-        itoa10<int64_t>(0, buf);
-    }
-    o.append(buf);
-    o.append('\t');
-    
-    // hit length
-    itoa10<int64_t>(rs->summedHitLen(), buf);
-    o.append(buf);
-    o.append('\t');
-    
-    size_t rdlen = rd.patFw.length() + (rdo != NULL ? rdo->patFw.length() : 0);
-    itoa10<size_t>(rdlen, buf);
-    o.append(buf);
-    o.append('\t');
-
-    // number of results
-    itoa10<int64_t>(n_results, buf);
-    o.append(buf);
-    o.append('\n');
-
+   
 }
 
 // #include <iomanip>
