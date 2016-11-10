@@ -27,7 +27,9 @@ GetOptions(
 ) or usage();
 
 usage() unless defined $centrifuge_index;
-usage() unless defined $ARGV[0];
+if (!defined $ARGV[0]) {
+    print STDERR "Reading centrifuge out file from STDIN ... \n";
+}
 
 sub usage {
   my $exit_code = @_ ? shift : 64;
