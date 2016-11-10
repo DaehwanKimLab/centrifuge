@@ -34,7 +34,7 @@ function download_n_process() {
     NAME=`basename $FILEPATH .gz`
     $DL_PROG "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
     [[ -f "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
-    gunzip "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
+    gunzip -f "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
 
 	
     if [[ "$CHANGE_HEADER" == "1" ]]; then
@@ -90,7 +90,7 @@ function count {
 function check_or_mkdir_no_fail {
     #echo -n "Creating $1 ... " >&2
     if [[ -d $1 && ! -n `find $1 -prune -empty -type d` ]]; then
-        echo "Directory exists already! Continuing" >&2
+        echo "Directory $1 exists.  Continuing" >&2
         return `true`
     else 
         #echo "Done" >&2
@@ -269,10 +269,12 @@ fi
 
 
 for DOMAIN in $DOMAINS; do
-    if [[ ! `grep "^d.* $DOMAIN" .listing` ]]; then
-        c_echo "$DOMAIN is not a valid domain - use one of the following:" >&2
-        grep '^d' .listing  | sed 's/.* //'
-        exit 1
+    if [[ -f .listing ]]; then
+        if [[ ! `grep "^d.* $DOMAIN" .listing` ]]; then
+            c_echo "$DOMAIN is not a valid domain - use one of the following:" >&2
+            grep '^d' .listing  | sed 's/.* //'
+            exit 1
+        fi
     fi
     
     #if [[ "$CHANGE_HEADER" != "1" ]]; then
@@ -286,8 +288,11 @@ for DOMAIN in $DOMAINS; do
     FULL_ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary.txt"
     ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary_filtered.txt"
 
-    #echo "Downloading and filtering the assembly_summary.txt file ..." >&2
-    $DL_PROG "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE"
+    echo "Downloading ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt ..." >&2
+    $DL_PROG "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE" || {
+        c_echo "Download failed! Have a look at valid domains at ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
+        exit 1;
+    }
     awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"
 
     N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
