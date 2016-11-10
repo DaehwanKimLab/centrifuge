@@ -191,8 +191,8 @@ $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DI
 	cat $(TMP_DIR)/vertebrate_mammalian/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
-	[[ -d $(DL_DIR)/verterbrate_mammalian ]] || mkdir -p $(DL_DIR)/verterbrate_mammalian
-	mv $(TMP_DIR)/verterbrate_mammalian/* $(DL_DIR)/vertebrate_mammalian
+	[[ -d $(DL_DIR)/vertebrate_mammalian ]] || mkdir -p $(DL_DIR)/vertebrate_mammalian
+	mv $(TMP_DIR)/vertebrate_mammalian/* $(DL_DIR)/vertebrate_mammalian
 else
 	rm -rf $(TMP_DIR)
 endif
