@@ -272,7 +272,7 @@ for DOMAIN in $DOMAINS; do
     if [[ -f .listing ]]; then
         if [[ ! `grep "^d.* $DOMAIN" .listing` ]]; then
             c_echo "$DOMAIN is not a valid domain - use one of the following:" >&2
-            grep '^d' .listing  | sed 's/.* //'
+            grep '^d' .listing  | sed 's/.* //' | sed 's/^/  /' 1>&2
             exit 1
         fi
     fi
