@@ -414,10 +414,11 @@ prefix=/usr/local
 install: all
 	mkdir -p $(prefix)/bin
 	mkdir -p $(prefix)/share/centrifuge/indices
+	install -m 0644 indices/Makefile $(prefix)/share/centrifuge/indices
+	install -d -m 0755 $(prefix)/share/centrifuge/doc
+	install -m 0644 doc/* $(prefix)/share/centrifuge/doc
 	for file in $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_SCRIPT_LIST); do \
 		install -m 0755 $$file $(prefix)/bin ; \
-		install -m 0644 indices/Makefile $(prefix)/share/centrifuge/indices; \
-		install -d -m 0644 doc $(prefix)/share/centrifuge/doc; \
 	done
 
 .PHONY: uninstall
