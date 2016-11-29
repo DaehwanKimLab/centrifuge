@@ -190,7 +190,7 @@ nt-sorted.fna: nt.fna accession2taxid/nucl_gb.accession2taxid.gz accession2taxid
 		> nt-sorted.fna
 
 nt-dusted.fna: nt-sorted.fna | .dustmasker-ok
-	 dustmasker -infmt fasta -in nt-sorted.fna -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]//g' | grep -v '^$$'  > nt-dusted.fna
+	 dustmasker -infmt fasta -in nt-sorted.fna -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > nt-dusted.fna
 
 $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DIR)
 	@[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
