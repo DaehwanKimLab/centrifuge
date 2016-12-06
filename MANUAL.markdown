@@ -228,7 +228,7 @@ The following example shows classification assignments for a read.  The assignme
     The fifth column is the score for the next best classification (e.g., 0).
     The sixth column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80).
     The seventh column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80). 
-    The eighth column is the number of classifications, indicating how many assignments were made (e.g.,1).
+    The eighth column is the number of classifications for this read, indicating how many assignments were made (e.g.,1).
 
 ### Centrifuge summary output (the default filename is centrifuge_report.tsv)
 
@@ -247,6 +247,11 @@ The following example shows a classification summary for each genome or taxonomi
 
 As the GenBank database is incomplete (i.e., many more genomes remain to be identified and added), and reads have sequencing errors, classification programs including Centrifuge often report many false assignments.  In order to perform more conservative analyses, users may want to discard assignments for reads having a matching length (8th column in the output of Centrifuge) of 40% or lower.  It may be also helpful to use a score (4th column) for filtering out some assignments.   Our future research plans include working on developing methods that estimate confidence scores for assignments.
 
+### Kraken-style report
+
+`centrifuge-kreport` can be used to make a Kraken-style report from the Centrifuge output including taxonomy information:
+
+`centrifuge-kreport -x <centrifuge index> <centrifuge out file>`
 
 
 Inspecting the Centrifuge index

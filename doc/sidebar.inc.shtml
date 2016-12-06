@@ -7,6 +7,7 @@
  </ul>
 </div>
 
+<!--
 <h2>News and Updates</h2>
 <div class="box">
  <ul>
@@ -16,16 +17,15 @@
    </tbody></table>
  </ul>
 </div>
+-->
 
 <h2>Getting Help</h2>
 <div class="box">
  <ul>
    <table width="100%">
      <tbody><tr><td>
-		<!-- Questions and comments about HISAT2 can be posted on the 
-		<a href="https://groups.google.com/forum/#!forum/hisat-tools-users"><b>HISAT Tools Users Google Group</b></a>. -->
-		Please use <a href="mailto:centrifuge.metagenomics@gmail.com">centrifuge.metagenomics@gmail.com</a> for 
-		private communications only. Please do not email technical questions to Centrifuge contributors directly.</td></tr>
+        Please submit an issue on <a href="https://github.com/infphilo/centrifuge/issues">GitHub</a>, or send an E-Mail to
+        <a href="mailto:centrifuge.metagenomics@gmail.com">centrifuge.metagenomics@gmail.com</a> for private communications.</td></tr>
    </tbody></table>
  </ul>
 </div>
@@ -33,53 +33,53 @@
 <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads"><h2><u>Releases</u></h2></a>
 <div class="box">
  <ul>
-   <table width="100%"><tbody><tr><td>version 1.0.2-beta</td> <td align="right">5/25/2016</td></tr>
+   <table width="100%"><tbody><tr><td>version 1.0.3-beta</td> <td align="right">12/06/2016</td></tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.2-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.3-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
        </tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.2-beta-Linux_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Linux x86_64 binary</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.3-beta-Linux_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Linux x86_64 binary</a></td>
        </tr>
        <tr>
-	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.2-beta-OSX_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Mac OS X x86_64 binary</a></td>
+	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.3-beta-OSX_x86_64.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Mac OS X x86_64 binary</a></td>
        </tr>
    </tbody></table>
  </ul>
 </div>
 
-<a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data"><h2><u>Indexes</u></h2></a>
+<a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data"><h2><u>Indexes</u></h2></a> 
   <div class="box">
-    <table width="100%">
+    <table width="100%"><tr><td>last updated:</td> <td align="right">12/06/2016</td></tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/b_compressed.tar.gz"><i>Bacteria (compressed)</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria (compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>3.4 GB</b>
+	  <b>4.4 GB</b>
         </td>
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/b_compressed+h+v.tar.gz"><i>Bacteria, Viruses, Human (compressed)</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Viruses, Human (compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>3.9 GB</b>
+	  <b>5.4 GB</b>
         </td>
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/b+h+v.tar.gz"><i>Bacteria, Viruses, Human </i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Viruses, Human </i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>6.3 GB</b>
+	  <b>7.9 GB</b>
         </td>
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/nt.tar.gz"><i>NCBI nucleotide non-redundant sequences </i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/nt.tar.gz"><i>&nbsp;&nbsp;&nbsp;NCBI nucleotide non-redundant sequences </i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>44.2 GB</b>
+	  <b>50 GB</b>
         </td>
       </tr>
     </table>
@@ -88,20 +88,16 @@
 <h2>Related Tools</h2>
 <div class="box">
  <ul>
-   <!--
+   <li><a href="https://github.com/fbreitwieser/pavian">Pavian</a>: Tool for interactive analysis of pathogen and metagenomics data</li>
    <li><a href="http://www.ccb.jhu.edu/software/hisat">HISAT</a>: Fast and sensitive spliced alignment</li>
    <li><a href="http://bowtie-bio.sourceforge.net/bowtie2">Bowtie2</a>: Ultrafast read alignment</li>
-   <li><a href="http://www.ccb.jhu.edu/software/tophat">TopHat2</a>: Spliced read mapper for RNA-Seq</li>
-   <li><a href="http://cufflinks.cbcb.umd.edu">Cufflinks</a>: Isoform assembly and quantitation for RNA-Seq</li>
-   <li><a href="http://www.ccb.jhu.edu/software/stringtie">StringTie</a>: Transcript assembly and quantification for RNA-Seq</li>
-   -->
  </ul>
 </div>
 
 <h2>Publications</h2>
 <div class="box">
  <ul>
-   <li><p>Kim D, Song L, Breitwieser F, and Salzberg SL. <a href="http://biorxiv.org/content/early/2016/05/25/054965"><b>Centrifuge: rapid and sensitive classification of metagenomic sequences</b></a>. <i>bioRxiv</i> 2016</p></li>
+   <li><p>Kim D, Song L, Breitwieser FP, and Salzberg SL. <a href="http://genome.cshlp.org/content/early/2016/10/17/gr.210641.116.abstract"><b>Centrifuge: rapid and sensitive classification of metagenomic sequences</b></a>. <i>Genome Research</i> 2016</p></li>
  </ul>
 </div>
 
