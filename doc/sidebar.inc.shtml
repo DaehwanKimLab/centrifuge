@@ -89,7 +89,7 @@
 <div class="box">
  <ul>
    <li><a href="https://github.com/fbreitwieser/pavian">Pavian</a>: Tool for interactive analysis of pathogen and metagenomics data</li>
-   <li><a href="http://www.ccb.jhu.edu/software/hisat">HISAT</a>: Fast and sensitive spliced alignment</li>
+   <li><a href="http://www.ccb.jhu.edu/software/hisat2">HISAT2</a>: Graph-based alignment to a population of genomes</li>
    <li><a href="http://bowtie-bio.sourceforge.net/bowtie2">Bowtie2</a>: Ultrafast read alignment</li>
  </ul>
 </div>
@@ -97,7 +97,7 @@
 <h2>Publications</h2>
 <div class="box">
  <ul>
-   <li><p>Kim D, Song L, Breitwieser FP, and Salzberg SL. <a href="http://genome.cshlp.org/content/early/2016/10/17/gr.210641.116.abstract"><b>Centrifuge: rapid and sensitive classification of metagenomic sequences</b></a>. <i>Genome Research</i> 2016</p></li>
+   <li><p>Kim D, Song L, Breitwieser FP, and Salzberg SL. <a href="http://genome.cshlp.org/content/early/2016/11/16/gr.210641.116.abstract"><b>Centrifuge: rapid and sensitive classification of metagenomic sequences</b></a>. <i>Genome Research</i> 2016</p></li>
  </ul>
 </div>
 

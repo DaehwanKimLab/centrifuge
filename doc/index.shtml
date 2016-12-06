@@ -24,13 +24,14 @@
 
 	  <h2>Centrifuge 1.0.3-beta release 12/06/2016</h2>
           <ul>
-              <li>Fix Perl hash bangs (thanks to Andreas Sjödin / @druvus)</li>
-              <li>Update nt database building to work with new accession code scheme</li>
-              <li>Added option <tt>--tab-fmt-cols</tt> to specify output format columns</li>
-              <li>Fix for traversing the hitmap up the taxonomy tree</li>
+              <li>Fixed Perl hash bangs (thanks to Andreas Sjödin / @druvus).</li>
+              <li>Updated nt database building to work with new accession code scheme.</li>
+              <li>Added option <tt>--tab-fmt-cols</tt> to specify output format columns.</li>
+              <li>A minor fix for traversing the hitmap up the taxonomy tree.</li>
           </ul>
           <br/>
 
+          <h2><a href="http://genome.cshlp.org/content/early/2016/11/16/gr.210641.116.abstract">Centrifuge<\a> paper published at Genome Research 11/16/2016</h2>  
 
 	  <h2>Centrifuge 1.0.2-beta release 5/25/2016</h2>
           <ul>
