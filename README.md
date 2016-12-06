@@ -38,6 +38,6 @@ See the MANUAL files for details. We provide a Makefile that simplifies the buil
 standard and custom indices
 
     cd indices
-    make b+h+v                   # bacterial, human, and viral genomes [~12G]
-    make b_compressed            # bacterial genomes compressed at the species level [~4.2G]
-    make b_compressed+h+v        # combination of the two above [~8G]
+    make p+h+v                   # bacterial, human, and viral genomes [~12G]
+    make p_compressed            # bacterial genomes compressed at the species level [~4.2G]
+    make p_compressed+h+v        # combination of the two above [~8G]
