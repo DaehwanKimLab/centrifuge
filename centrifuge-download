@@ -6,12 +6,17 @@ exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
-if hash wget 2>/dev/null; then
+if hash rsync 2>/dev/null; then
+	DL_PROG="rsync --no-motd"
+        DL_MODE="rsync"
+elif hash wget 2>/dev/null; then
 	DL_PROG="wget -N --reject=index.html -qO"
+        DL_MODE="ftp"
 else 
 	DL_PROG="curl -s -o"
+        DL_MODE="ftp"
 fi
-export DL_PROG
+export DL_PROG DL_MODE
 
 cut_after_first_space_or_second_pipe() {
 	grep '^>' | sed 's/ .*//' | sed 's/\([^|]*|[^|]*\).*/\1/'
@@ -32,7 +37,15 @@ function download_n_process() {
     IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
 
     NAME=`basename $FILEPATH .gz`
-    $DL_PROG "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+
+    if [ $DL_MODE = "rsync" ]; then
+        FILEPATH=${FILEPATH/ftp/rsync}
+        $DL_PROG "$FILEPATH" "$LIBDIR/$DOMAIN/$NAME.gz" || \
+        { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+    else
+        $DL_PROG "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+    fi
+
     [[ -f "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
     gunzip -f "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
 
@@ -183,7 +196,11 @@ if [[ "$DATABASE" == "taxonomy" ]]; then
   echo "Downloading NCBI taxonomy ... " >&2
   if check_or_mkdir_no_fail "$BASE_DIR"; then
     cd "$BASE_DIR" > /dev/null
-    $DL_PROG taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
+    if [ $DL_MODE = "rsync" ]; then
+        $DL_PROG ${FTP/ftp/rsync}/pub/taxonomy/taxdump.tar.gz taxdump.tar.gz
+    else
+        $DL_PROG taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
+    fi
     tar -zxvf taxdump.tar.gz nodes.dmp
     tar -zxvf taxdump.tar.gz names.dmp
     rm taxdump.tar.gz
@@ -205,8 +222,13 @@ if [[ "$DATABASE" == "contaminants" ]]; then
     cd "$CONTAMINANT_DIR" > /dev/null
 
     # download UniVec and EmVec database
-    $DL_PROG UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
-    $DL_PROG emvec.dat.gz ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
+    if [ $DL_MODE = "rsync" ]; then
+        $DL_PROG rsync://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec UniVec.fna
+        $DL_PROG rsync://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz emvec.dat.gz
+    else
+        $DL_PROG UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
+        $DL_PROG emvec.dat.gz ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
+    fi
     gunzip -c emvec.dat.gz | dat_to_fna > EmVec.fna
  
     if [[ "$CHANGE_HEADER" == "1" ]]; then
@@ -282,10 +304,18 @@ for DOMAIN in $DOMAINS; do
     ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary_filtered.txt"
 
     echo "Downloading ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt ..." >&2
-    $DL_PROG "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE" || {
-        c_echo "Download failed! Have a look at valid domains at ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
-        exit 1;
-    }
+    if [ $DL_MODE = "rsync" ]; then
+        $DL_PROG rsync://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt "$FULL_ASSEMBLY_SUMMARY_FILE" || {
+            c_echo "rsync Download failed! Have a look at valid domains at ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
+            exit 1;
+        }
+    else
+        $DL_PROG "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE" || {
+            c_echo "Download failed! Have a look at valid domains at ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
+            exit 1;
+        }
+    fi
+
     awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"
 
     N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
