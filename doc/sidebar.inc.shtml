@@ -52,7 +52,7 @@
     <table width="100%"><tr><td>last updated:</td> <td align="right">12/06/2016</td></tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria (compressed)</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea (compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>4.4 GB</b>
@@ -60,7 +60,7 @@
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Viruses, Human (compressed)</i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea, Viruses, Human (compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>5.4 GB</b>
@@ -68,7 +68,7 @@
       </tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Viruses, Human </i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Aarchaea, Viruses, Human </i></a>
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>7.9 GB</b>
