@@ -418,7 +418,10 @@ public:
             
             if(!_tree_traverse) {
                 if(_hitMap.size() > (size_t)rp.khits)
+		{
+		    reportUnclassified( sink ) ;
                     return 0;
+		}
             }
             
             uint8_t rank = 0;
@@ -511,7 +514,10 @@ public:
             }
         }
         if(!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits)
+	{
+	    reportUnclassified( sink ) ;
             return 0;
+	}
        
 #if 0
        	// boost up the score if the assignment is unique
@@ -528,7 +534,7 @@ public:
             max_score += (rdlen > 15 ? (rdlen - 15) * (rdlen - 15) : 0);
         }
         
-       
+      	bool reported = false ; 
         for(size_t gi = 0; gi < _hitMap.size(); gi++) {
             assert_gt(_hitMap[gi].score, 0);
             HitCount<index_t>& hitCount = _hitMap[gi];
@@ -555,8 +561,13 @@ public:
                     hitCount.readPositions,
                     isFw);
             sink.report(0, &rs);
+	    reported = true ;
         }
-        return 0;
+
+	if ( reported == false ) 
+		reportUnclassified( sink ) ;
+        
+	return 0;
     }
     
     bool getGenomeIdx(
@@ -968,61 +979,72 @@ private:
                           size_t offset,
                           size_t length)
     {
-        size_t idx = 0;
+	    size_t idx = 0;
 #ifdef LI_DEBUG
-        cout << "Add " << taxID << " " << partialHitScore << " " << weightedHitLen << endl;
+	    cout << "Add " << taxID << " " << partialHitScore << " " << weightedHitLen << endl;
 #endif
-        const TaxonomyPathTable& pathTable = ebwt.paths();
-        pathTable.getPath(taxID, _tempPath);
-        uint8_t rank = _classification_rank;
-        if(rank > 0) {
-            for(; rank < _tempPath.size(); rank++) {
-                if(_tempPath[rank] != 0) {
-                    taxID = _tempPath[rank];
-                    break;
-                }
-            }
-        }
-        
-        for(; idx < hitMap.size(); ++idx) {
-            bool same = false;
-            if(rank == 0) {
-                same = (uniqueID == hitMap[idx].uniqueID);
-            } else {
-                same = (taxID == hitMap[idx].taxID);
-            }
-            if(same) {
-                if(hitMap[idx].timeStamp != hi) {
-                    hitMap[idx].count += 1;
-                    hitMap[idx].scores[rdi][fwi] += partialHitScore;
-                    hitMap[idx].summedHitLens[rdi][fwi] += weightedHitLen;
-                    hitMap[idx].timeStamp = (uint32_t)hi;
-                    hitMap[idx].readPositions.push_back(make_pair(offset, length));
-                }
-                break;
-            }
-        }
-        
-        if(idx >= hitMap.size() && !considerOnlyIfPreviouslyObserved) {
-            hitMap.expand();
-            HitCount<index_t>& hitCount = hitMap.back();
-            hitCount.reset();
-            hitCount.uniqueID = uniqueID;
-            hitCount.count = 1;
-            hitCount.scores[rdi][fwi] = partialHitScore;
-            hitCount.summedHitLens[rdi][fwi] = weightedHitLen;
-            hitCount.timeStamp = (uint32_t)hi;
-            hitCount.readPositions.clear();
-            hitCount.readPositions.push_back(make_pair(offset, length));
-            hitCount.path = _tempPath;
-            hitCount.rank = rank;
-            hitCount.taxID = taxID;
-        }
+	    const TaxonomyPathTable& pathTable = ebwt.paths();
+	    pathTable.getPath(taxID, _tempPath);
+	    uint8_t rank = _classification_rank;
+	    if(rank > 0) {
+		    for(; rank < _tempPath.size(); rank++) {
+			    if(_tempPath[rank] != 0) {
+				    taxID = _tempPath[rank];
+				    break;
+			    }
+		    }
+	    }
 
-        //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
-        //assert_lt(genusIdx, genusMap.size());
-        return idx;
+	    for(; idx < hitMap.size(); ++idx) {
+		    bool same = false;
+		    if(rank == 0) {
+			    same = (uniqueID == hitMap[idx].uniqueID);
+		    } else {
+			    same = (taxID == hitMap[idx].taxID);
+		    }
+		    if(same) {
+			    if(hitMap[idx].timeStamp != hi) {
+				    hitMap[idx].count += 1;
+				    hitMap[idx].scores[rdi][fwi] += partialHitScore;
+				    hitMap[idx].summedHitLens[rdi][fwi] += weightedHitLen;
+				    hitMap[idx].timeStamp = (uint32_t)hi;
+				    hitMap[idx].readPositions.push_back(make_pair(offset, length));
+			    }
+			    break;
+		    }
+	    }
+
+	    if(idx >= hitMap.size() && !considerOnlyIfPreviouslyObserved) {
+		    hitMap.expand();
+		    HitCount<index_t>& hitCount = hitMap.back();
+		    hitCount.reset();
+		    hitCount.uniqueID = uniqueID;
+		    hitCount.count = 1;
+		    hitCount.scores[rdi][fwi] = partialHitScore;
+		    hitCount.summedHitLens[rdi][fwi] = weightedHitLen;
+		    hitCount.timeStamp = (uint32_t)hi;
+		    hitCount.readPositions.clear();
+		    hitCount.readPositions.push_back(make_pair(offset, length));
+		    hitCount.path = _tempPath;
+		    hitCount.rank = rank;
+		    hitCount.taxID = taxID;
+	    }
+
+	    //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
+	    //assert_lt(genusIdx, genusMap.size());
+	    return idx;
     }
+
+    void reportUnclassified( AlnSinkWrap<index_t>& sink )
+    {
+	    AlnRes rs ;
+	    EList<pair<uint32_t,uint32_t> > dummy ;
+	    dummy.push_back( make_pair( 0, 0 ) ) ;
+	    rs.init( 0, 0, string( "unclassified" ), 0, 0, 0, dummy, true ) ;
+	    sink.report( 0, &rs ) ;
+    }
+
+
 
     // compare BWTHits by size, ascending, first, then by length, descending
     //   TODO: move this operator into BWTHits if that is the standard way we would like to sort
