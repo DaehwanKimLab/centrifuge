@@ -116,6 +116,7 @@ my %read_compress = ();
 my $cap_out = undef;       # Filename for passthrough
 my $no_unal = 0;
 my $large_idx = 0;
+my $outputFmtSam = 0 ;
 # Remove whitespace
 for my $i (0..$#bt2_args) {
 	$bt2_args[$i]=~ s/^\s+//; $bt2_args[$i] =~ s/\s+$//;
@@ -192,6 +193,16 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 			$read_compress{$rarg} = "bzip2" if $arg eq "--${rarg}-bz2";
 			last;
 		}
+	}
+	if ($arg eq "--out-fmt" )
+	{
+		$i < scalar(@bt2_args)-1 || Fail("Argument expected in next token!\n");
+		$i++;
+		if ( $bt2_args[$i] eq "sam" ) 
+		{
+			$outputFmtSam = 1 ;
+		}
+		#$bt2_args[$i] = undef;
 	}
 }
 # If the user asked us to redirect some reads to files, or to suppress
@@ -485,37 +496,47 @@ if(defined($cap_out)) {
 			}
 		}
 	}
-	
-	my $outputHeader = <BT> ;
+
 	my $seqIndex = -1 ;
 	my $qualIndex = -1 ;
 	my $lengthIndex = -1 ;
 	my $readIdIndex = -1 ;
-	my @cols = split /\t/, $outputHeader ;
-	for ( my $i = 0 ; $i < scalar( @cols ) ; ++$i )
+	if ( $outputFmtSam == 0 )
 	{
-		if ( $cols[$i] =~ /readSeq/ )
+		my $outputHeader = <BT> ;
+		my @cols = split /\t/, $outputHeader ;
+		for ( my $i = 0 ; $i < scalar( @cols ) ; ++$i )
 		{
-			$seqIndex = $i ;
+			if ( $cols[$i] =~ /readSeq/ )
+			{
+				$seqIndex = $i ;
+			}
+			elsif ( $cols[$i] =~ /readQual/ )
+			{
+				$qualIndex = $i ;
+			}
+			elsif ( $cols[$i] =~ /queryLength/ )
+			{
+				$lengthIndex = $i ;
+			}
+			elsif ( $cols[$i] =~ /readID/ )
+			{
+				$readIdIndex = $i ;
+			}
 		}
-		elsif ( $cols[$i] =~ /readQual/ )
+		if ( $seqIndex == -1 && scalar( keys %read_fhs) == 0 )
 		{
-			$qualIndex = $i ;
+			Error( "Must use readSeq in --tabFmtCols in order to output unaligned reads." )  ;
 		}
-		elsif ( $cols[$i] =~ /queryLength/ )
-		{
-			$lengthIndex = $i ;
-		}
-		elsif ( $cols[$i] =~ /readID/ )
-		{
-			$readIdIndex = $i ;
-		}
+		print {$ofh} $outputHeader ;
 	}
-	if ( $seqIndex == -1 && scalar( keys %read_fhs) == 0 )
+	else
 	{
-		Info( "Must use readSeq in --tabFmtCols in order to output unaligned reads." )  ;
+		$seqIndex = 9 ;
+		$qualIndex = 10 ;
+		$lengthIndex = 8 ;
+		$readIdIndex = 0 ;
 	}
-	print {$ofh} $outputHeader ;
 
 	while(<BT>) {
 		chomp;
@@ -532,7 +553,7 @@ if(defined($cap_out)) {
 			}
 			$filt = 1 if $no_unal && $unal;
 			if($passthru) {
-				if(scalar(keys %read_fhs) == 0) {
+				if(scalar(keys %read_fhs) == 0 || $seqIndex == -1 ) {
 					# Next line is read with some whitespace escaped
 					# my $l = <BT>;
 				} else {
@@ -575,7 +596,7 @@ if(defined($cap_out)) {
 						my $qual = $cols[$qualIndex] ;
 						if ( substr( $seq, $length, 1 ) ne "N" && !$warnedAboutLength )
 						{
-							Info( "The length of the paired-end reads are different. The output from --al-conc or --un-conc will be different from input." ) ;
+							Error( "The length of the paired-end reads are different. The output from --al-conc or --un-conc will be different from input." ) ;
 							$warnedAboutLength = 1 ;
 						}
 						my $l1 ;

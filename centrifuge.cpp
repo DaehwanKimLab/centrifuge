@@ -501,7 +501,7 @@ static void resetOptions() {
     col_name_map["CIGAR"] = PLACEHOLDER;
     col_name_map["RNEXT"] = SEQ_ID;
     col_name_map["PNEXT"] = PLACEHOLDER_ZERO;
-    col_name_map["TLEN"] = PLACEHOLDER_ZERO;
+    col_name_map["TLEN"] = QUERY_LENGTH ; //PLACEHOLDER_ZERO;
     col_name_map["SEQ"] = SEQ;
     col_name_map["QUAL"] = QUAL;
 
