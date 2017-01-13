@@ -485,30 +485,81 @@ if(defined($cap_out)) {
 			}
 		}
 	}
+	
+	my $outputHeader = <BT> ;
+	my $seqIndex = -1 ;
+	my $qualIndex = -1 ;
+	my $lengthIndex = -1 ;
+	my $readIdIndex = -1 ;
+	my @cols = split /\t/, $outputHeader ;
+	for ( my $i = 0 ; $i < scalar( @cols ) ; ++$i )
+	{
+		if ( $cols[$i] =~ /readSeq/ )
+		{
+			$seqIndex = $i ;
+		}
+		elsif ( $cols[$i] =~ /readQual/ )
+		{
+			$qualIndex = $i ;
+		}
+		elsif ( $cols[$i] =~ /queryLength/ )
+		{
+			$lengthIndex = $i ;
+		}
+		elsif ( $cols[$i] =~ /readID/ )
+		{
+			$readIdIndex = $i ;
+		}
+	}
+	if ( $seqIndex == -1 && scalar( keys %read_fhs) == 0 )
+	{
+		Info( "Must use readSeq in --tabFmtCols in order to output unaligned reads." )  ;
+	}
+	print {$ofh} $outputHeader ;
+
 	while(<BT>) {
 		chomp;
 		my $filt = 0;
 		unless(substr($_, 0, 1) eq "@") {
 			# If we are supposed to output certain reads to files...
-			my $tab1_i = index($_, "\t") + 1;
-			my $tab2_i = index($_, "\t", $tab1_i);
-			my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
-			my $unal = ($fl & 4) != 0;
+			#my $tab1_i = index($_, "\t") + 1;
+			#my $tab2_i = index($_, "\t", $tab1_i);
+			#my $fl = substr($_, $tab1_i, $tab2_i - $tab1_i);
+			my $unal = 0 ;
+			if ( /unclassified/ )
+			{
+				$unal = 1 ;
+			}
 			$filt = 1 if $no_unal && $unal;
 			if($passthru) {
 				if(scalar(keys %read_fhs) == 0) {
 					# Next line is read with some whitespace escaped
-					my $l = <BT>;
+					# my $l = <BT>;
 				} else {
-					my $mate1 = (($fl &  64) != 0);
-					my $mate2 = (($fl & 128) != 0);
-					my $unp = !$mate1 && !$mate2;
-					my $pair = !$unp;
+					my @cols = split /\t/ ;
+					my $isPaired = 0 ;
+					my $pair = 0 ;
+					if ( length( $cols[$seqIndex] ) != $cols[$lengthIndex] )
+					{
+						$pair = 1 ;
+					}
+					my $unp = !$pair ;
+
 					# Next line is read with some whitespace escaped
-					my $l = <BT>;
-					chomp($l);
-					$l =~ s/%(..)/chr(hex($1))/eg;
+					#my $l = <BT>;
+					#chomp($l);
+					#$l =~ s/%(..)/chr(hex($1))/eg;
+
 					if((defined($read_fhs{un}) || defined($read_fhs{al})) && $unp) {
+						my $l ;
+						if ( $qualIndex != -1 )
+						{
+							$l = "@".$cols[ $readIdIndex ]."\n".$cols[$seqIndex]."\n+\n".$cols[$qualIndex]."\n" ;
+						}
+						else 
+						{
+							$l = ">".$cols[ $readIdIndex ]."\n".$cols[$seqIndex]."\n" ;
+						}
 						if($unal) {
 							# Failed to align
 							print {$read_fhs{un}} $l if defined($read_fhs{un});
@@ -517,16 +568,41 @@ if(defined($cap_out)) {
 							print {$read_fhs{al}} $l if defined($read_fhs{al});
 						}
 					}
+					my $warnedAboutLength = 0 ;
 					if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
-						my $conc  = (($fl &   2) != 0);
-						if     ($conc && $mate1) {
-							print {$read_fhs{"al-conc"}{1}} $l if defined($read_fhs{"al-conc"});
-						} elsif($conc && $mate2) {
-							print {$read_fhs{"al-conc"}{2}} $l if defined($read_fhs{"al-conc"});
-						} elsif(!$conc && $mate1) {
-							print {$read_fhs{"un-conc"}{1}} $l if defined($read_fhs{"un-conc"});
-						} elsif(!$conc && $mate2) {
-							print {$read_fhs{"un-conc"}{2}} $l if defined($read_fhs{"un-conc"});
+						my $length = $cols[$lengthIndex] / 2 ;
+						my $seq = $cols[$seqIndex] ;
+						my $qual = $cols[$qualIndex] ;
+						if ( substr( $seq, $length, 1 ) ne "N" && !$warnedAboutLength )
+						{
+							Info( "The length of the paired-end reads are different. The output from --al-conc or --un-conc will be different from input." ) ;
+							$warnedAboutLength = 1 ;
+						}
+						my $l1 ;
+						my $l2 ;
+						if ( $qualIndex != -1 )
+						{
+							$l1 = "@".$cols[ $readIdIndex ]."\n".substr( $seq, 0, $length )."\n+\n".substr( $qual, 0, $length )."\n" ;
+						}
+						else 
+						{
+							$l1 = ">".$cols[ $readIdIndex ]."\n".substr( $seq, 0, $length )."\n" ;
+						}
+						if ( $qualIndex != -1 )
+						{
+							$l2 = "@".$cols[ $readIdIndex ]."\n".substr( $seq, $length + 1, $length )."\n+\n".substr( $qual, $length + 1, $length )."\n" ;
+						}
+						else 
+						{
+							$l2 = ">".$cols[ $readIdIndex ]."\n".substr( $seq, $length + 1, $length )."\n" ;
+						}
+
+						if     ( !$unal) {
+							print {$read_fhs{"al-conc"}{1}} $l1 if defined($read_fhs{"al-conc"});
+							print {$read_fhs{"al-conc"}{2}} $l2 if defined($read_fhs{"al-conc"});
+						} else {
+							print {$read_fhs{"un-conc"}{1}} $l1 if defined($read_fhs{"un-conc"});
+							print {$read_fhs{"un-conc"}{2}} $l2 if defined($read_fhs{"un-conc"});
 						}
 					}
 				}
