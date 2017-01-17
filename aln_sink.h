@@ -23,6 +23,7 @@
 #include <limits>
 #include <utility>
 #include <map>
+#include <cstdint>
 #include "read.h"
 #include "ds.h"
 #include "simple_func.h"
@@ -40,6 +41,29 @@ class SeedResults;
 enum {
 	OUTPUT_SAM = 1
 };
+
+enum class TABCOLS : uint8_t {
+	PLACEHOLDER,
+	PLACEHOLDER_STAR,
+	PLACEHOLDER_ZERO,
+    READ_ID,
+	SEQ_ID,
+	TAX_ID,
+	TAX_RANK,
+	TAX_NAME,
+	SCORE,
+	SCORE2,
+	HIT_LENGTH,
+	QUERY_LENGTH,
+	NUM_MATCHES,
+	SEQ,
+	SEQ1,
+	SEQ2,
+	QUAL,
+	QUAL1,
+	QUAL2
+};
+
 
 
 struct ReadCounts {
@@ -279,13 +303,23 @@ struct SpeciesMetrics {
         }
     }
     
-    void calculateAbundance(const Ebwt<uint64_t>& ebwt, uint8_t rank)
+    void dfs_summation(TaxId tax_id, const vector<TaxId>& child_lists) {
+    	for (auto& child : child_lists[tax_id]) {
+    		dfs_summation(child, child_lists);
+        }
+    }
+
+    template <typename T>
+    void calculateAbundance(const Ebwt<T>& ebwt, uint8_t rank)
     {
         const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
         
+        // Lengths of genomes (or contigs)
+        const map<uint64_t, uint64_t>& size_table = ebwt.size();
+
         // Find leaves
         set<uint64_t> leaves;
-        for(map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
+        for (map<IDs, uint64_t>::iterator itr = observed.begin(); itr != observed.end(); itr++) {
             const IDs& ids = itr->first;
             for(size_t i = 0; i < ids.ids.size(); i++) {
                 uint64_t tid = ids.ids[i];
@@ -367,9 +401,7 @@ struct SpeciesMetrics {
         
         uint64_t test_tid = 0, test_tid2 = 0;
 #endif
-        // Lengths of genomes (or contigs)
-        const map<uint64_t, uint64_t>& size_table = ebwt.size();
-        
+
         // Initialize probabilities
         map<uint64_t, uint64_t> tid_to_num; // taxonomic ID to corresponding element of a list
         EList<double> p;
@@ -381,7 +413,7 @@ struct SpeciesMetrics {
                 uint64_t tid = ids.ids[i];
                 if(leaves.find(tid) == leaves.end())
                     continue;
-                
+
 #ifdef DAEHWAN_DEBUG
                 if((tid == test_tid || tid == test_tid2) &&
                    count >= 100) {
@@ -394,7 +426,7 @@ struct SpeciesMetrics {
                     cerr << endl;
                 }
 #endif
-                
+
                 if(tid_to_num.find(tid) == tid_to_num.end()) {
                     tid_to_num[tid] = p.size();
                     p.push_back(1.0 / ids.ids.size() * count);
@@ -411,9 +443,9 @@ struct SpeciesMetrics {
                 }
             }
         }
-        
+
         assert_eq(p.size(), len.size());
-        
+
         {
             double sum = 0.0;
             for(size_t i = 0; i < p.size(); i++) {
@@ -423,7 +455,7 @@ struct SpeciesMetrics {
                 p[i] = (p[i] / len[i]) / sum;
             }
         }
-        
+
         EList<double> p_next; p_next.resizeExact(p.size());
         EList<double> p_next2; p_next2.resizeExact(p.size());
         EList<double> p_r; p_r.resizeExact(p.size());
@@ -441,7 +473,7 @@ struct SpeciesMetrics {
                     cerr << "\t" << test_tid2 << ": " << p[tid_to_num[test_tid2]] << endl;
             }
 #endif
-            
+
             // Accelerated version of EM - SQUAREM iteration
             //    Varadhan, R. & Roland, C. Scand. J. Stat. 35, 335–353 (2008).
             //    Also, this algorithm is used in Sailfish - http://www.nature.com/nbt/journal/v32/n5/full/nbt.2862.html
@@ -462,11 +494,11 @@ struct SpeciesMetrics {
                 }
                 EM(observed, ancestors, tid_to_num, p_next2, p_next, len);
             }
-            
+
 #else
             EM(observed, ancestors, tid_to_num, p, p_next, len);
 #endif
-            
+
             diff = 0.0;
             for(size_t i = 0; i < p.size(); i++) {
                 diff += (p[i] > p_next[i] ? p[i] - p_next[i] : p_next[i] - p[i]);
@@ -475,10 +507,10 @@ struct SpeciesMetrics {
             if(++num_iteration >= 10000) break;
             p = p_next;
         }
-        
+
         cerr << "Number of iterations in EM algorithm: " << num_iteration << endl;
         cerr << "Probability diff. (P - P_prev) in the last iteration: " << diff << endl;
-        
+
         {
             // Calculate abundance normalized by genome size
             abundance_len.clear();
@@ -490,7 +522,7 @@ struct SpeciesMetrics {
                 abundance_len[tid] = p[num];
                 sum += (p[num] * len[num]);
             }
-            
+
             // Calculate abundance without genome size taken into account
             abundance.clear();
             for(map<uint64_t, uint64_t>::iterator itr = tid_to_num.begin(); itr != tid_to_num.end(); itr++) {
@@ -502,14 +534,15 @@ struct SpeciesMetrics {
         }
     }
 
-	map<uint64_t, ReadCounts> species_counts;                        // read count per species
-	map<uint64_t, HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
+
+	map<TaxId, ReadCounts> species_counts;                        // read count per species
+	map<TaxId, HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count per species
     
     map<IDs, uint64_t>     observed;
     IDs                    cur_ids;
     uint32_t               num_non_leaves;
-    map<uint64_t, double>  abundance;      // abundance without genome size taken into consideration
-    map<uint64_t, double>  abundance_len;  // abundance normalized by genome size
+    map<TaxId, double>  abundance;      // abundance without genome size taken into consideration
+    map<TaxId, double>  abundance_len;  // abundance normalized by genome size
 
 	MUTEX_T mutex_m;
 };
@@ -774,7 +807,7 @@ public:
 	explicit AlnSink(
                      OutputQueue& oq,
                      const StrList& refnames,
-                     const EList<uint32_t>& tab_fmt_cols,
+                     const EList<TABCOLS>& tab_fmt_cols,
                      bool quiet) :
     oq_(oq),
     refnames_(refnames),
@@ -978,7 +1011,7 @@ protected:
 	OutputQueue&       oq_;           // output queue
 	int                numWrappers_;  // # threads owning a wrapper for this HitSink
 	const StrList&     refnames_;     // reference names
-	const EList<uint32_t>&     tab_fmt_cols_; // Columns that are printed in tabular format
+	const EList<TABCOLS>&     tab_fmt_cols_; // Columns that are printed in tabular format
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReportingMetrics   met_;          // global repository of reporting metrics
 };
@@ -1380,7 +1413,7 @@ public:
                Ebwt<index_t>*   ebwt,
                OutputQueue&     oq,           // output queue
                const StrList&   refnames,     // reference names
-			   const EList<uint32_t>&   tab_fmt_cols, // columns to output in the tabular format
+			   const EList<TABCOLS>&   tab_fmt_cols, // columns to output in the tabular format
                bool             quiet) :
     AlnSink<index_t>(oq,
                      refnames,
@@ -1682,7 +1715,7 @@ void AlnSinkWrap<index_t>::finishRead(
 		}
 	}
 
-	// TODO FB: Cconsider counting species here, and allow to disable counting
+	// TODO FB: Consider counting species here, and allow to disable counting
 
 	if(!suppressAlignments) {
 		// Ask the ReportingState what to report
@@ -2257,29 +2290,6 @@ void appendTaxID(BTString& o, uint64_t tid) {
     }
 }
 
-
-enum FIELD_DEF {
-	PLACEHOLDER=0,
-	PLACEHOLDER_STAR,
-	PLACEHOLDER_ZERO,
-    READ_ID,
-	SEQ_ID,
-	TAX_ID,
-	TAX_RANK,
-	TAX_NAME,
-	SCORE,
-	SCORE2,
-	HIT_LENGTH,
-	QUERY_LENGTH,
-	NUM_MATCHES,
-	SEQ,
-	SEQ1,
-	SEQ2,
-	QUAL,
-	QUAL1,
-	QUAL2
-};
-
 /**
  * Append a single hit to the given output stream in Bowtie's
  * verbose-mode format.
@@ -2307,37 +2317,37 @@ void AlnSinkSam<index_t>::appendMate(
 	uint64_t taxid =  rs->taxID();
 	const basic_string<char> empty_string = "";
 
-	for (int i=0; i < this->tab_fmt_cols_.size(); ++i) {
+	for (size_t i=0; i < this->tab_fmt_cols_.size(); ++i) {
 		BEGIN_FIELD;
 		switch (this->tab_fmt_cols_[i]) {
-			case READ_ID:      appendReadID(o, rd.name); break;
-			case SEQ_ID:       appendSeqID(o, rs, ebwt.tree()); break;
-			case SEQ:          o.append((string(rd.patFw.toZBuf()) + 
+			case TABCOLS::READ_ID:      appendReadID(o, rd.name); break;
+			case TABCOLS::SEQ_ID:       appendSeqID(o, rs, ebwt.tree()); break;
+			case TABCOLS::SEQ:          o.append((string(rd.patFw.toZBuf()) +
 										(rdo == NULL? "" : "N" + string(rdo->patFw.toZBuf()))).c_str()); break;
-			case QUAL:         o.append((string(rd.qual.toZBuf()) + 
+			case TABCOLS::QUAL:         o.append((string(rd.qual.toZBuf()) +
 										(rdo == NULL? "" : "I" + string(rdo->qual.toZBuf()))).c_str()); break;
 
-			case SEQ1:         o.append(rd.patFw.toZBuf()); break;
-			case QUAL1:        o.append(rd.qual.toZBuf()); break;
-			case SEQ2:         o.append(rdo == NULL? empty_string.c_str() : rdo->patFw.toZBuf()); break;
-			case QUAL2:        o.append(rdo == NULL? empty_string.c_str() : rdo->qual.toZBuf()); break;
+			case TABCOLS::SEQ1:         o.append(rd.patFw.toZBuf()); break;
+			case TABCOLS::QUAL1:        o.append(rd.qual.toZBuf()); break;
+			case TABCOLS::SEQ2:         o.append(rdo == NULL? empty_string.c_str() : rdo->patFw.toZBuf()); break;
+			case TABCOLS::QUAL2:        o.append(rdo == NULL? empty_string.c_str() : rdo->qual.toZBuf()); break;
 
-			case TAX_ID:       appendTaxID(o, taxid); break;
-			case TAX_RANK:     o.append(get_tax_rank_string(rs->taxRank())); break;
-			case TAX_NAME:     o.append(find_or_use_default(ebwt.name(), taxid, empty_string).c_str()); break;
+			case TABCOLS::TAX_ID:       appendTaxID(o, taxid); break;
+			case TABCOLS::TAX_RANK:     o.append(get_tax_rank_string(rs->taxRank())); break;
+			case TABCOLS::TAX_NAME:     o.append(find_or_use_default(ebwt.name(), taxid, empty_string).c_str()); break;
 
-			case SCORE:        appendNumber<uint64_t>(o, rs->score(), buf); break;
-			case SCORE2:       appendNumber<uint64_t>(o,
+			case TABCOLS::SCORE:        appendNumber<uint64_t>(o, rs->score(), buf); break;
+			case TABCOLS::SCORE2:       appendNumber<uint64_t>(o,
 									   (summ.secbest().valid()? summ.secbest().score() : 0),
 									   buf); break;
-			case HIT_LENGTH:   appendNumber<uint64_t>(o, rs->summedHitLen(), buf); break;
-			case QUERY_LENGTH: appendNumber<uint64_t>(o, 
+			case TABCOLS::HIT_LENGTH:   appendNumber<uint64_t>(o, rs->summedHitLen(), buf); break;
+			case TABCOLS::QUERY_LENGTH: appendNumber<uint64_t>(o,
 									   (rd.patFw.length() + (rdo != NULL ? rdo->patFw.length() : 0)),
 									   buf); break;
-			case NUM_MATCHES:  appendNumber<uint64_t>(o, n_results, buf); break;
-			case PLACEHOLDER:  o.append("");
-			case PLACEHOLDER_STAR:  o.append("*");
-			case PLACEHOLDER_ZERO:  o.append("0");
+			case TABCOLS::NUM_MATCHES:  appendNumber<uint64_t>(o, n_results, buf); break;
+			case TABCOLS::PLACEHOLDER:  o.append("");
+			case TABCOLS::PLACEHOLDER_STAR:  o.append("*");
+			case TABCOLS::PLACEHOLDER_ZERO:  o.append("0");
 			default: ;
 		}
 

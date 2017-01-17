@@ -1050,11 +1050,11 @@ public:
 		EList<FileBuf*> is(EBWT_CAT);
 		RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
 		// Adapt sequence strings to stringstreams open for input
-		auto_ptr<stringstream> ss(new stringstream());
+		unique_ptr<stringstream> ss(new stringstream());
 		for(index_t i = 0; i < strs.size(); i++) {
 			(*ss) << ">" << i << endl << strs[i] << endl;
 		}
-		auto_ptr<FileBuf> fb(new FileBuf(ss.get()));
+		unique_ptr<FileBuf> fb(new FileBuf(ss.get()));
 		assert(!fb->eof());
 		assert(fb->get() == '>');
 		ASSERT_ONLY(fb->reset());
@@ -1593,11 +1593,11 @@ public:
 	EList<string>& refnames()        { return _refnames; }
 	bool        fw() const           { return fw_; }
     
-    const EList<pair<string, uint64_t> >&   uid_to_tid() const { return _uid_to_tid; }
+    const EList<pair<string, TaxId> >&   uid_to_tid() const { return _uid_to_tid; }
     const TaxonomyTree& tree() const { return _tree; }
     const TaxonomyPathTable&                paths() const { return _paths; }
-    const std::map<uint64_t, string>&       name() const { return _name; }
-    const std::map<uint64_t, uint64_t>&     size() const { return _size; }
+    const std::map<TaxId, string>&       name() const { return _name; }
+    const std::map<TaxId, uint64_t>&     size() const { return _size; }
     bool                                    compressed() const { return _compressed; }
     
     
@@ -3449,7 +3449,7 @@ void Ebwt<index_t>::buildToDisk(
                     size_t idx = acc_szs.bsearchLoBound(saElt);
                     assert_lt(idx, acc_szs.size());
                     bool different = false;
-                    for(size_t k = 0; k < kmer_size; k++) {
+                    for (size_t k = 0; k < (unsigned) kmer_size; k++) {
                         if((acc_szs[idx]-saElt) > k) {
                             uint8_t bp = s[saElt+k];
                             if(kmer[k] != bp || kmer_count[k] <= 0 || different) {
@@ -3638,7 +3638,7 @@ void Ebwt<index_t>::buildToDisk(
 	}
     
     if(kmer_size > 0) {
-      for(size_t k = 0; k < kmer_size; k++) {
+      for(size_t k = 0; k < (unsigned) kmer_size; k++) {
         cerr << "Number of distinct " << k+1 << "-mers is " << kmer_count[k] << endl;
       }
     }

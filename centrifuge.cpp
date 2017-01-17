@@ -28,6 +28,7 @@
 #include <utility>
 #include <limits>
 #include <map>
+#include <cstdint>
 #include "alphabet.h"
 #include "assert_helpers.h"
 #include "endian_swap.h"
@@ -51,6 +52,8 @@
 #include "presets.h"
 #include "opts.h"
 #include "outq.h"
+#include "taxonomy.h"
+
 
 using namespace std;
 
@@ -246,15 +249,62 @@ static uint32_t minTotalLen; // minimum summed length of partial hits per read
 static bool abundance_analysis;
 static bool tree_traverse;
 static string classification_rank;
-static EList<uint64_t> host_taxIDs;
-static EList<uint64_t> excluded_taxIDs;
+static EList<TaxId> host_taxIDs;
+static EList<TaxId> excluded_taxIDs;
 
-
-static string tab_fmt_col_def;
 static bool sam_format;
-static EList<uint32_t> tab_fmt_cols;
+static string tab_fmt_col_def;
+static EList<TABCOLS> tab_fmt_cols;
 static EList<string> tab_fmt_cols_str;
-static map<string, uint32_t> col_name_map;
+
+enum class REPORTCOLS : uint8_t {
+		NAME,
+		TAX_ID,
+		TAX_RANK,
+		GENOME_SIZE,
+		NUM_READS,
+		NUM_UNIQUE_READS,
+		SUMMED_HIT_LENGTH,
+		NUM_WEIGHTED_READS,
+		NUM_UNIQUE_KMERS,
+		SUM_SCORE,
+		ABUNDANCE
+};
+
+
+static string report_fmt_col_def;
+static EList<REPORTCOLS> report_fmt_cols;
+static EList<string> report_fmt_cols_str;
+
+static const map<string, TABCOLS> tab_col_name_map = {
+		{{"readID"},{TABCOLS::READ_ID}}, {{"seqID"},{TABCOLS::SEQ_ID}},
+		{{"taxLevel"},{TABCOLS::TAX_RANK}}, {{"taxRank"},{TABCOLS::TAX_RANK}}, {{"taxID"},{TABCOLS::TAX_ID}}, {{"taxName"},{TABCOLS::TAX_NAME}},
+		{{"score"},{TABCOLS::SCORE}}, {{"2ndBestScore"},{TABCOLS::SCORE2}},
+		{{"hitLength"},{TABCOLS::HIT_LENGTH}}, {{"queryLength"},{TABCOLS::QUERY_LENGTH}}, {{"numMatches"},{TABCOLS::NUM_MATCHES}},
+		{{"readSeq"},{TABCOLS::SEQ}}, {{"readQual"},{TABCOLS::QUAL}},
+		// SAM names
+		{{"QNAME"},{TABCOLS::READ_ID}}, {{"FLAG"},{TABCOLS::PLACEHOLDER_ZERO}}, {{"RNAME"},{TABCOLS::TAX_ID}},
+		{{"POS"},{TABCOLS::PLACEHOLDER_ZERO}}, {{"MAPQ"},{TABCOLS::PLACEHOLDER_ZERO}}, {{"CIGAR"},{TABCOLS::PLACEHOLDER}},
+		{{"RNEXT"},{TABCOLS::SEQ_ID}}, {{"PNEXT"},{TABCOLS::PLACEHOLDER_ZERO}}, {{"TLEN"},{TABCOLS::PLACEHOLDER_ZERO}},
+		{{"SEQ"},{TABCOLS::SEQ}}, {{"QUAL"},{TABCOLS::QUAL}},
+		// further columns
+		{{"SEQ1"},{TABCOLS::SEQ1}}, {{"SEQ2"},{TABCOLS::SEQ2}}, {{"QUAL1"},{TABCOLS::QUAL1}}, {{"QUAL2"},{TABCOLS::QUAL2}},
+		{{"readSeq1"},{TABCOLS::SEQ1}}, {{"readSeq2"},{TABCOLS::SEQ2}}, {{"readQual1"},{TABCOLS::QUAL1}}, {{"readQual2"},{TABCOLS::QUAL2}}
+};
+
+static const map<string, REPORTCOLS> report_col_name_map = {
+		{"name", REPORTCOLS::NAME},
+		{"taxID", REPORTCOLS::TAX_ID},
+		{"taxRank", REPORTCOLS::TAX_RANK},
+		{"genomeSize", REPORTCOLS::GENOME_SIZE},
+		{"numReads", REPORTCOLS::NUM_READS},
+		{"numUniqueReads", REPORTCOLS::NUM_UNIQUE_READS},
+		{"summedHitLen", REPORTCOLS::SUMMED_HIT_LENGTH},
+		{"numWeightedReads", REPORTCOLS::NUM_WEIGHTED_READS},
+		{"numUniqueKmers", REPORTCOLS::NUM_UNIQUE_KMERS},
+		{"sumScore", REPORTCOLS::SUM_SCORE},
+		{"abundance", REPORTCOLS::ABUNDANCE}
+};
 
 #ifdef USE_SRA
 static EList<string> sra_accs;
@@ -262,18 +312,20 @@ static EList<string> sra_accs;
 
 #define DMAX std::numeric_limits<double>::max()
 
-
-static void parse_col_fmt(const string arg, EList<string>& tab_fmt_cols_str, EList<uint32_t>& tab_fmt_cols) {
-    tab_fmt_cols.clear();
-    tab_fmt_cols_str.clear();
-    tokenize(arg, ",", tab_fmt_cols_str);
-    for(size_t i = 0; i < tab_fmt_cols_str.size(); i++) {
-        map<string, uint32_t>::iterator it = col_name_map.find(tab_fmt_cols_str[i]);
+template <typename T>
+static void parse_col_fmt(
+		const string arg, const map<string, T>& col_name_map,
+		EList<string>& fmt_cols_str, EList<T>& fmt_cols) {
+    fmt_cols.clear();
+    fmt_cols_str.clear();
+    tokenize(arg, ",", fmt_cols_str);
+    for(size_t i = 0; i < fmt_cols_str.size(); i++) {
+        typename map<string, T>::const_iterator it = col_name_map.find(fmt_cols_str[i]);
         if (it == col_name_map.end()) {
-            cerr << "Column definition "  << tab_fmt_cols_str[i] << " invalid." << endl;
+            cerr << "Column definition "  << fmt_cols_str[i] << " invalid." << endl;
             exit(1);
         }
-        tab_fmt_cols.push_back(it->second);
+        fmt_cols.push_back(it->second);
     }
 
 }
@@ -470,7 +522,7 @@ static void resetOptions() {
 	bowtie2p5 = false;
     minHitLen = 22;
     minTotalLen = 0;
-    reportFile = "centrifuge_report.tsv";
+    //reportFile = "centrifuge_report.tsv";
     abundance_analysis = true;
     tree_traverse = true;
     host_taxIDs.clear();
@@ -478,46 +530,12 @@ static void resetOptions() {
     excluded_taxIDs.clear();
 	sam_format = false;
 
-    col_name_map["readID"] = READ_ID;
-    col_name_map["seqID"] = SEQ_ID;
-    col_name_map["taxLevel"] = TAX_RANK;
-    col_name_map["taxRank"] = TAX_RANK;
-    col_name_map["taxID"] = TAX_ID;
-    col_name_map["taxName"] = TAX_NAME;
-    col_name_map["score"] = SCORE;
-    col_name_map["2ndBestScore"] = SCORE2;
-    col_name_map["hitLength"] = HIT_LENGTH;
-    col_name_map["queryLength"] = QUERY_LENGTH;
-    col_name_map["numMatches"] = NUM_MATCHES;
-    col_name_map["readSeq"] = SEQ;
-    col_name_map["readQual"] = QUAL;
-
-    // SAM names
-    col_name_map["QNAME"] = READ_ID;
-    col_name_map["FLAG"] = PLACEHOLDER_ZERO;
-    col_name_map["RNAME"] = TAX_ID;
-    col_name_map["POS"] = PLACEHOLDER_ZERO;
-    col_name_map["MAPQ"] = PLACEHOLDER_ZERO;
-    col_name_map["CIGAR"] = PLACEHOLDER;
-    col_name_map["RNEXT"] = SEQ_ID;
-    col_name_map["PNEXT"] = PLACEHOLDER_ZERO;
-    col_name_map["TLEN"] = PLACEHOLDER_ZERO;
-    col_name_map["SEQ"] = SEQ;
-    col_name_map["QUAL"] = QUAL;
-
-    // further columns
-    col_name_map["SEQ1"] = SEQ1;
-    col_name_map["SEQ2"] = SEQ2;
-    col_name_map["QUAL1"] = QUAL1;
-    col_name_map["QUAL2"] = QUAL2;
-    col_name_map["readSeq1"] = SEQ1;
-    col_name_map["readSeq2"] = SEQ2;
-    col_name_map["readQual1"] = QUAL1;
-    col_name_map["readQual2"] = QUAL2;
-
     tab_fmt_col_def = "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches";
-    parse_col_fmt(tab_fmt_col_def, tab_fmt_cols_str, tab_fmt_cols);
+    parse_col_fmt(tab_fmt_col_def, tab_col_name_map, tab_fmt_cols_str, tab_fmt_cols);
     
+    report_fmt_col_def = "name,taxID,taxRank,genomeSize,numReads,numUniqueReads,summedHitLen,numWeightedReads,numUniqueKmers,sumScore,abundance";
+    parse_col_fmt(report_fmt_col_def, report_col_name_map, report_fmt_cols_str, report_fmt_cols);
+
 #ifdef USE_SRA
     sra_accs.clear();
 #endif
@@ -683,6 +701,7 @@ static struct option long_options[] = {
     {(char*)"exclude-taxids",   required_argument, 0,  ARG_EXCLUDE_TAXIDS},
     {(char*)"out-fmt",          required_argument, 0,  ARG_OUT_FMT},
     {(char*)"tab-fmt-cols",     required_argument, 0,  ARG_TAB_FMT_COLS},
+	{(char*)"report-fmt-cols",     required_argument, 0,  ARG_REPORT_FMT_COLS},
 #ifdef USE_SRA
     {(char*)"sra-acc",   required_argument, 0,        ARG_SRA_ACC},
 #endif
@@ -799,7 +818,9 @@ static void printUsage(ostream& out) {
 	//}
 	out << "  --out-fmt <str>       define output format, either 'tab' or 'sam' (tab)" << endl
 		<< "  --tab-fmt-cols <str>  columns in tabular format, comma separated " << endl 
-        << "                          default: " << tab_fmt_col_def << endl;
+        << "                          default: " << tab_fmt_col_def << endl
+		<< "  --report-fmt-cols <str>  columns in report, comma separated " << endl
+	    << "                          default: " << report_fmt_col_def << endl;
 	out << "  -t/--time             print wall-clock time taken by search phases" << endl;
 	if(wrapper == "basic-0") {
 	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
@@ -1435,6 +1456,7 @@ static void parseOption(int next_option, const char *arg) {
             if (strcmp(arg, "sam") == 0) {
                 sam_format = true;
                 parse_col_fmt("QNAME,FLAG,RNAME,POS,MAPQ,CIGAR,RNEXT,PNEXT,TLEN,SEQ,QUAL",
+                			  tab_col_name_map,
                               tab_fmt_cols_str, tab_fmt_cols);
             } else if (strcmp(arg, "default") == 0 || strcmp(arg, "tab") == 0) {
 
@@ -1445,8 +1467,12 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 	    }
 		case ARG_TAB_FMT_COLS: {
-            parse_col_fmt(arg, tab_fmt_cols_str, tab_fmt_cols);
+            parse_col_fmt(arg, tab_col_name_map, tab_fmt_cols_str, tab_fmt_cols);
     		break;
+		}
+		case ARG_REPORT_FMT_COLS: {
+		    parse_col_fmt(arg, report_col_name_map, report_fmt_cols_str, report_fmt_cols);
+		    break;
 		}
 
 #ifdef USE_SRA
@@ -1491,7 +1517,7 @@ static void parseOptions(int argc, const char **argv) {
 	}
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.
-	auto_ptr<Presets> presets(new PresetsV0());
+	unique_ptr<Presets> presets(new PresetsV0());
 	// Apply default preset
 	if(!defaultPreset.empty()) {
 		polstr = applyPreset(defaultPreset, *presets.get()) + polstr;
@@ -2330,8 +2356,8 @@ static void multiseedSearchWorker(void *vp) {
 	// problems, or generally characterize performance.
 	
 	//const BitPairReference& refs   = *multiseed_refs;
-	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
-	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
+	unique_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
+	unique_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
 	// Instantiate an object for holding reporting-related parameters.
     ReportingParams rp((allHits ? std::numeric_limits<THitInt>::max() : khits),
@@ -2973,7 +2999,7 @@ static void driver(
 		// memory so that we can easily sanity check them later on
 		AlnSink<index_t> *mssink = NULL;
         Timer *_tRef = new Timer(cerr, "Time loading reference: ", timing);
-        auto_ptr<BitPairReference> refs;
+        unique_ptr<BitPairReference> refs;
         delete _tRef;
         switch(outType) {
 			case OUTPUT_SAM: {
@@ -3057,14 +3083,40 @@ static void driver(
                 Timer timer(cerr, "Calculating abundance: ");
                 spm.calculateAbundance(ebwt, rank);
             }
-            const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+            const std::map<TaxId, TaxonomyNode>& tree = ebwt.tree();
             const std::map<uint64_t, string>& name_map = ebwt.name();
             const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
             const map<uint64_t, double>& abundance = spm.abundance;
             const map<uint64_t, double>& abundance_len = spm.abundance_len;
+
+            bool kraken_format = false;
+            bool include_kmercounts = true;
+
+            if (kraken_format) {
+
+            	std::map<TaxId, vector<TaxId>> child_lists;
+            	std::map<TaxId, uint8_t> rank_map;
+            	std::map<uint64_t, ReadCounts> clade_counts;
+
+            	for (auto& tree_node : tree) {
+            		child_lists[tree_node.second.parent_tid].push_back(tree_node.first);
+            		rank_map[tree_node.first] = tree_node.second.rank;
+            	}
+
+            	//char buf[1024];
+            	//bool firstfield = true;
+            	//const basic_string<char> empty_string = "";
+
+            	// for (auto& col : report_fmt_cols) {
+
+            	//}
+
+
+            } else {
+
 			reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
 					  << "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
-            if(false) {
+            if(include_kmercounts) {
                 reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
             }
             reportOfb << "abundance";
@@ -3077,6 +3129,7 @@ static void driver(
                 uint64_t taxid = it->first;
                 if(taxid == 0) continue;
 
+                //reportOfb << get_with_default(name_map, taxid, (string) taxid);
                 std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
                 if(name_itr != name_map.end()) {
                     reportOfb << name_itr->second;
@@ -3101,11 +3154,7 @@ static void driver(
                 }
                 reportOfb << '\t';
                 
-                std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
-                uint64_t genome_size = 0;
-                if(size_itr != size_map.end()) {
-                    genome_size = size_itr->second;
-                }
+                uint64_t genome_size = get_with_default(size_map, taxid, 0);
                 
                 reportOfb << genome_size << '\t'
 						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
@@ -3131,6 +3180,7 @@ static void driver(
 
 			}
 			reportOfb.close();
+		}
 		}
 
 

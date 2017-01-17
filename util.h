@@ -91,4 +91,19 @@ V find_or_use_default(const std::map<K, V>& my_map, const K& query, const V defa
 	return itr->second;
 }
 
+// get value from a map, but return default if value is not in map
+//  adapted from http://stackoverflow.com/questions/2333728/stdmap-default-value
+template<typename MAP>
+const typename MAP::mapped_type& get_with_default(const MAP& m,
+                                             const typename MAP::key_type& key,
+                                             const typename MAP::mapped_type& defval)
+{
+    typename MAP::const_iterator it = m.find(key);
+    if (it == m.end())
+        return defval;
+
+    return it->second;
+}
+
+
 #endif /*ifndef UTIL_H_*/

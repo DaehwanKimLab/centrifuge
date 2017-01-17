@@ -48,12 +48,14 @@ enum {
 
 extern uint8_t tax_rank_num[RANK_MAX];
 
+typedef uint64_t TaxId;
+
 struct TaxonomyNode {
-    uint64_t parent_tid;
+    TaxId parent_tid;
     uint8_t  rank;
     uint8_t  leaf;
 
-    TaxonomyNode(uint64_t _parent_tid, uint8_t  _rank, uint8_t _leaf):
+    TaxonomyNode(TaxId _parent_tid, uint8_t  _rank, uint8_t _leaf):
     	parent_tid(_parent_tid), rank(_rank), leaf(_leaf) {};
 
     TaxonomyNode(): parent_tid(0), rank(RANK_UNKNOWN), leaf(false) {};
@@ -62,8 +64,8 @@ struct TaxonomyNode {
 struct TaxonomyPathTable {
     static const size_t nranks = 10;
 
-    map<uint64_t, uint32_t> tid_to_pid;  // from taxonomic ID to path ID
-    ELList<uint64_t> paths;
+    map<TaxId, uint32_t> tid_to_pid;  // from taxonomic ID to path ID
+    ELList<TaxId> paths;
 
     static uint8_t rank_to_pathID(uint8_t rank) {
         switch(rank) {
@@ -93,8 +95,8 @@ struct TaxonomyPathTable {
         }
     }
 
-    void buildPaths(const EList<pair<string, uint64_t> >& uid_to_tid,
-                    const std::map<uint64_t, TaxonomyNode>& tree)
+    void buildPaths(const EList<pair<string, TaxId> >& uid_to_tid,
+                    const std::map<TaxId, TaxonomyNode>& tree)
     {
         map<uint32_t, uint32_t> rank_map;
         rank_map[RANK_STRAIN]        = 0;
@@ -112,19 +114,19 @@ struct TaxonomyPathTable {
         tid_to_pid.clear();
         paths.clear();
         for(size_t i = 0; i < uid_to_tid.size(); i++) {
-            uint64_t tid = uid_to_tid[i].second;
+            TaxId tid = uid_to_tid[i].second;
             if(tid_to_pid.find(tid) != tid_to_pid.end())
                 continue;
             if(tree.find(tid) == tree.end())
                 continue;
             tid_to_pid[tid] = (uint32_t)paths.size();
             paths.expand();
-            EList<uint64_t>& path = paths.back();
+            EList<TaxId>& path = paths.back();
             path.resizeExact(nranks);
             path.fillZero();
             bool first = true;
             while(true) {
-                std::map<uint64_t, TaxonomyNode>::const_iterator itr = tree.find(tid);
+                std::map<TaxId, TaxonomyNode>::const_iterator itr = tree.find(tid);
                 if(itr == tree.end()) {
                     break;
                 }
@@ -148,8 +150,8 @@ struct TaxonomyPathTable {
         }
     }
 
-    void getPath(uint64_t tid, EList<uint64_t>& path) const {
-        map<uint64_t, uint32_t>::const_iterator itr = tid_to_pid.find(tid);
+    void getPath(TaxId tid, EList<TaxId>& path) const {
+        map<TaxId, uint32_t>::const_iterator itr = tid_to_pid.find(tid);
         if(itr != tid_to_pid.end()) {
             uint32_t pid = itr->second;
             assert_lt(pid, paths.size());
@@ -160,7 +162,7 @@ struct TaxonomyPathTable {
     }
 };
 
-typedef std::map<uint64_t, TaxonomyNode> TaxonomyTree;
+typedef std::map<TaxId, TaxonomyNode> TaxonomyTree;
 
 inline static void initial_tax_rank_num() {
     uint8_t rank = 0;
@@ -300,7 +302,7 @@ inline static uint8_t get_tax_rank_id(const char* rank) {
     }
 }
 
-inline static uint64_t get_taxid_at_parent_rank(const TaxonomyTree& tree, uint64_t taxid, uint8_t at_rank) {
+inline static TaxId get_taxid_at_parent_rank(const TaxonomyTree& tree, TaxId taxid, uint8_t at_rank) {
 	while (true) {
 		TaxonomyTree::const_iterator itr = tree.find(taxid);
 		if(itr == tree.end()) {
@@ -329,7 +331,7 @@ inline static TaxonomyTree read_taxonomy_tree(string taxonomy_fname) {
 			taxonomy_file.getline(line, sizeof(line));
 			if(line[0] == 0 || line[0] == '#') continue;
 			istringstream cline(line);
-			uint64_t tid, parent_tid;
+			TaxId tid, parent_tid;
 			char dummy; string rank_string;
 			cline >> tid >> dummy >> parent_tid >> dummy >> rank_string;
 			if(tree.find(tid) != tree.end()) {
@@ -346,6 +348,5 @@ inline static TaxonomyTree read_taxonomy_tree(string taxonomy_fname) {
 	}
 	return tree;
 }
-
 
 #endif /* TAXONOMY_H_ */

@@ -408,7 +408,7 @@ public:
             // Remove secondary hits
             for(int i = 0; i < (int)_hitMap.size(); i++) {
                 if(_hitMap[i].score < best_score) {
-                    if(i + 1 < _hitMap.size()) {
+                    if(i + 1 < (int) _hitMap.size()) {
                         _hitMap[i] = _hitMap.back();
                     }
                     _hitMap.pop_back();
@@ -426,7 +426,7 @@ public:
                 _hitTaxCount.clear();
                 for(size_t i = 0; i < _hitMap.size(); i++) {
                     while(_hitMap[i].rank < rank) {
-                        if(_hitMap[i].rank + 1 >= _hitMap[i].path.size()) {
+                        if(_hitMap[i].rank + 1 >= (int)_hitMap[i].path.size()) {
                             _hitMap[i].rank = std::numeric_limits<uint8_t>::max();
                             break;
                         }
@@ -436,7 +436,7 @@ public:
                     }
                     if(_hitMap[i].rank > rank) continue;
                     
-                    uint64_t parent_taxID = (rank + 1 >= _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
+                    uint64_t parent_taxID = (rank + 1 >= (int) _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
                     // Traverse up the tree more until we get non-zero taxID.
                     if(parent_taxID == 0) continue;
                     
