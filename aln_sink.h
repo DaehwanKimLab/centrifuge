@@ -43,12 +43,25 @@ enum {
 
 
 struct ReadCounts {
+	uint32_t n_unique_reads;
 	uint32_t n_reads;
 	uint32_t sum_score;
 	double summed_hit_len;
 	double weighted_reads;
-	uint32_t n_unique_reads;
+
+	ReadCounts& operator+=(const ReadCounts& b) {
+			n_unique_reads += b.n_unique_reads;
+			n_reads += b.n_reads;
+			sum_score += b.sum_score;
+			summed_hit_len += b.summed_hit_len;
+			weighted_reads += b.weighted_reads;
+			return *this;
+		}
 };
+
+ReadCounts operator+(ReadCounts a, const ReadCounts& b) {
+	return a += b;
+}
 
 /**
  * Metrics summarizing the species level information we have
