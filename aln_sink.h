@@ -103,6 +103,7 @@ struct SpeciesMetrics {
         num_non_leaves = 0;
 	}
 
+	/*
 	void init(
               const map<uint64_t, ReadCounts>& species_counts_,
               const map<uint64_t, HyperLogLogPlusMinus<uint64_t> >& species_kmers_,
@@ -113,6 +114,7 @@ struct SpeciesMetrics {
         observed = observed_;
         num_non_leaves = 0;
     }
+    */
 
 	/**
 	 * Merge (add) the counters in the given ReportingMetrics object
