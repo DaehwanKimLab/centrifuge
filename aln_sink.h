@@ -126,15 +126,8 @@ struct SpeciesMetrics {
 
         // update species read count
         for(map<uint64_t, ReadCounts>::const_iterator it = met.species_counts.begin(); it != met.species_counts.end(); ++it) {
-        	if (species_counts.find(it->first) == species_counts.end()) {
-        		species_counts[it->first] = it->second;
-        	} else {
-        		species_counts[it->first].n_reads += it->second.n_reads;
-        		species_counts[it->first].sum_score += it->second.sum_score;
-        		species_counts[it->first].summed_hit_len += it->second.summed_hit_len;
-        		species_counts[it->first].weighted_reads += it->second.weighted_reads;
-        		species_counts[it->first].n_unique_reads += it->second.n_unique_reads;
         	}
+        	species_counts[it->first] += it->second;
         }
 
         // update species k-mers
