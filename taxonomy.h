@@ -49,6 +49,7 @@ enum {
 extern uint8_t tax_rank_num[RANK_MAX];
 
 typedef uint64_t TaxId;
+typedef uint64_t UId;
 
 struct TaxonomyNode {
     TaxId parent_tid;
@@ -236,7 +237,23 @@ inline static const char* get_tax_rank_string(uint8_t rank) {
         case RANK_TRIBE:         return "tribe";
         case RANK_VARIETAS:      return "varietas";
         case RANK_LIFE:          return "life";
+        case RANK_DOMAIN:        return "domain";
         default:                 return "no rank";
+    };
+}
+
+inline static const char get_tax_rank_char(uint8_t rank) {
+    switch(rank) {
+        case RANK_STRAIN:        return 'T';
+        case RANK_SPECIES:       return 'S';
+        case RANK_GENUS:         return 'G';
+        case RANK_FAMILY:        return 'F';
+        case RANK_ORDER:         return 'O';
+        case RANK_CLASS:         return 'C';
+        case RANK_PHYLUM:        return 'P';
+        case RANK_KINGDOM:       return 'K';
+        case RANK_DOMAIN:        return 'D';
+        default:                 return '-';
     };
 }
 

@@ -75,9 +75,37 @@ std::string to_string(T value) {
  return ss.str();
 }
 
-/**
- *
- */
+// Addition for pairs
+template <typename T,typename U>
+std::pair<T,U> operator+(const std::pair<T,U>& l,const std::pair<T,U>& r) {
+    return {l.first+r.first,l.second+r.second};
+}
+
+// Addition for pairs
+template <typename T>
+std::array<T,2> operator+(const std::array<T,2>& l,const std::array<T,2>& r) {
+    return {l[0]+r[0],l[1]+r[1]};
+}
+
+// Addition for pairs
+template <typename T>
+std::array<T,2>& operator+=(std::array<T,2>& l,const std::array<T,2>& r) {
+    l[0] += r[0];
+    l[1] += r[1];
+    return l;
+}
+
+// Add second elements of pairs (e.g. values of maps)
+struct AddValues {
+  template<class Value, class Pair>
+  Value operator()(Value value, const Pair& pair) const {
+    return value + pair.second;
+  }
+};
+
+
+
+// Find an element in a map or return a default value
 template<typename K,typename V>
 inline
 V find_or_use_default(const std::map<K, V>& my_map, const K& query, const V default_value) {

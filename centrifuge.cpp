@@ -53,6 +53,7 @@
 #include "opts.h"
 #include "outq.h"
 #include "taxonomy.h"
+#include "classification-report.h"
 
 
 using namespace std;
@@ -248,33 +249,21 @@ static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
 static bool abundance_analysis;
 static bool tree_traverse;
+// static bool show_zeros;  // whow zeros in quant report
 static string classification_rank;
 static EList<TaxId> host_taxIDs;
 static EList<TaxId> excluded_taxIDs;
 
 static bool sam_format;
-static string tab_fmt_col_def;
-static EList<TABCOLS> tab_fmt_cols;
-static EList<string> tab_fmt_cols_str;
-
-enum class REPORTCOLS : uint8_t {
-		NAME,
-		TAX_ID,
-		TAX_RANK,
-		GENOME_SIZE,
-		NUM_READS,
-		NUM_UNIQUE_READS,
-		SUMMED_HIT_LENGTH,
-		NUM_WEIGHTED_READS,
-		NUM_UNIQUE_KMERS,
-		SUM_SCORE,
-		ABUNDANCE
-};
+static string tab_col_def;
+static EList<TABCOLS> tab_cols;
+static EList<string> tab_cols_str;
 
 
-static string report_fmt_col_def;
-static EList<REPORTCOLS> report_fmt_cols;
-static EList<string> report_fmt_cols_str;
+static string report_col_def;
+static string kraken_report_col_def;
+static EList<REPORTCOLS> report_cols;
+static EList<string> report_cols_str;
 
 static const map<string, TABCOLS> tab_col_name_map = {
 		{{"readID"},{TABCOLS::READ_ID}}, {{"seqID"},{TABCOLS::SEQ_ID}},
@@ -294,8 +283,10 @@ static const map<string, TABCOLS> tab_col_name_map = {
 
 static const map<string, REPORTCOLS> report_col_name_map = {
 		{"name", REPORTCOLS::NAME},
+		{"spaced_name", REPORTCOLS::SPACED_NAME},
 		{"taxID", REPORTCOLS::TAX_ID},
 		{"taxRank", REPORTCOLS::TAX_RANK},
+		{"depth", REPORTCOLS::DEPTH},
 		{"genomeSize", REPORTCOLS::GENOME_SIZE},
 		{"numReads", REPORTCOLS::NUM_READS},
 		{"numUniqueReads", REPORTCOLS::NUM_UNIQUE_READS},
@@ -303,7 +294,15 @@ static const map<string, REPORTCOLS> report_col_name_map = {
 		{"numWeightedReads", REPORTCOLS::NUM_WEIGHTED_READS},
 		{"numUniqueKmers", REPORTCOLS::NUM_UNIQUE_KMERS},
 		{"sumScore", REPORTCOLS::SUM_SCORE},
-		{"abundance", REPORTCOLS::ABUNDANCE}
+		{"abundance", REPORTCOLS::ABUNDANCE},
+		{"abundance_len", REPORTCOLS::ABUNDANCE_LEN},
+
+		{"percent", REPORTCOLS::ABUNDANCE},
+		{"numReads", REPORTCOLS::NUM_READS},
+		{"taxId", REPORTCOLS::TAX_ID},
+		{"reads_clade", REPORTCOLS::NUM_READS}, // Change to clade reads!
+		{"reads_stay", REPORTCOLS::NUM_READS_STAY}, // Change to clade reads!
+
 };
 
 #ifdef USE_SRA
@@ -530,11 +529,12 @@ static void resetOptions() {
     excluded_taxIDs.clear();
 	sam_format = false;
 
-    tab_fmt_col_def = "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches";
-    parse_col_fmt(tab_fmt_col_def, tab_col_name_map, tab_fmt_cols_str, tab_fmt_cols);
+    tab_col_def = "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches";
+    parse_col_fmt(tab_col_def, tab_col_name_map, tab_cols_str, tab_cols);
     
-    report_fmt_col_def = "name,taxID,taxRank,genomeSize,numReads,numUniqueReads,summedHitLen,numWeightedReads,numUniqueKmers,sumScore,abundance";
-    parse_col_fmt(report_fmt_col_def, report_col_name_map, report_fmt_cols_str, report_fmt_cols);
+    kraken_report_col_def = "percent,reads_clade,reads_stay,taxRank,taxId,spaced_name";
+    report_col_def = "name,taxID,taxRank,genomeSize,numReads,numUniqueReads,abundance";
+    parse_col_fmt(report_col_def, report_col_name_map, report_cols_str, report_cols);
 
 #ifdef USE_SRA
     sra_accs.clear();
@@ -818,9 +818,10 @@ static void printUsage(ostream& out) {
 	//}
 	out << "  --out-fmt <str>       define output format, either 'tab' or 'sam' (tab)" << endl
 		<< "  --tab-fmt-cols <str>  columns in tabular format, comma separated " << endl 
-        << "                          default: " << tab_fmt_col_def << endl
-		<< "  --report-fmt-cols <str>  columns in report, comma separated " << endl
-	    << "                          default: " << report_fmt_col_def << endl;
+        << "                          default: " << tab_col_def << endl
+		<< "  --report-fmt <str>   report format: either tab, kraken/hierachical, or metaphlan/mpa" << endl
+		<< "  --report-cols <str>  columns in report, comma separated " << endl
+	    << "                          default: " << report_col_def << endl;
 	out << "  -t/--time             print wall-clock time taken by search phases" << endl;
 	if(wrapper == "basic-0") {
 	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
@@ -1457,7 +1458,7 @@ static void parseOption(int next_option, const char *arg) {
                 sam_format = true;
                 parse_col_fmt("QNAME,FLAG,RNAME,POS,MAPQ,CIGAR,RNEXT,PNEXT,TLEN,SEQ,QUAL",
                 			  tab_col_name_map,
-                              tab_fmt_cols_str, tab_fmt_cols);
+                              tab_cols_str, tab_cols);
             } else if (strcmp(arg, "default") == 0 || strcmp(arg, "tab") == 0) {
 
             } else {
@@ -1467,11 +1468,11 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 	    }
 		case ARG_TAB_FMT_COLS: {
-            parse_col_fmt(arg, tab_col_name_map, tab_fmt_cols_str, tab_fmt_cols);
+            parse_col_fmt(arg, tab_col_name_map, tab_cols_str, tab_cols);
     		break;
 		}
 		case ARG_REPORT_FMT_COLS: {
-		    parse_col_fmt(arg, report_col_name_map, report_fmt_cols_str, report_fmt_cols);
+		    parse_col_fmt(arg, report_col_name_map, report_cols_str, report_cols);
 		    break;
 		}
 
@@ -1768,7 +1769,7 @@ struct PerfMetrics {
 		const OuterLoopMetrics *ol,
 		const WalkMetrics *wl,
 		const ReportingMetrics *rm,
-		const SpeciesMetrics *sm,
+		const ClassificationMetrics *sm,
 		uint64_t nbtfiltst_,
 		uint64_t nbtfiltsc_,
 		uint64_t nbtfiltdo_,
@@ -2199,7 +2200,7 @@ struct PerfMetrics {
 	OuterLoopMetrics  olm;   // overall metrics
 	WalkMetrics       wlm;   // metrics related to walking left (i.e. resolving reference offsets)
 	ReportingMetrics  rpm;   // metrics related to reporting
-	SpeciesMetrics    spm;   // metrics related to species
+	ClassificationMetrics    spm;   // metrics related to species
 	uint64_t          nbtfiltst;
 	uint64_t          nbtfiltsc;
 	uint64_t          nbtfiltdo;
@@ -2208,7 +2209,7 @@ struct PerfMetrics {
 	OuterLoopMetrics  olmu;  // overall metrics
 	WalkMetrics       wlmu;  // metrics related to walking left (i.e. resolving reference offsets)
 	ReportingMetrics  rpmu;  // metrics related to reporting
-	SpeciesMetrics    spmu;  // metrics related to species counting
+	ClassificationMetrics    spmu;  // metrics related to species counting
 	uint64_t          nbtfiltst_u;
 	uint64_t          nbtfiltsc_u;
 	uint64_t          nbtfiltdo_u;
@@ -2383,7 +2384,7 @@ static void multiseedSearchWorker(void *vp) {
 	WalkMetrics wlm;
 	ReportingMetrics rpm;
 	PerReadMetrics prm;
-	SpeciesMetrics spm;
+	ClassificationMetrics spm;
 
 	RandomSource rnd, rndArb;
 	uint64_t nbtfiltst = 0; // TODO: find a new home for these
@@ -2683,7 +2684,7 @@ static void multiseedSearchWorker(void *vp) {
                     classifier.initRead(rds[1], nofw[1], norc[1], minsc[1], maxpen[1], filt[1]);
                 }
                 if(filt[0] || filt[1]) {
-                    classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, spm, rnd, msinkwrap);
+                    classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, metrics.spmu, rnd, msinkwrap);
                     size_t mate = 0;
                     if(!done[mate]) {
                         TAlScore perfectScore = sc.perfectScore(rdlens[mate]);
@@ -3007,7 +3008,7 @@ static void driver(
                                                  &ebwt,
                                                  oq,           // output queue
                                                  refnames,     // reference names
-                                                 tab_fmt_cols, // columns in tab format
+                                                 tab_cols, // columns in tab format
                                                  gQuiet);      // don't print alignment summary at end
                 if(!samNoHead) {
 					BTString buf;
@@ -3016,10 +3017,10 @@ static void driver(
 				}
 				// Write header for read-results file
                 if (!sam_format) {
-                fout->writeChars(tab_fmt_cols_str[0].c_str());
-                for (size_t i = 1; i < tab_fmt_cols_str.size(); ++i) {
+                fout->writeChars(tab_cols_str[0].c_str());
+                for (size_t i = 1; i < tab_cols_str.size(); ++i) {
                     fout->writeChars("\t");
-                    fout->writeChars(tab_fmt_cols_str[i].c_str());
+                    fout->writeChars(tab_cols_str[i].c_str());
                 }
                 fout->writeChars("\n");
                 }
@@ -3077,110 +3078,19 @@ static void driver(
             cerr << "report file " << reportFile << endl;
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
-			SpeciesMetrics& spm = metrics.spmu;
-            if(abundance_analysis) {
-                uint8_t rank = get_tax_rank_id(classification_rank.c_str());
-                Timer timer(cerr, "Calculating abundance: ");
-                spm.calculateAbundance(ebwt, rank);
-            }
-            const std::map<TaxId, TaxonomyNode>& tree = ebwt.tree();
-            const std::map<uint64_t, string>& name_map = ebwt.name();
-            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
-            const map<uint64_t, double>& abundance = spm.abundance;
-            const map<uint64_t, double>& abundance_len = spm.abundance_len;
+			ClassificationMetrics& spm = metrics.spmu;
 
-            bool kraken_format = false;
-            bool include_kmercounts = true;
+            //bool kraken_format = true;
+            //bool include_kmercounts = false;
+            bool show_zeros = false;
 
-            if (kraken_format) {
+            parse_col_fmt(kraken_report_col_def, report_col_name_map, report_cols_str, report_cols);
+            ClassificationReport qr(reportOfb, ebwt, spm, report_cols, show_zeros);
 
-            	std::map<TaxId, vector<TaxId>> child_lists;
-            	std::map<TaxId, uint8_t> rank_map;
-            	std::map<uint64_t, ReadCounts> clade_counts;
+            // summarize from uid to higher levels
+            qr.print_report();
 
-            	for (auto& tree_node : tree) {
-            		child_lists[tree_node.second.parent_tid].push_back(tree_node.first);
-            		rank_map[tree_node.first] = tree_node.second.rank;
-            	}
-
-            	//char buf[1024];
-            	//bool firstfield = true;
-            	//const basic_string<char> empty_string = "";
-
-            	// for (auto& col : report_fmt_cols) {
-
-            	//}
-
-
-            } else {
-
-			reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
-					  << "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
-            if(include_kmercounts) {
-                reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
-            }
-            reportOfb << "abundance";
-            if(false) {
-                reportOfb << '\t' << "abundance_normalized_by_genome_size";
-            }
-            reportOfb << endl;
-			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
-
-                uint64_t taxid = it->first;
-                if(taxid == 0) continue;
-
-                //reportOfb << get_with_default(name_map, taxid, (string) taxid);
-                std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
-                if(name_itr != name_map.end()) {
-                    reportOfb << name_itr->second;
-                } else {
-                    reportOfb << taxid;
-                }
-                reportOfb << '\t' << taxid << '\t';
-
-                uint8_t rank = 0;
-                bool leaf = false;
-                std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
-                
-                if(tree_itr != tree.end()) {
-                    rank = tree_itr->second.rank;
-                    leaf = tree_itr->second.leaf;
-                }
-                if(rank == RANK_UNKNOWN && leaf) {
-                    reportOfb << "leaf";
-                } else {
-                    string rank_str = get_tax_rank_string(rank);
-                    reportOfb << rank_str;
-                }
-                reportOfb << '\t';
-                
-                uint64_t genome_size = get_with_default(size_map, taxid, 0);
-                
-                reportOfb << genome_size << '\t'
-						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
-                if(false) {
-                    reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
-                              << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
-                }
-                map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
-                if(ab_len_itr != abundance_len.end()) {
-                    reportOfb << ab_len_itr->second;
-                } else {
-                    reportOfb << "0.0";
-                }
-                map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
-                if(false) {
-                    if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
-                        reportOfb << '\t' << ab_itr->second;
-                    } else {
-                        reportOfb << "\t0.0";
-                    }
-                }
-                reportOfb << endl;
-
-			}
 			reportOfb.close();
-		}
 		}
 
 

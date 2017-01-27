@@ -1,124 +1,36 @@
 /*
- * Copyright 2014, Daehwan Kim <infphilo@gmail.com>
+ * Copyright 2014-2017, Daehwan Kim <infphilo@gmail.com>, Li Song, Florian Breitwieser
  *
- * This file is part of HISAT.
+ * This file is part of Centrifuge.
  *
- * HISAT is free software: you can redistribute it and/or modify
+ * Centrifuge is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * HISAT is distributed in the hope that it will be useful,
+ * Centrifuge is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with HISAT.  If not, see <http://www.gnu.org/licenses/>.
+ * along with Centrifuge.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef CLASSIFIER_H_
 #define CLASSIFIER_H_
 
-//#define LI_DEBUG
-
 #include <algorithm>
 #include <vector>
+#include <unordered_map>
 #include "hi_aligner.h"
 #include "util.h"
+#include "hitmap.h"
 
-template<typename index_t>
-struct HitCount {
-    uint64_t uniqueID;
-    uint64_t taxID;
-    uint32_t count;
-    uint32_t score;
-    uint32_t scores[2][2];      // scores[rdi][fwi]
-    double   summedHitLen;
-    double   summedHitLens[2][2]; // summedHitLens[rdi][fwi]
-    uint32_t timeStamp;
-    EList<pair<uint32_t,uint32_t> > readPositions;
-    bool     leaf;
-    uint32_t num_leaves;
-    
-    uint8_t rank;
-    EList<uint64_t> path;
-    
-    void reset() {
-        uniqueID = taxID = count = score = timeStamp = 0;
-        scores[0][0] = scores[0][1] = scores[1][0] = scores[1][1] = 0;
-        summedHitLen = 0.0;
-        summedHitLens[0][0] = summedHitLens[0][1] = summedHitLens[1][0] = summedHitLens[1][1] = 0.0;
-        readPositions.clear();
-        rank = 0;
-        path.clear();
-        leaf = true;
-        num_leaves = 1;
-    }
-    
-    HitCount& operator=(const HitCount& o) {
-        if(this == &o)
-            return *this;
-        
-        uniqueID = o.uniqueID;
-        taxID = o.taxID;
-        count = o.count;
-        score = o.score;
-        scores[0][0] = o.scores[0][0];
-        scores[0][1] = o.scores[0][1];
-        scores[1][0] = o.scores[1][0];
-        scores[1][1] = o.scores[1][1];
-        summedHitLen = o.summedHitLen;
-        summedHitLens[0][0] = o.summedHitLens[0][0];
-        summedHitLens[0][1] = o.summedHitLens[0][1];
-        summedHitLens[1][0] = o.summedHitLens[1][0];
-        summedHitLens[1][1] = o.summedHitLens[1][1];
-        timeStamp = o.timeStamp;
-        readPositions = o.readPositions;
-        leaf = o.leaf;
-        num_leaves = o.num_leaves;
-        rank = o.rank;
-        path = o.path;
-        
-        return *this;
-    }
-
-    void finalize(
-                  bool paired,
-                  bool mate1fw,
-                  bool mate2fw) {
-        if(paired) {
-#if 1
-            score = max(scores[0][0], scores[0][1]) + max(scores[1][0], scores[1][1]);
-            summedHitLen = max(summedHitLens[0][0], summedHitLens[0][1]) + max(summedHitLens[1][0], summedHitLens[1][1]);
-#else
-            uint32_t score1 = 0, score2 = 0;
-            double summedHitLen1 = 0.0, summedHitLen2 = 0.0;
-            if(mate1fw == mate2fw) {
-                score1 = scores[0][0] + scores[1][0];
-                score2 = scores[0][1] + scores[1][1];
-                summedHitLen1 = summedHitLens[0][0] + summedHitLens[1][0];
-                summedHitLen2 = summedHitLens[0][1] + summedHitLens[1][1];
-            } else {
-                score1 = scores[0][0] + scores[1][1];
-                score2 = scores[0][1] + scores[1][0];
-                summedHitLen1 = summedHitLens[0][0] + summedHitLens[1][1];
-                summedHitLen2 = summedHitLens[0][1] + summedHitLens[1][0];
-            }
-            if(score1 >= score2) {
-                score = score1;
-                summedHitLen = summedHitLen1;
-            } else {
-                score = score2;
-                summedHitLen = summedHitLen2;
-            }
-#endif
-        } else {
-            score = max(scores[0][0], scores[0][1]);
-            summedHitLen = max(summedHitLens[0][0], summedHitLens[0][1]);
-        }
-    }
-};
+uint32_t calc_score(uint32_t len) {
+	// return (len - 15) * (len - 15);
+	return (len - 15) * (len - 15);
+}
 
 /**
  * With a hierarchical indexing, SplicedAligner provides several alignment strategies
@@ -217,18 +129,25 @@ public:
            WalkMetrics&             wlm,
            PerReadMetrics&          prm,
            HIMetrics&               him,
-		   SpeciesMetrics&          spm,
+		   ClassificationMetrics&          spm,
            RandomSource&            rnd,
            AlnSinkWrap<index_t>&    sink)
     {
         _hitMap.clear();
         
         const index_t increment = (2 * _minHitLen <= 33) ? 10 : (2 * _minHitLen - 33);
+        DEBUG_MSG("increment: " << increment << endl);
         const ReportingParams& rp = sink.reportingParams();
-        index_t maxGenomeHitSize = rp.khits;
+        index_t maxGenomeHitSize = rp.khits; // maximum number of hits to report (and investigate) per read
 		bool isFw = false;
+
+
+        // extract numeric id from refName
+        const EList<pair<string, uint64_t> >& uid_to_tid = ebwtFw.uid_to_tid();
+
+		//uint32_t max_length = 0;
+        //uint32_t max_score = 0;
         
-        //
         uint32_t ts = 0; // time stamp
         // for each mate. only called once for unpaired data
         for(int rdi = 0; rdi < (this->_paired ? 2 : 1); rdi++) {
@@ -236,25 +155,28 @@ public:
             
             // search for partial hits on the forward and reverse strand (saved in this->_hits[rdi])
             searchForwardAndReverse(rdi, ebwtFw, sc, rnd, rp, increment);
-            
+
             // get forward or reverse hits for this read from this->_hits[rdi]
             //  the strand is chosen based on higher average hit length in either direction
-            pair<int, int> fwp = getForwardOrReverseHit(rdi);
-            for(int fwi = fwp.first; fwi < fwp.second; fwi++) {
+            auto a = this->_hits[rdi][0];
+
+            // TODO: Allow to search both fwd and reverse to be more exhaustive
+            //std::array<int,2> fwp = getForwardOrReverseHit(rdi);
+            //for(int fwi = fwp.first; fwi < fwp.second; fwi++) {
+            for(int fwi : {0,1}) {
+            //for(int fwi : fwp) {
+            	DEBUG_MSG("fwi:" << fwi << ";" << endl);
+            	//int fwi = fwp.first;
                 ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
                 assert(hit.done());
                 isFw = hit._fw;  // TODO: Sync between mates!
                 
                 // choose candidate partial alignments for further alignment
                 index_t offsetSize = hit.offsetSize();
-                this->_genomeHits.clear();
+                //this->_genomeHits.clear();
                 
-                // sort partial hits by size (number of genome positions), ascending, and then length, descending
-                for(size_t hi = 0; hi < offsetSize; hi++) {
-                    const BWTHit<index_t> partialHit = hit.getPartialHit(hi);
-#ifdef LI_DEBUG
-                    cout << partialHit.len() << " " << partialHit.size() << endl;
-#endif
+
+                for (const BWTHit<index_t>& partialHit : hit._partialHits) {
                     if(partialHit.len() >= _minHitLen && partialHit.size() > maxGenomeHitSize) {
                         maxGenomeHitSize = partialHit.size();
                     }
@@ -264,6 +186,7 @@ public:
                     maxGenomeHitSize += rp.khits;
                 }
                 
+                // sort partial hits by size (number of genome positions), ascending, and then length, descending
                 hit._partialHits.sort(compareBWTHits());
                 size_t usedPortion = 0;
                 size_t genomeHitCnt = 0;
@@ -278,16 +201,8 @@ public:
                     bool considerOnlyIfPreviouslyObserved = partialHitLen < _minHitLen;
                     
                     // get all coordinates of the hit
-                    EList<Coord>& coords = getCoords(
-                                                     hit,
-                                                     hi,
-                                                     ebwtFw,
-                                                     ref,
-                                                     rnd,
-                                                     maxGenomeHitSize,
-                                                     wlm,
-                                                     prm,
-                                                     him);
+                    EList<Coord>& coords = getCoords(hit, hi, ebwtFw, ref, rnd,
+                                                     maxGenomeHitSize, wlm, prm, him);
                     if(coords.empty())
                         continue;
                     
@@ -304,11 +219,9 @@ public:
                     EList<pair<uint64_t, uint64_t> > coord_ids;
                     for(index_t k = 0; k < nHitsToConsider; k++, genomeHitCnt++) {
                         const Coord& coord = coords[k];
-                        assert_lt(coord.ref(), _refnames.size()); // gives a warning - coord.ref() is signed integer. why?
+                        assert_lt( (size_t) coord.ref(), _refnames.size());
                         
-                        // extract numeric id from refName
-                        const EList<pair<string, uint64_t> >& uid_to_tid = ebwtFw.uid_to_tid();
-                        assert_lt(coord.ref(), uid_to_tid.size());
+                        assert_lt( (size_t) coord.ref(), uid_to_tid.size());
                         uint64_t taxID = uid_to_tid[coord.ref()].second;
                         bool found = false;
                         for(index_t k2 = 0; k2 < coord_ids.size(); k2++) {
@@ -329,208 +242,125 @@ public:
                     // scoring function: calculate the weight of this partial hit
                     assert_gt(partialHitLen, 15);
                     assert_gt(n_genomes, 0);
-                    uint32_t partialHitScore = (uint32_t)((partialHitLen - 15) * (partialHitLen - 15)) ; // / n_genomes;
-                    double weightedHitLen = double(partialHitLen) ; // / double(n_genomes) ;
+                    uint32_t partialHitScore = calc_score(partialHitLen); // / n_genomes;
+                    //uint32_t partialHitScore = (uint32_t)(partialHitLen) ; // / n_genomes;
+                    //double weightedHitLen = double(partialHitLen) ; // / double(n_genomes) ;
                     
                     // go through all coordinates reported for partial hit
                     for(index_t k = 0; k < coord_ids.size(); ++k) {
                         uint64_t uniqueID = coord_ids[k].first;
                         uint64_t taxID = coord_ids[k].second;
                         if(_excluded_taxIDs.find(taxID) != _excluded_taxIDs.end())
-                            break;
+                            continue;
                         // add hit to genus map and get new index in the map
-                        size_t idx = addHitToHitMap(
-                                                    ebwtFw,
-                                                    _hitMap,
-                                                    rdi,
-                                                    fwi,
-                                                    uniqueID,
-                                                    taxID,
-                                                    ts,
-                                                    partialHitScore,
-                                                    weightedHitLen,
-                                                    considerOnlyIfPreviouslyObserved,
-                                                    partialHit._bwoff,
-                                                    partialHit.len());
+
+                        DEBUG_MSG(" ==> Add "<< uid_to_tid[uniqueID].first << " (UID "<<uniqueID<<";taxID " << taxID << ") with score " << partialHitScore << " and length " << partialHitLen << endl);
+                        size_t idx = addHitToHitMap(ebwtFw, _hitMap, rdi, fwi, uniqueID, taxID, ts,
+                                                    partialHitScore, partialHitLen, considerOnlyIfPreviouslyObserved,
+                                                    partialHit._bwoff, partialHit.len());
                         
                         //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
                         if(idx >= _hitMap.size()) {
                             continue;
                         }
                         
-#ifdef FLORIAN_DEBUG
-                        std::cerr << speciesID << ';';
-#endif
                     }
+
+                    DEBUG_MSG( "genomeHitCnt ["<<genomeHitCnt<<"] >= maxGenomeHitSize ["<<maxGenomeHitSize<<"]: " << (genomeHitCnt >= maxGenomeHitSize) << endl);
                     
                     if(genomeHitCnt >= maxGenomeHitSize)
                         break;
                     
-#ifdef FLORIAN_DEBUG
-                    std::cerr << "  partialHits-done";
-#endif
                 } // partialHits
             } // fwi
-            
-#ifdef FLORIAN_DEBUG
-            std::cerr << "  rdi-done" << endl;
-#endif
         } // rdi
         
-        for(size_t i = 0; i < _hitMap.size(); i++) {
-            _hitMap[i].finalize(this->_paired, this->_mate1fw, this->_mate2fw);
+        // Get best score and see if some of the assignments correspond to host taxIDs
+        HitScore best_score = {0,0};
+        uint32_t n_best = 0;
+        unordered_set<uint64_t> Ids;
+        bool only_host_taxIDs = false;
+        for(HitCount<index_t> & hc : _hitMap) {
+        	// Finalizing the HitCounts sets hc.best_score and hc.summedHitLen
+        	HitScore score = hc.finalize(this->_paired, this->_mate1fw, this->_mate2fw);
+        	//DEBUG_MSG("AA Best score: " << best_score[0] << "  " << best_score[1] << endl);
+        	//DEBUG_MSG("AA Current score: " << hc.best_score[0] << "  " << hc.best_score[1] << endl);
+        	if (score > best_score) {
+        		best_score = score;
+        		only_host_taxIDs = (_host_taxIDs.find(hc.taxID) != _host_taxIDs.end());
+        		n_best = 1;
+        	} else if (score == best_score) {
+        		++n_best;
+        		// Currently implemented: If any fragment maps to host, map it to host
+        		only_host_taxIDs |= (_host_taxIDs.find(hc.taxID) != _host_taxIDs.end());
+        	}
         }
 
-        // See if some of the assignments corresponde to host taxIDs
-        int64_t best_score = 0;
-        bool only_host_taxIDs = false;
-        for(size_t gi = 0; gi < _hitMap.size(); gi++) {
-            if(_hitMap[gi].score > best_score) {
-                best_score = _hitMap[gi].score;
-                only_host_taxIDs = (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
-            } else if(_hitMap[gi].score == best_score) {
-                only_host_taxIDs |= (_host_taxIDs.find(_hitMap[gi].taxID) != _host_taxIDs.end());
-            }
+        //unordered_set<uint64_t> uids;
+        set<uint64_t> uids;
+        DEBUG_MSG("Best score: " << best_score[0] << "  " << best_score[1] << endl);
+        for(HitCount<index_t> & hc : _hitMap) {
+        	DEBUG_MSG("Current score: " << hc.best_score[0] << "  " << hc.best_score[1] << endl);
+        	if (hc.best_score == best_score) {
+        		// Do something with that hit
+        		DEBUG_MSG("ADD " << uid_to_tid[hc.uniqueID ].first << "["<< hc.best_score[0] << ";" <<
+        		        		hc.best_score[1]<<"] for abundance calc" << endl);
+        		uids.insert(hc.uniqueID);
+
+        		// species counting
+        		spm.addSpeciesCounts(
+                        hc.uniqueID,
+                        hc.best_score[1],
+						hc.best_score[1],
+						hc.best_score[0],
+                        1.0 / n_best,
+                        (uint32_t)n_best);
+/*
+	// only count k-mers if the read is unique
+    if (n_results == 1) {
+		for (size_t i = 0; i< rs->nReadPositions(); ++i) {
+			sm.addAllKmers(rs->taxID(),
+                           rs->isFw()? rd.patFw : rd.patRc,
+                           rs->readPositions(i).first,
+                           rs->readPositions(i).second);
+		}
+	}
+*/
+
+        	}
         }
- 
+
+
+        spm.observed_uid_sets[uids] += 1;
         
         // If the number of hits is more than -k,
         //   traverse up the taxonomy tree to reduce the number
         if (!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits) {
-            // Count the number of the best hits
-            uint32_t best_score = _hitMap[0].score;
-            for(size_t i = 1; i < _hitMap.size(); i++) {
-                if(best_score < _hitMap[i].score) {
-                    best_score = _hitMap[i].score;
-                }
-            }
-            
-            // Remove secondary hits
-            for(int i = 0; i < (int)_hitMap.size(); i++) {
-                if(_hitMap[i].score < best_score) {
-                    if(i + 1 < (int) _hitMap.size()) {
-                        _hitMap[i] = _hitMap.back();
-                    }
-                    _hitMap.pop_back();
-                    i--;
-                }
-            }
-            
-            if(!_tree_traverse) {
-                if(_hitMap.size() > (size_t)rp.khits)
-                    return 0;
-            }
-            
-            uint8_t rank = 0;
-            while(_hitMap.size() > (size_t)rp.khits) {
-                _hitTaxCount.clear();
-                for(size_t i = 0; i < _hitMap.size(); i++) {
-                    while(_hitMap[i].rank < rank) {
-                        if(_hitMap[i].rank + 1 >= (int)_hitMap[i].path.size()) {
-                            _hitMap[i].rank = std::numeric_limits<uint8_t>::max();
-                            break;
-                        }
-                        _hitMap[i].rank += 1;
-                        _hitMap[i].taxID = _hitMap[i].path[_hitMap[i].rank];
-                        _hitMap[i].leaf = false;
-                    }
-                    if(_hitMap[i].rank > rank) continue;
-                    
-                    uint64_t parent_taxID = (rank + 1 >= (int) _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
-                    // Traverse up the tree more until we get non-zero taxID.
-                    if(parent_taxID == 0) continue;
-                    
-                    size_t j = 0;
-                    for(; j < _hitTaxCount.size(); j++) {
-                        if(_hitTaxCount[j].second == parent_taxID) {
-                            _hitTaxCount[j].first += 1;
-                            break;
-                        }
-                    }
-                    if(j == _hitTaxCount.size()) {
-                        _hitTaxCount.expand();
-                        _hitTaxCount.back().first = 1;
-                        _hitTaxCount.back().second = parent_taxID;
-                    }
-                }
-                if(_hitTaxCount.size() <= 0) {
-                    if(rank < _hitMap[0].path.size()) {
-                        rank++;
-                        continue;
-                    } else {
-                        break;
-                    }
-                }
-                _hitTaxCount.sort();
-                size_t j = _hitTaxCount.size();
-                while(j-- > 0) {
-                    uint64_t parent_taxID = _hitTaxCount[j].second;
-                    int64_t max_score = 0;
-                    for(size_t i = 0; i < _hitMap.size(); i++) {
-                        assert_geq(_hitMap[i].rank, rank);
-                        if(_hitMap[i].rank != rank) continue;
-                        uint64_t cur_parent_taxID = (rank + 1 >= _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
-                        if(parent_taxID == cur_parent_taxID) {
-                            _hitMap[i].uniqueID = std::numeric_limits<uint64_t>::max();
-                            _hitMap[i].rank = rank + 1;
-                            _hitMap[i].taxID = parent_taxID;
-                            _hitMap[i].leaf = false;
-                        }
-                        if(parent_taxID == _hitMap[i].taxID) {
-                            if(_hitMap[i].score > max_score) {
-                                max_score = _hitMap[i].score;
-                            }
-                        }
-                    }
-                    
-                    bool first = true;
-                    size_t rep_i = _hitMap.size();
-                    for(size_t i = 0; i < _hitMap.size(); i++) {
-                        if(parent_taxID == _hitMap[i].taxID) {
-                            if(!first) {
-                                assert_lt(rep_i, _hitMap.size());
-                                _hitMap[rep_i].num_leaves += _hitMap[i].num_leaves;
-                                if(i + 1 < _hitMap.size()) {
-                                    _hitMap[i] = _hitMap.back();
-                                }
-                                _hitMap.pop_back();
-                                i--;
-                            } else {
-                                first = false;
-                                rep_i = i;
-                            }
-                        }
-                    }
-                    
-                    if(_hitMap.size() <= (size_t)rp.khits)
-                        break;
-                }
-                rank++;
-                if(rank > _hitMap[0].path.size())
-                    break;
-            }
+        	reduceHitmapTraverseTree(rp.khits);
         }
-        if(!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits)
+        if(!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits) {
+        	DEBUG_MSG("Returning - hitmap-size still greater than rp.khits");
             return 0;
+        }
        
 #if 0
        	// boost up the score if the assignment is unique
         if(_hitMap.size() == 1) {
             HitCount& hitCount = _hitMap[0];
-            hitCount.score = (hitCount.summedHitLen - 15) * (hitCount.summedHitLen - 15);
+            hitCount.best_score = calc_score(hitCount.summedHitLen);
         }
 #endif
         
         index_t rdlen = this->_rds[0]->length();
-        int64_t max_score = (rdlen > 15 ? (rdlen - 15) * (rdlen - 15) : 0);
+        int64_t max_score = (rdlen > 15 ? calc_score(rdlen) : 0);
         if(this->_paired) {
             rdlen = this->_rds[1]->length();
-            max_score += (rdlen > 15 ? (rdlen - 15) * (rdlen - 15) : 0);
+            max_score += (rdlen > 15 ? calc_score(rdlen) : 0);
         }
         
        
         for(size_t gi = 0; gi < _hitMap.size(); gi++) {
-            assert_gt(_hitMap[gi].score, 0);
+            assert_gt(_hitMap[gi].best_score[0], 0);
             HitCount<index_t>& hitCount = _hitMap[gi];
             if(only_host_taxIDs) {
                 if(_host_taxIDs.find(_hitMap[gi].taxID) == _host_taxIDs.end())
@@ -546,12 +376,12 @@ public:
             // report
             AlnRes rs;
             rs.init(
-                    hitCount.score,
+                    hitCount.best_score[1],
                     max_score,
                     hitCount.uniqueID < uid_to_tid.size() ? uid_to_tid[hitCount.uniqueID].first : get_tax_rank_string(taxRank),
                     hitCount.taxID,
                     taxRank,
-                    hitCount.summedHitLen,
+					hitCount.best_score[0],
                     hitCount.readPositions,
                     isFw);
             sink.report(0, &rs);
@@ -633,7 +463,9 @@ private:
         const Read& rd = *(this->_rds[rdi]);
 
         bool done[2] = {false, false};
+#if 0
         size_t cur[2] = {0, 0} ;
+#endif
         
         index_t rdlen = rd.length();
         //const size_t maxDiff = (rdlen / 2 > 2 * _minHitLen) ? rdlen / 2 : (2 * _minHitLen);
@@ -641,61 +473,48 @@ private:
         
         // search for partial hits on the forward and reverse strand
         while(!done[0] || !done[1]) {
-            for(index_t fwi = 0; fwi < 2; fwi++) {
+            for(index_t fwi : {0,1}) {
                 if(done[fwi])
                     continue;
                 
                 size_t mineFw = 0, mineRc = 0;
                 bool fw = (fwi == 0);
                 ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
-                this->partialSearch(
-                                    ebwtFw,
-                                    rd,
-                                    sc,
-                                    fw,
-                                    0,
-                                    mineFw,
-                                    mineRc,
-                                    hit,
-                                    rnd);
+                this->partialSearch(ebwtFw, rd, sc, fw, 0,
+                                    mineFw, mineRc, hit,
+									rnd);
                 
                 BWTHit<index_t>& lastHit = hit.getPartialHit(hit.offsetSize() - 1);
                 if(hit.done()) {
                     done[fwi] = true;
+#if 0
                     cur[fwi] = rdlen;
+#endif
                     if(lastHit.len() >= _minHitLen) {
                         sum[fwi] += lastHit.len();
-                        if(0) //lastHit.len() < 31 && rdlen > 31 && lastHit.size() == 1 )
-                        {
+#if 0
+                        // search again if the hit is only small
+                        if(lastHit.len() < 31 && rdlen > 31 && lastHit.size() == 1 ) {
                             ReadBWTHit<index_t> testHit ;
                             testHit.init( fw, rdlen ) ;
                             testHit.setOffset(hit.cur() - 1 - 31 + 1);
-                            this->partialSearch(ebwtFw,
-                                                rd,
-                                                sc,
-                                                fw,
-                                                0,
-                                                mineFw,
-                                                mineRc,
-                                                testHit,
+                            this->partialSearch(ebwtFw, rd, sc, fw, 0,
+                                                mineFw, mineRc, testHit,
                                                 rnd);
                             index_t tmpLen = testHit.getPartialHit( testHit.offsetSize() - 1 ).len();
-#ifdef LI_DEBUG
-                            cout << "(adjust: " << tmpLen << ")";
-#endif
                             if(tmpLen >= 31) {
                                 lastHit._len = tmpLen;
                             }
                         }
+#endif
                     }
                     
                     continue;
                 }
-                
+#if 0
                 cur[fwi] = hit.cur();
-#ifdef LI_DEBUG
-                cout << fwi << ":" << lastHit.len() << " " << cur[fwi] << " ";
 #endif
+                // DEBUG_MSG(fwi << ":" << lastHit.len() << " " << hit.cur() << endl);
                 if(lastHit.len() >= _minHitLen)
                     sum[fwi] += lastHit.len();
                 
@@ -709,29 +528,21 @@ private:
 #endif
                     } else {
                         hit.setOffset(hit.cur() + 1);
-                        if(0) //lastHit.len() < 31 && hit.cur() >= 31 && lastHit.size() == 1 )
-                        {
+#if 0
+                        if (lastHit.len() < 31 && hit.cur() >= 31 && lastHit.size() == 1 ) {
                             ReadBWTHit<index_t> testHit;
                             testHit.init(fw, rdlen);
                             testHit.setOffset(hit.cur() - 1 - 31); // why not hit.cur() - 1 - 31 + 1? because we "+1" before the if!
                             
-                            this->partialSearch(ebwtFw,
-                                                rd,
-                                                sc,
-                                                fw,
-                                                0,
-                                                mineFw,
-                                                mineRc,
-                                                testHit,
+                            this->partialSearch(ebwtFw, rd, sc, fw, 0,
+                                                mineFw, mineRc, testHit,
                                                 rnd);
                             index_t tmpLen = testHit.getPartialHit(testHit.offsetSize() - 1 ).len();
-#ifdef LI_DEBUG
-                            cout << "(adjust: " << tmpLen << ")";
-#endif
                             if(tmpLen >= 31) {
                                 lastHit._len = tmpLen;
                             }
                         }
+#endif
                     }
                 }
                 if(hit.cur() + _minHitLen >= rdlen) {
@@ -745,9 +556,7 @@ private:
                     --fwi ; // Repeat this strand again.
                 }
             }
-#ifdef LI_DEBUG
-            cout << endl;
-#endif
+
 
             // No early termination
 #if 0
@@ -870,33 +679,36 @@ private:
         }
     }
     
-    pair<int, int> getForwardOrReverseHit(index_t rdi) {
+    std::array<int,2> getForwardOrReverseHit(index_t rdi) {
         index_t avgHitLength[2] = {0, 0};
+        index_t summedHitLength[2] = {0, 0};
         index_t hitSize[2] = {0, 0} ;
         index_t maxHitLength[2] = {0, 0} ;
         for(index_t fwi = 0; fwi < 2; fwi++) {
             ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
+
             index_t numHits = 0;
             index_t totalHitLength = 0;
-#ifdef LI_DEBUG
-            cout << fwi << ": ";
-#endif
+
+            //DEBUG_MSG(fwi << ": ");
+
             for(size_t i = 0; i < hit.offsetSize(); i++) {
-                index_t len = hit.getPartialHit(i).len();
-#ifdef LI_DEBUG
-                cout << len << " ";
-#endif
+                BWTHit<index_t>& partial_hit = hit.getPartialHit(i);
+                index_t len = partial_hit.len();
+
+                // DEBUG_MSG(len << " (" << partial_hit._bwoff << ") ");
+
                 
                 if(len < _minHitLen) continue;
-                totalHitLength += (len - 15) * (len - 15);
+                summedHitLength[fwi] += len;
+                totalHitLength += calc_score(len);
                 hitSize[fwi] += hit.getPartialHit(i).size();
                 if(len > maxHitLength[fwi])
                     maxHitLength[fwi] = len;
                 numHits++;
             }
-#ifdef LI_DEBUG
-            cout << endl;
-#endif
+            // DEBUG_MSG(endl);
+
             if(numHits > 0) {
                 avgHitLength[fwi] = totalHitLength ; /// numHits;
             }
@@ -905,16 +717,77 @@ private:
         // choose read direction with a higher average hit length
         //cout<<"strand choosing: "<<avgHitLength[0]<<" "<<avgHitLength[1]<<endl ;
         index_t fwi;//= (avgHitLength[0] > avgHitLength[1])? 0 : 1;
-        if(avgHitLength[0] != avgHitLength[1])
+        //if (summedHitLength[0] != summedHitLength[1])
+        //	fwi = (summedHitLength[0] > summedHitLength[1]) ? 0 : 1;
+        //else
+        	if(avgHitLength[0] != avgHitLength[1])
             fwi = (avgHitLength[0] > avgHitLength[1]) ? 0 : 1;
         else if(maxHitLength[0] != maxHitLength[1])
             fwi = (maxHitLength[0] > maxHitLength[1])? 0 : 1;
         else
-            return pair<int, int>(0, 2);
+            return {0, 2};
         
-        return pair<int, int>((int)fwi, (int)fwi + 1);
+        return {fwi, fwi + 1};
     }
     
+    // append a hit to genus map or update entry
+    size_t addHitToHitMap(const Ebwt<index_t>& ebwt, EList<HitCount<index_t> >& hitMap,
+                          int rdi, int fwi, uint64_t uniqueID, uint64_t taxID, size_t hi,
+                          uint32_t partialHitScore, uint32_t partialHitLen,
+                          bool considerOnlyIfPreviouslyObserved,
+                          size_t offset, size_t length) {
+        size_t idx = 0;
+
+        const TaxonomyPathTable& pathTable = ebwt.paths();
+        pathTable.getPath(taxID, _tempPath);
+        uint8_t rank = _classification_rank;
+        if(rank > 0) {
+            for(; rank < _tempPath.size(); rank++) {
+                if(_tempPath[rank] != 0) {
+                    taxID = _tempPath[rank];
+                    break;
+                }
+            }
+        }
+
+        for(; idx < hitMap.size(); ++idx) {
+            bool same = rank == 0?
+            		(uniqueID == hitMap[idx].uniqueID) :
+					(taxID == hitMap[idx].taxID);
+
+            if(same) {
+                if(hitMap[idx].timeStamp != hi) {
+                    hitMap[idx].count += 1;
+                    hitMap[idx].scores[rdi][fwi] += {partialHitLen, partialHitScore};
+                    hitMap[idx].timeStamp = (uint32_t)hi;
+                    hitMap[idx].readPositions.push_back(make_pair(offset, length));
+                }
+                break;
+            }
+        }
+
+        if(idx >= hitMap.size() && !considerOnlyIfPreviouslyObserved) {
+            hitMap.expand();
+            HitCount<index_t>& hitCount = hitMap.back();
+            hitCount.reset();
+            hitCount.uniqueID = uniqueID;
+            hitCount.count = 1;
+            hitCount.scores[rdi][fwi] = {partialHitLen, partialHitScore};
+            hitCount.timeStamp = (uint32_t)hi;
+            hitCount.readPositions.clear();
+            hitCount.readPositions.push_back(make_pair(offset, length));
+            hitCount.path = _tempPath;
+            hitCount.rank = rank;
+            hitCount.taxID = taxID;
+        }
+
+        //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
+        //assert_lt(genusIdx, genusMap.size());
+        return idx;
+    }
+
+
+
     EList<Coord>& getCoords(
                             ReadBWTHit<index_t>& hit,
                             size_t hi,
@@ -936,7 +809,7 @@ private:
                            partialHit._top,
                            partialHit._bot,
                            hit._fw == 0, // FIXME: fwi and hit._fw are defined differently
-                           maxGenomeHitSize - this->_genomeHits.size(),
+                           maxGenomeHitSize, // - this->_genomeHits.size(),
                            hit._len - partialHit._bwoff - partialHit._len,
                            partialHit._len,
                            partialHit._coords,
@@ -945,84 +818,127 @@ private:
                            him,
                            false, // reject straddled
                            straddled);
-#ifdef FLORIAN_DEBUG
-        std::cerr <<  partialHit.len() << ':';
-#endif
+
         // get all coordinates of the hit
         return partialHit._coords;
     }
 
+    int reduceHitmapTraverseTree(int max_hits) {
+    	// Count the number of the best hits
+            HitScore best_score = _hitMap[0].best_score;
+            for(size_t i = 1; i < _hitMap.size(); i++) {
+                if(best_score < _hitMap[i].best_score) {
+                    best_score = _hitMap[i].best_score;
+                }
+            }
 
-    // append a hit to genus map or update entry
-    size_t addHitToHitMap(
-                          const Ebwt<index_t>& ebwt,
-                          EList<HitCount<index_t> >& hitMap,
-                          int rdi,
-                          int fwi,
-                          uint64_t uniqueID,
-                          uint64_t taxID,
-                          size_t hi,
-                          uint32_t partialHitScore,
-                          double weightedHitLen,
-                          bool considerOnlyIfPreviouslyObserved,
-                          size_t offset,
-                          size_t length)
-    {
-        size_t idx = 0;
-#ifdef LI_DEBUG
-        cout << "Add " << taxID << " " << partialHitScore << " " << weightedHitLen << endl;
-#endif
-        const TaxonomyPathTable& pathTable = ebwt.paths();
-        pathTable.getPath(taxID, _tempPath);
-        uint8_t rank = _classification_rank;
-        if(rank > 0) {
-            for(; rank < _tempPath.size(); rank++) {
-                if(_tempPath[rank] != 0) {
-                    taxID = _tempPath[rank];
+            // Remove secondary hits
+            for(int i = 0; i < (int)_hitMap.size(); i++) {
+                if(_hitMap[i].best_score < best_score) {
+                    if(i + 1 < (int) _hitMap.size()) {
+                        _hitMap[i] = _hitMap.back();
+                    }
+                    _hitMap.pop_back();
+                    i--;
+                }
+            }
+
+            if(!_tree_traverse) {
+                if(_hitMap.size() > (size_t)max_hits)
+                    return 0;
+            }
+
+            uint8_t rank = 0;
+            while(_hitMap.size() > (size_t)max_hits) {
+                _hitTaxCount.clear();
+                for(size_t i = 0; i < _hitMap.size(); i++) {
+                    while(_hitMap[i].rank < rank) {
+                        if(_hitMap[i].rank + 1 >= (int)_hitMap[i].path.size()) {
+                            _hitMap[i].rank = std::numeric_limits<uint8_t>::max();
+                            break;
+                        }
+                        _hitMap[i].rank += 1;
+                        _hitMap[i].taxID = _hitMap[i].path[_hitMap[i].rank];
+                        _hitMap[i].leaf = false;
+                    }
+                    if(_hitMap[i].rank > rank) continue;
+
+                    uint64_t parent_taxID = (rank + 1 >= (int) _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
+                    // Traverse up the tree more until we get non-zero taxID.
+                    if(parent_taxID == 0) continue;
+
+                    size_t j = 0;
+                    for(; j < _hitTaxCount.size(); j++) {
+                        if(_hitTaxCount[j].second == parent_taxID) {
+                            _hitTaxCount[j].first += 1;
+                            break;
+                        }
+                    }
+                    if(j == _hitTaxCount.size()) {
+                        _hitTaxCount.expand();
+                        _hitTaxCount.back().first = 1;
+                        _hitTaxCount.back().second = parent_taxID;
+                    }
+                }
+                if(_hitTaxCount.size() <= 0) {
+                    if(rank < _hitMap[0].path.size()) {
+                        rank++;
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+                _hitTaxCount.sort();
+                size_t j = _hitTaxCount.size();
+                while(j-- > 0) {
+                    uint64_t parent_taxID = _hitTaxCount[j].second;
+                    HitScore max_score;
+                    for(size_t i = 0; i < _hitMap.size(); i++) {
+                        assert_geq(_hitMap[i].rank, rank);
+                        if(_hitMap[i].rank != rank) continue;
+                        uint64_t cur_parent_taxID = (rank + 1u >= _hitMap[i].path.size() ? 1u : _hitMap[i].path[rank + 1]);
+                        if(parent_taxID == cur_parent_taxID) {
+                            _hitMap[i].uniqueID = std::numeric_limits<uint64_t>::max();
+                            _hitMap[i].rank = rank + 1;
+                            _hitMap[i].taxID = parent_taxID;
+                            _hitMap[i].leaf = false;
+                        }
+                        if(parent_taxID == _hitMap[i].taxID) {
+                            if(_hitMap[i].best_score > max_score) {
+                                max_score = _hitMap[i].best_score;
+                            }
+                        }
+                    }
+
+                    bool first = true;
+                    size_t rep_i = _hitMap.size();
+                    for(size_t i = 0; i < _hitMap.size(); i++) {
+                        if(parent_taxID == _hitMap[i].taxID) {
+                            if(!first) {
+                                assert_lt(rep_i, _hitMap.size());
+                                _hitMap[rep_i].num_leaves += _hitMap[i].num_leaves;
+                                if(i + 1 < _hitMap.size()) {
+                                    _hitMap[i] = _hitMap.back();
+                                }
+                                _hitMap.pop_back();
+                                i--;
+                            } else {
+                                first = false;
+                                rep_i = i;
+                            }
+                        }
+                    }
+
+                    if(_hitMap.size() <= (size_t)max_hits)
+                        break;
+                }
+                rank++;
+                if(rank > _hitMap[0].path.size())
                     break;
-                }
             }
-        }
-        
-        for(; idx < hitMap.size(); ++idx) {
-            bool same = false;
-            if(rank == 0) {
-                same = (uniqueID == hitMap[idx].uniqueID);
-            } else {
-                same = (taxID == hitMap[idx].taxID);
-            }
-            if(same) {
-                if(hitMap[idx].timeStamp != hi) {
-                    hitMap[idx].count += 1;
-                    hitMap[idx].scores[rdi][fwi] += partialHitScore;
-                    hitMap[idx].summedHitLens[rdi][fwi] += weightedHitLen;
-                    hitMap[idx].timeStamp = (uint32_t)hi;
-                    hitMap[idx].readPositions.push_back(make_pair(offset, length));
-                }
-                break;
-            }
-        }
-        
-        if(idx >= hitMap.size() && !considerOnlyIfPreviouslyObserved) {
-            hitMap.expand();
-            HitCount<index_t>& hitCount = hitMap.back();
-            hitCount.reset();
-            hitCount.uniqueID = uniqueID;
-            hitCount.count = 1;
-            hitCount.scores[rdi][fwi] = partialHitScore;
-            hitCount.summedHitLens[rdi][fwi] = weightedHitLen;
-            hitCount.timeStamp = (uint32_t)hi;
-            hitCount.readPositions.clear();
-            hitCount.readPositions.push_back(make_pair(offset, length));
-            hitCount.path = _tempPath;
-            hitCount.rank = rank;
-            hitCount.taxID = taxID;
-        }
-
-        //if considerOnlyIfPreviouslyObserved and it was not found, genus Idx size is equal to the genus Map size
-        //assert_lt(genusIdx, genusMap.size());
-        return idx;
+            return 1;
     }
+
 
     // compare BWTHits by size, ascending, first, then by length, descending
     //   TODO: move this operator into BWTHits if that is the standard way we would like to sort

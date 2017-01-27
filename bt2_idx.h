@@ -1590,7 +1590,7 @@ public:
 	bool        toBe() const         { return _toBigEndian; }
 	bool        verbose() const      { return _verbose; }
 	bool        sanityCheck() const  { return _sanity; }
-	EList<string>& refnames()        { return _refnames; }
+	const EList<string>& refnames() const { return _refnames; }
 	bool        fw() const           { return fw_; }
     
     const EList<pair<string, TaxId> >&   uid_to_tid() const { return _uid_to_tid; }

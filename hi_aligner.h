@@ -754,7 +754,7 @@ public:
             bool fw = (fwi == 0);
             _hits[0][fwi].init(fw, _rds[0]->length());
         }
-        _genomeHits.clear();
+        //_genomeHits.clear();
         _concordantPairs.clear();
         _hits_searched[0].clear();
         assert(!_paired);
@@ -778,7 +778,7 @@ public:
             }
             _hits_searched[rdi].clear();
         }
-        _genomeHits.clear();
+        //_genomeHits.clear();
         _concordantPairs.clear();
         assert(_paired);
         assert(!_rightendonly);
@@ -797,7 +797,7 @@ public:
            WalkMetrics&             wlm,
            PerReadMetrics&          prm,
            HIMetrics&               him,
-		   SpeciesMetrics&          spm,
+		   ClassificationMetrics&          spm,
            RandomSource&            rnd,
            AlnSinkWrap<index_t>&    sink) = 0;
     
@@ -848,8 +848,8 @@ protected:
     LinkedEList<EList<Edit> > _rawEdits;
     
     // temporary
-    EList<GenomeHit<index_t> >     _genomeHits;
-    EList<bool>                    _genomeHits_done;
+    // EList<GenomeHit<index_t> >     _genomeHits; // FB: Not used
+    // EList<bool>                    _genomeHits_done; // FB: Not used
     ELList<Coord>                  _coords;
     
     EList<pair<index_t, index_t> >  _concordantPairs;

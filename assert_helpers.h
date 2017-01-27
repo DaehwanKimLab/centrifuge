@@ -280,4 +280,11 @@ inline static void assert_range_helper(const T& begin,
 // used to make production build happy, i.e. disable "warning: variable ‘x’ set but not used [-Wunused-but-set-variable]"
 #define _unused(x) ((void)x)
 
+#ifndef NDEBUG
+#define DEBUG_MSG(x) (std::cerr << __FILE__ << ":" <<  __LINE__ << ": " << x)
+#else
+#define DEBUG_MSG(x)
+#endif
+
+
 #endif /*ASSERT_HELPERS_H_*/

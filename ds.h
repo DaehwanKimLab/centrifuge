@@ -842,6 +842,28 @@ public:
 	const T *ptr() const { return list_; }
 
 	/**
+	 * Return a pointer to the beginning of the buffer
+	 */
+	T * begin() { return list_; }
+
+	/**
+	 * Return a const pointer to the beginning of the buffer.
+	 */
+	const T * begin() const { return list_; }
+
+	/**
+	 * Return a pointer to the beginning of the buffer
+	 */
+	T * end() { return list_ + cur_; }
+
+	/**
+	 * Return a const pointer to the beginning of the buffer.
+	 */
+	const T * end() const { return list_ + cur_; }
+
+
+
+	/**
 	 * Set the memory category for this object.
 	 */
 	void setCat(int cat) {
