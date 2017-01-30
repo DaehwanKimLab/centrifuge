@@ -48,7 +48,8 @@ public:
                const EList<string>& refnames,
                bool mate1fw,
                bool mate2fw,
-               index_t minHitLen,
+               size_t minHitLen,
+			   size_t minTotalLen,
                bool tree_traverse,
                const string& classification_rank,
                const EList<uint64_t>& hostGenomes,
@@ -59,6 +60,7 @@ public:
                                        true), // no spliced alignment
     _refnames(refnames),
     _minHitLen(minHitLen),
+    _minTotalLen(minTotalLen),
     _mate1fw(mate1fw),
     _mate2fw(mate2fw),
     _tree_traverse(tree_traverse)
@@ -136,7 +138,7 @@ public:
         _hitMap.clear();
         
         const index_t increment = (2 * _minHitLen <= 33) ? 10 : (2 * _minHitLen - 33);
-        DEBUG_MSG("increment: " << increment << endl);
+		//DEBUG_MSG("increment: " << increment << endl);
         const ReportingParams& rp = sink.reportingParams();
         index_t maxGenomeHitSize = rp.khits; // maximum number of hits to report (and investigate) per read
 		bool isFw = false;
@@ -165,7 +167,6 @@ public:
             //for(int fwi = fwp.first; fwi < fwp.second; fwi++) {
             for(int fwi : {0,1}) {
             //for(int fwi : fwp) {
-            	DEBUG_MSG("fwi:" << fwi << ";" << endl);
             	//int fwi = fwp.first;
                 ReadBWTHit<index_t>& hit = this->_hits[rdi][fwi];
                 assert(hit.done());
@@ -212,6 +213,7 @@ public:
                     // the maximum number of hits per read is maxGenomeHitSize (change with parameter -k)
                     size_t nHitsToConsider = coords.size();
                     if(coords.size() > rp.ihits) {
+						cerr << "coords size to big, it seems!!" << endl;
                         continue;
                     }
 
@@ -254,7 +256,7 @@ public:
                             continue;
                         // add hit to genus map and get new index in the map
 
-                        DEBUG_MSG(" ==> Add "<< uid_to_tid[uniqueID].first << " (UID "<<uniqueID<<";taxID " << taxID << ") with score " << partialHitScore << " and length " << partialHitLen << endl);
+                        //DEBUG_MSG(" ==> Add "<< uid_to_tid[uniqueID].first << " (UID "<<uniqueID<<";taxID " << taxID << ") with score " << partialHitScore << " and length " << partialHitLen << endl);
                         size_t idx = addHitToHitMap(ebwtFw, _hitMap, rdi, fwi, uniqueID, taxID, ts,
                                                     partialHitScore, partialHitLen, considerOnlyIfPreviouslyObserved,
                                                     partialHit._bwoff, partialHit.len());
@@ -266,7 +268,7 @@ public:
                         
                     }
 
-                    DEBUG_MSG( "genomeHitCnt ["<<genomeHitCnt<<"] >= maxGenomeHitSize ["<<maxGenomeHitSize<<"]: " << (genomeHitCnt >= maxGenomeHitSize) << endl);
+                    //DEBUG_MSG( "genomeHitCnt ["<<genomeHitCnt<<"] >= maxGenomeHitSize ["<<maxGenomeHitSize<<"]: " << (genomeHitCnt >= maxGenomeHitSize) << endl);
                     
                     if(genomeHitCnt >= maxGenomeHitSize)
                         break;
@@ -298,9 +300,10 @@ public:
 
         //unordered_set<uint64_t> uids;
         set<uint64_t> uids;
-        DEBUG_MSG("Best score: " << best_score[0] << "  " << best_score[1] << endl);
+        // DEBUG_MSG("Best score: " << best_score[0] << "  " << best_score[1] << endl);
+		if (best_score[0] >= _minTotalLen) {
         for(HitCount<index_t> & hc : _hitMap) {
-        	DEBUG_MSG("Current score: " << hc.best_score[0] << "  " << hc.best_score[1] << endl);
+        	// DEBUG_MSG("Current score: " << hc.best_score[0] << "  " << hc.best_score[1] << endl);
         	if (hc.best_score == best_score) {
         		// Do something with that hit
         		DEBUG_MSG("ADD " << uid_to_tid[hc.uniqueID ].first << "["<< hc.best_score[0] << ";" <<
@@ -308,14 +311,7 @@ public:
         		uids.insert(hc.uniqueID);
 
         		// species counting
-        		spm.addSpeciesCounts(
-                        hc.uniqueID,
-                        hc.best_score[1],
-						hc.best_score[1],
-						hc.best_score[0],
-                        1.0 / n_best,
-                        (uint32_t)n_best);
-/*
+        	/*
 	// only count k-mers if the read is unique
     if (n_results == 1) {
 		for (size_t i = 0; i< rs->nReadPositions(); ++i) {
@@ -329,9 +325,12 @@ public:
 
         	}
         }
+		}
 
+		//cerr << uids.size() << "   " << _hitMap.size() << endl;
 
-        spm.observed_uid_sets[uids] += 1;
+        spm.counts[uids].addHit(best_score);
+
         
         // If the number of hits is more than -k,
         //   traverse up the taxonomy tree to reduce the number
@@ -435,9 +434,10 @@ public:
         return true;
     }
 private:
-    EList<string>                _refnames;
-    EList<HitCount<index_t> >    _hitMap;
-    index_t                      _minHitLen;
+    EList<string>                 _refnames;
+    EList<HitCount<index_t> >     _hitMap;
+    size_t                       _minHitLen;
+    size_t                       _minTotalLen;
     EList<uint16_t>              _tempTies;
     bool                         _mate1fw;
     bool                         _mate2fw;

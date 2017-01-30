@@ -8,72 +8,68 @@
 #ifndef CLASSIFICATION_REPORT_H_
 #define CLASSIFICATION_REPORT_H_
 
-
 class ClassificationReport {
 private:
+
+	enum class FORMAT : uint8_t {
+		KRAKEN_FORMAT,
+		EXT_KRAKEN_FORMAT,
+		FLAT
+	};
 
 	/*
 	 * TaxCounts give the number of reads per clade, number of reads that stay and abundance for each taxon
 	 */
 	struct TaxCounts : ReadCounts {
-		uint32_t n_kmers = 0;
-		uint32_t reads_stay = 0;
-		uint32_t reads_clade = 0;
-		double abundance = 0.0;
-		double abundance_len = 0.0;
+		uint64_t n_reads_clade = 0;
+		array<double,2> abundance = {0.0, 0.0};
 
 		TaxCounts& operator+=(const TaxCounts& b) {
-			n_unique_reads += b.n_unique_reads;
 			n_reads += b.n_reads;
-			sum_score += b.sum_score;
-			n_kmers += b.n_kmers;
-			reads_stay += b.reads_stay;
-			reads_clade += b.reads_clade;
-			summed_hit_len += b.summed_hit_len;
-			weighted_reads += b.weighted_reads;
+			n_reads_clade += b.n_reads_clade;
+			total_hit_len += b.total_hit_len;
+			total_score += b.total_score;
 			abundance += b.abundance;
-			abundance_len += b.abundance_len;
 			return *this;
 		}
+
+		TaxCounts& operator+=(const ReadCounts& b) {
+			n_reads += b.n_reads;
+			n_reads_clade += b.n_reads;
+			total_hit_len += b.total_hit_len;
+			total_score += b.total_score;
+			return *this;
+		}
+
 
 		TaxCounts& addChild(const TaxCounts& child) {
-			n_unique_reads += child.n_unique_reads;
-			n_reads += child.n_reads;
-			sum_score += child.sum_score;
-			n_kmers += child.n_kmers;
-
-			// reads_stay is not influenced by child
-			reads_clade += child.reads_clade;
-
-			summed_hit_len += child.summed_hit_len;
-			weighted_reads += child.weighted_reads;
+			total_score += child.total_score;
+			total_hit_len += child.total_hit_len;
+			// add reads of child that come from itself to clade reads
+			n_reads_clade += child.n_reads_clade;
 			abundance += child.abundance;
-			abundance_len += child.abundance_len;
+			return *this;
+		}
 
+		TaxCounts& addChild(const ReadCounts& child) {
+			total_score += child.total_score;
+			total_hit_len += child.total_hit_len;
+			// add reads of child that come from itself to clade reads
+			n_reads_clade += child.n_reads;
 			return *this;
 		}
 
 
-		TaxCounts() : ReadCounts() { }
 
-		TaxCounts(const ReadCounts& b, const double abundance_, const double abundance_len_) {
-			n_unique_reads = b.n_unique_reads;
-			n_reads = b.n_reads;
-			sum_score = b.sum_score;
-			summed_hit_len = b.summed_hit_len;
-			weighted_reads = b.weighted_reads;
-			abundance = abundance_;
-			abundance_len = abundance_len_;
-			reads_clade = n_unique_reads;
-			reads_stay = n_unique_reads;
+		TaxCounts() {}
 
-		}
+		TaxCounts(const ReadCounts& b, const array<double,2>& abundance_) : ReadCounts(b), n_reads_clade(n_reads), abundance(abundance_) { }
 		/*
 	TaxCounts& operator+=(const ReadCounts& b) {
 		n_unique_reads += b.n_unique_reads;
 		n_reads += b.n_reads;
-		sum_score += b.sum_score;
-		summed_hit_len += b.summed_hit_len;
+		total_score += b.total_score;
+		total_hit_len += b.total_hit_len;
 		weighted_reads += b.weighted_reads;
 		return *this;
 	}
@@ -85,16 +81,17 @@ private:
 		string name;
 		TaxId parent;
 		vector<TaxId> children;
-		vector<UId> uids;
-		TaxCounts quant_data;
+		vector<pair<UId, ReadCounts> > uids;
+		TaxCounts counts;
 
-		//TaxIdInfo(char _rank, string _name) : rank{_rank}, name{_name} {}
+		TaxInfo() {}
+		TaxInfo(TaxId parent_, char rank_, string name_) : rank(rank_), name(name_), parent(parent_) {}
 	};
+    const map<UId, std::array<double,2> > _uid_abundance;
 
-	//=== for quantitation
+	//=== these ELists are accessed by UIds
 	const EList<pair<string, uint64_t> >& _uid_to_tid;
 	const EList<string >& _uid_refnames;
-	const map<UId, TaxCounts> _uid_quant_data;
 
 	const map<TaxId, TaxInfo> _taxinfo;
 	//map <TaxId, vector<TaxId> > parents;
@@ -102,11 +99,18 @@ private:
 	const EList<REPORTCOLS> _report_cols;
 	const bool _show_zeros;
 	ofstream& _reportOfb;
+	FORMAT _format;
+	double _total_n_reads = 0;
 
-	inline TaxId set_to_parent(const map<TaxId, TaxonomyNode>& tree, TaxId& taxid) {
+	inline bool set_to_parent(const map<TaxId, TaxonomyNode>& tree, TaxId& taxid) {
+		if (taxid == 0 || taxid == TaxId(-1))
+			return false;
+
 		auto it = tree.find(taxid);
 		if (it == tree.end()) {
-			cerr << "Ignoring taxonomy ID " << taxid << " which has no taxonomy mapping in database" << endl;
+			DEBUG_MSG("Taxonomy ID " << taxid << " has no taxonomy mapping in database" << endl);
+			taxid = -1;
+			return false;
 		}
 		if (it->second.parent_tid != taxid) {
 			taxid = it->second.parent_tid;
@@ -117,22 +121,23 @@ private:
 
 	// return lowest common ancestor of a set of taxid
 	TaxId uid_lca(const map<TaxId, TaxonomyNode>& tree, const UId_set& uids) {
-		cerr << "uid_lca" << endl;
 		if (uids.size() == 0)
 			return 0; // unidentified read
-		if (uids.size() == 1)
-			return _uid_to_tid[*uids.begin()].second;
 
-		TaxId taxidA = _uid_to_tid[*uids.begin()].second;
+		auto it = uids.begin();
+		TaxId taxidA = _uid_to_tid[*it].second;
+		if (uids.size() == 1)
+			return taxidA;
+
 		//TaxId current_lca = taxidA;
 		vector<TaxId> parentsA = { taxidA };
 		while (set_to_parent(tree, taxidA)) {
 			parentsA.push_back(taxidA);
 		}
-		size_t lca_pos = 0;
 
-		for (UId current_uid : uids) {
-			TaxId current_taxid = _uid_to_tid[current_uid].second;
+		size_t lca_pos = 0;
+		for (advance(it,1); it != uids.end(); advance(it,1)) {
+			TaxId current_taxid = _uid_to_tid[*it].second;
 			bool found_it = false;
 			do {
 				if (current_taxid == parentsA[lca_pos])
@@ -188,12 +193,15 @@ private:
 	}
 
 	map<TaxId, TaxInfo> get_taxinfo(const Ebwt<index_t>& ebwt, const ClassificationMetrics& spm) {
-		// requires _uid_quant_data to be set!
 
 		const map<TaxId, TaxonomyNode>& tree = ebwt.tree();
 		const map<TaxId, string>& name_map = ebwt.name();
-		const EList<pair<string, TaxId>>& uid_to_tid = ebwt.uid_to_tid();
-		map<TaxId, TaxInfo > taxinfo;
+
+		cerr << "uid_quant1" << endl;
+		map<TaxId, TaxInfo > taxinfo = {
+			{ 0, { 0, 'U', "unclassified"}},
+			{TaxId(-1), {TaxId(-1), 'N', "uncategorized"}}
+		};
 
 		cerr << "taxinfo1" << endl;
 		// fill rank, name, and children
@@ -207,35 +215,32 @@ private:
 		}
 
 		cerr << "taxinfo2" << endl;
-		// fill uid map and initialize quant_data
-		for (const pair<UId, TaxCounts> & uid_counts : _uid_quant_data) {
-			UId uid = uid_counts.first;
-			const TaxCounts& tc = uid_counts.second;
+		// fill uid map and initialize counts
+		for (const pair<UId_set, ReadCounts> & uid_counts : spm.counts) {
+			UId_set uid_set = uid_counts.first;
+			const ReadCounts& rc = uid_counts.second;
+			uint64_t lca_taxid = uid_lca(tree, uid_set);
 
-			uint64_t taxid = uid_to_tid[uid].second;
-			taxinfo[taxid].uids.push_back(uid);
+			taxinfo[lca_taxid].counts += rc;
 
-			DEBUG_MSG("Adding to uid " << uid << " taxid " << taxid << " " << tc.n_reads << endl);
-			taxinfo[taxid].quant_data.addChild(tc);
-			do {
-				taxid = taxinfo[taxid].parent;
-				taxinfo[taxid].quant_data.addChild(tc);
-			} while (taxid != taxinfo[taxid].parent);
-		}
+			// If there is only one UId in this set, add the counts to it
+			if (uid_set.size() == 1) 
+				taxinfo[lca_taxid].uids.push_back({ *uid_set.begin(), rc });
 
-		cerr << "taxinfo3" << endl;
-		// Add reads that were assigned to multiple UIds to the LCA
-		for (const pair<UId_set, uint64_t> & uid_counts : spm.observed_uid_sets) {
-			TaxId taxid = uid_lca(tree, uid_counts.first);
-			if (uid_counts.first.size() > 1) {
-				taxinfo[taxid].quant_data.reads_stay += uid_counts.second;
-				do {
-					taxid = taxinfo[taxid].parent;
-					taxinfo[taxid].quant_data.reads_clade += uid_counts.second;
-				} while (taxid != taxinfo[taxid].parent);
+			while (set_to_parent(tree,lca_taxid)) {
+				taxinfo[lca_taxid].counts.addChild(rc);
 			}
 		}
 
+		// Now add the abundances
+		for (const pair<UId, array<double,2> >& ua: _uid_abundance) {
+			TaxId taxid = _uid_to_tid[ua.first].second;
+
+			taxinfo[taxid].counts.abundance += ua.second;
+			while (set_to_parent(tree,taxid)) {
+				taxinfo[taxid].counts.abundance += ua.second;
+			}		
+		}
 		cerr << "taxinfoend" << endl;
 
 		return taxinfo;
@@ -243,20 +248,18 @@ private:
 
 	void print_line(bool is_tax_id, TaxId tax_id,
 			string name, uint64_t depth, TaxCounts counts ) {
-		DEBUG_MSG("print_line");
 		for (auto& col : _report_cols) {
 			switch (col) {
 			case REPORTCOLS::NAME:        _reportOfb << name ; break;
 			case REPORTCOLS::SPACED_NAME:       _reportOfb << string(2*depth, ' ') + name; break;
-			case REPORTCOLS::TAX_ID:     _reportOfb << tax_id; break;
+			case REPORTCOLS::TAX_ID:     _reportOfb << (tax_id == (uint64_t)-1? -1 : (int64_t)tax_id); break;
 			case REPORTCOLS::DEPTH:     _reportOfb << depth; break;
-			case REPORTCOLS::ABUNDANCE:  _reportOfb << 100*counts.abundance; break;
-			case REPORTCOLS::ABUNDANCE_LEN:  _reportOfb << 100*counts.abundance_len; break;
-			case REPORTCOLS::NUM_READS:  _reportOfb << counts.reads_clade; break;
-			case REPORTCOLS::NUM_READS_STAY:  _reportOfb << counts.reads_stay; break;
-			case REPORTCOLS::NUM_WEIGHTED_READS:  _reportOfb << counts.weighted_reads; break;
-			case REPORTCOLS::NUM_UNIQUE_READS: _reportOfb << counts.n_unique_reads; break;
-			case REPORTCOLS::NUM_UNIQUE_KMERS: _reportOfb << counts.n_kmers; break;
+			case REPORTCOLS::PERCENTAGE:  _reportOfb << 100*counts.n_reads_clade/_total_n_reads; break;
+			case REPORTCOLS::ABUNDANCE:  _reportOfb << 100*counts.abundance[0]; break;
+			case REPORTCOLS::ABUNDANCE_LEN:  _reportOfb << 100*counts.abundance[1]; break;
+			case REPORTCOLS::NUM_READS_CLADE:  _reportOfb << counts.n_reads_clade; break;
+			case REPORTCOLS::NUM_READS:  _reportOfb << counts.n_reads; break;
+			//case REPORTCOLS::NUM_UNIQUE_KMERS: _reportOfb << counts.n_kmers; break;
 			//case REPORTCOLS::GENOME_SIZE: ; break;
 			//case REPORTCOLS::NUM_WEIGHTED_READS: ; break;
 			//case REPORTCOLS::SUM_SCORE: ; break;
@@ -272,48 +275,62 @@ private:
 		}
 	}
 
-	map<UId, TaxCounts> get_uid_quant_data(const Ebwt<index_t>& ebwt, const ClassificationMetrics& spm) {
-
-		cerr << "uid_quant1" << endl;
-		const index_t* uid_seq_lengths = ebwt.plen();  // sequence lengths in the UID space
-		const map<UId, double> abundance = spm.calculateAbundance2(ebwt);
-		double sum = 0.0;
-		for (const auto & it : abundance) {
-			sum += it.second*uid_seq_lengths[it.first];
-		}
-
-		cerr << "uid_quant2" << endl;
-		map<UId, TaxCounts> res;
-		for (const pair<UId,ReadCounts>& ur : spm.species_counts) {
-			res[ur.first] = TaxCounts(ur.second, abundance.at(ur.first), abundance.at(ur.first)*uid_seq_lengths[ur.first]/sum);
-		}
-		cerr << "uid_quantend" << endl;
-		return res;
-	}
-
 public:
 
 
-	void print_report(TaxId tax_id=1, uint64_t depth=0) {
+	void print_report(string format) {
+		_total_n_reads = 
+			_taxinfo.at(0).counts.n_reads_clade + 
+			_taxinfo.at(1).counts.n_reads_clade + 
+			_taxinfo.at(-1).counts.n_reads_clade;
+		if (format == "kraken") {
+			// A: print number of unidentified reads
+			print_report(0,0);
+			// B: print normal results
+			print_report(1,0);
+			// C: Print Unclassified stuff
+			print_report(-1,0);
+		} else {
+			// print stuff at a certain level ..
+		}
+	}
 
-		if (_show_zeros || _taxinfo.at(tax_id).quant_data.reads_clade > 0) {
-			print_line(true, tax_id, _taxinfo.at(tax_id).name, depth, _taxinfo.at(tax_id).quant_data);
+	void print_report(TaxId tax_id, uint64_t depth) {
 
-			// If there are UIDs with quant data for this TaxIDs, print them out
-			for (const auto & uid : _taxinfo.at(tax_id).uids) {
-				string uid_name = "->" + _uid_refnames[uid];
+		if (_show_zeros || _taxinfo.at(tax_id).counts.n_reads_clade > 0) {
+			print_line(true, tax_id, _taxinfo.at(tax_id).name, depth, _taxinfo.at(tax_id).counts);
+
+			// If there are UIDs with quant data for this TaxIDs, print them out - but order them first
+			// TODO: order by abundance
+
+			// The taxinfo uids must always have counts, as it is initialized from there
+			vector<pair<UId, ReadCounts> > uids = _taxinfo.at(tax_id).uids;
+
+			//sort(uids.begin(), uids.end(), [&](auto a, auto b) -> bool { 
+			//		return( a.second > b.second );
+			//		});
+			for (auto& ur : uids) {
+				string uid_name = " >" + _uid_refnames[ur.first];
 				//string uid_name = "->" + _uid_to_tid[uid].first;
-				if (_uid_quant_data.find(uid) != _uid_quant_data.end() &&
-						(_show_zeros || _uid_quant_data.at(uid).reads_clade > 0))
-					print_line(false, tax_id, uid_name, depth, _uid_quant_data.at(uid));
+				if (_show_zeros || ur.second.n_reads > 0) 
+					print_line(false, _uid_to_tid[ur.first].second, uid_name, depth, 
+							TaxCounts(ur.second, _uid_abundance.at(ur.first)));
 			}
 
 			// Go to the children of that TaxID
-			for (auto& child : _taxinfo.at(tax_id).children) {
+			// TODO: Order by abundance
+			vector<UId> children = _taxinfo.at(tax_id).children;
+
+			//sort(children.begin(), children.end(), [&](TaxId a, TaxId b) -> bool { 
+			//		return( _taxinfo.at(a).counts.abundance >
+			//					_taxinfo.at(b).counts.abundance); });
+
+			for (auto child : children) {
 				if (child == tax_id) continue;  // Should only happen for root / taxId 1
 				print_report(child, depth+1);
 			}
 		}
+
 	}
 
 	ClassificationReport(
@@ -322,9 +339,9 @@ public:
 			const ClassificationMetrics& spm,
 			EList<REPORTCOLS>& report_cols,
 			bool show_zeros) :
+				_uid_abundance { spm.calculateAbundance2(ebwt) },
 				_uid_to_tid { ebwt.uid_to_tid() },
 				_uid_refnames { ebwt.refnames() },
-				_uid_quant_data { get_uid_quant_data(ebwt, spm) },
 				_taxinfo { get_taxinfo(ebwt, spm) },
 				_report_cols { report_cols },
 				_show_zeros { show_zeros },

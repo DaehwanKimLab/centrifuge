@@ -11,25 +11,29 @@
 #include "assert_helpers.h"
 #include "bt2_idx.h"
 #include "bt2_io.h"
+#include "hitmap.h"
 #include <unordered_set>
 
 typedef TIndexOffU index_t;
 
 struct ReadCounts {
-	uint32_t n_unique_reads = 0;
-	uint32_t n_reads = 0;
-	uint32_t sum_score = 0;
-	double summed_hit_len = 0.0;
-	double weighted_reads = 0.0;
+	uint64_t n_reads = 0;
+	uint64_t total_score = 0; //summed score
+	uint64_t total_hit_len = 0.0;   //summed hit length
 
 	ReadCounts() {}
 
 	ReadCounts& operator+=(const ReadCounts& b) {
-		n_unique_reads += b.n_unique_reads;
 		n_reads += b.n_reads;
-		sum_score += b.sum_score;
-		summed_hit_len += b.summed_hit_len;
-		weighted_reads += b.weighted_reads;
+		total_score += b.total_score;
+		total_hit_len += b.total_hit_len;
+		return *this;
+	}
+
+	ReadCounts& addHit(const HitScore hs) {
+		++n_reads;
+		total_hit_len += hs[0];
+		total_score += hs[1];
 		return *this;
 	}
 };
@@ -46,14 +50,13 @@ enum class REPORTCOLS : uint8_t {
 	DEPTH,
 	GENOME_SIZE,
 	NUM_READS,
-	NUM_READS_STAY,
-	NUM_UNIQUE_READS,
-	SUMMED_HIT_LENGTH,
-	NUM_WEIGHTED_READS,
+	NUM_READS_CLADE,
 	NUM_UNIQUE_KMERS,
-	SUM_SCORE,
+	TOTAL_SCORE,
+	TOTAL_HIT_LENGTH,
 	ABUNDANCE,
-	ABUNDANCE_LEN
+	ABUNDANCE_LEN,
+	PERCENTAGE
 };
 
 typedef set<uint64_t> UId_set;
@@ -91,22 +94,21 @@ struct ClassificationMetrics {
 	}
 
 	void reset() {
-		species_counts.clear();
-		//for(map<uint32_t, HyperLogLogPlusMinus<uint64_t> >::iterator it = this->species_kmers.begin(); it != this->species_kmers.end(); ++it) {
+		counts.clear();
+		//for(map<uint32_t, HyperLogLogPlusMinus<uint64_t> >::iterator it = this->kmers.begin(); it != this->kmers.end(); ++it) {
 		//	it->second.reset();
 		//} //TODO: is this required?
-		species_kmers.clear();
-		num_non_leaves = 0;
+		kmers.clear();
 	}
 
 	/*
 	void init(
-              const map<uint64_t, ReadCounts>& species_counts_,
-              const map<uint64_t, HyperLogLogPlusMinus<uint64_t> >& species_kmers_,
+              const map<uint64_t, ReadCounts>& counts_,
+              const map<uint64_t, HyperLogLogPlusMinus<uint64_t> >& kmers_,
               const map<IDs, uint64_t>& observed_)
 	{
-		species_counts = species_counts_;
-		species_kmers = species_kmers_;
+		counts = counts_;
+		kmers = kmers_;
         observed = observed_;
         num_non_leaves = 0;
     }
@@ -120,37 +122,16 @@ struct ClassificationMetrics {
 	void merge(const ClassificationMetrics& met, bool getLock = false) {
 		ThreadSafe ts(&mutex_m, getLock);
 
-		// update species read count
-		for(map<uint64_t, ReadCounts>::const_iterator it = met.species_counts.begin(); it != met.species_counts.end(); ++it) {
-			species_counts[it->first] += it->second;
+		// update read count
+		for(const auto& c:  met.counts) {
+			counts[c.first] += c.second;
 		}
 
-		// update species k-mers
-		for(map<uint64_t, HyperLogLogPlusMinus<uint64_t> >::const_iterator it = met.species_kmers.begin(); it != met.species_kmers.end(); ++it) {
-			species_kmers[it->first] += &(it->second);
+		// update k-mers
+		for(map<uint64_t, HyperLogLogPlusMinus<uint64_t> >::const_iterator it = met.kmers.begin(); it != met.kmers.end(); ++it) {
+			kmers[it->first] += &(it->second);
 		}
 
-		for(auto itr = met.observed_uid_sets.begin(); itr != met.observed_uid_sets.end(); itr++) {
-			DEBUG_MSG("MERGING" << endl);
-			observed_uid_sets[itr->first] += itr->second;
-		}
-	}
-
-	void addSpeciesCounts(
-			uint64_t taxID,
-			int64_t score,
-			int64_t max_score,
-			double summed_hit_len,
-			double weighted_read,
-			uint32_t nresult)
-	{
-		++species_counts[taxID].n_reads;
-		species_counts[taxID].sum_score += score;
-		species_counts[taxID].weighted_reads += 1/nresult;
-		species_counts[taxID].summed_hit_len += summed_hit_len;
-		if(nresult == 1) {
-			++species_counts[taxID].n_unique_reads;
-		}
 	}
 
 	void addAllKmers(
@@ -162,17 +143,17 @@ struct ClassificationMetrics {
 		cerr << "add all kmers for " << taxID << " from " << begin << " for " << len << ": " << string(btdna.toZBuf()).substr(begin,len) << endl;
 #endif
 		uint64_t kmer = btdna.int_kmer<uint64_t>(begin,begin+len);
-		species_kmers[taxID].add(kmer);
+		kmers[taxID].add(kmer);
 		size_t i = begin;
 		while (i+32 < len) {
 			kmer = btdna.next_kmer(kmer,i);
-			species_kmers[taxID].add(kmer);
+			kmers[taxID].add(kmer);
 			++i;
 		}
 	}
 
 	size_t nDistinctKmers(uint64_t taxID) {
-		return(species_kmers[taxID].cardinality());
+		return(kmers[taxID].cardinality());
 	}
 /*
 	static void EM(
@@ -252,7 +233,7 @@ struct ClassificationMetrics {
 	}
 */
 	static void EM2(
-			const map<UId_set, uint64_t>& observed_uid_sets,
+			const map<UId_set, ReadCounts>& counts,
 			const map<uint64_t, uint64_t> uid_to_num,
 			const EList<double>& p,
 			EList<double>& p_next,
@@ -264,9 +245,9 @@ struct ClassificationMetrics {
 		p_next.fill(0.0);
 
 		// for each UID set
-		for(map<UId_set, uint64_t>::const_iterator itr = observed_uid_sets.begin(); itr != observed_uid_sets.end(); itr++) {
+		for(map<UId_set, ReadCounts>::const_iterator itr = counts.begin(); itr != counts.end(); itr++) {
 			const auto& uids = itr->first; // all UIDs in the set
-			uint64_t count = itr->second; // number of reads for this set of UIDs
+			uint64_t count = itr->second.n_reads; // number of reads for this set of UIDs
 			double psum = 0.0;
 			for(auto uid : uids) {
 				psum += p[uid_to_num.at(uid)];
@@ -289,7 +270,7 @@ struct ClassificationMetrics {
 		}
 	}
 
-	map<UId, double > calculateAbundance2(const Ebwt<index_t>& ebwt) const {
+	map<UId, array<double,2> > calculateAbundance2(const Ebwt<index_t>& ebwt) const {
 		// only used in the end - filled by calculateAbundance
 
 		//const map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
@@ -301,18 +282,18 @@ struct ClassificationMetrics {
 		const index_t* uid_seq_lengths = ebwt.plen();  // sequence lengths in the UID space
 		EList<size_t> seq_lengths; 				   // sequence lengths in the NUM space
 
-		DEBUG_MSG("Calc abundance with " <<  observed_uid_sets.size() << " UID sets" << std::endl);
+		DEBUG_MSG("Calc abundance with " <<  counts.size() << " UID sets" << endl);
 
 		// Initialize probabilities
 		map<uint64_t, uint64_t> uid_to_num; // taxonomic ID to corresponding element of a list
 		EList<double> p;
 
-		for(const pair<UId_set,uint64_t>& uid_set_count : observed_uid_sets) {
+		for(const pair<UId_set,ReadCounts>& uid_set_count : counts) {
 			const UId_set& uid_set = uid_set_count.first;
-			uint64_t count = uid_set_count.second;
+			uint64_t count = uid_set_count.second.n_reads;
 			for(uint64_t uid : uid_set) {
 				if(uid_to_num.find(uid) == uid_to_num.end()) {
-					// DEBUG_MSG("Adding UID " << uid << std::endl);
+					// DEBUG_MSG("Adding UID " << uid << endl);
 					uid_to_num[uid] = p.size();
 					p.push_back(1.0 / uid_set.size() * count);
 					seq_lengths.push_back(uid_seq_lengths[uid]);
@@ -348,8 +329,8 @@ struct ClassificationMetrics {
 			//    Varadhan, R. & Roland, C. Scand. J. Stat. 35, 335–353 (2008).
 			//    Also, this algorithm is used in Sailfish - http://www.nature.com/nbt/journal/v32/n5/full/nbt.2862.html
 
-			EM2(observed_uid_sets, uid_to_num, p, p_next, seq_lengths);
-			EM2(observed_uid_sets, uid_to_num, p_next, p_next2, seq_lengths);
+			EM2(counts, uid_to_num, p, p_next, seq_lengths);
+			EM2(counts, uid_to_num, p_next, p_next2, seq_lengths);
 			double sum_squared_r = 0.0, sum_squared_v = 0.0;
 			for(size_t i = 0; i < p.size(); i++) {
 				p_r[i] = p_next[i] - p[i];
@@ -362,7 +343,7 @@ struct ClassificationMetrics {
 				for(size_t i = 0; i < p.size(); i++) {
 					p_next2[i] = max(0.0, p[i] - 2 * gamma * p_r[i] + gamma * gamma * p_v[i]);
 				}
-				EM2(observed_uid_sets, uid_to_num, p_next2, p_next, seq_lengths);
+				EM2(counts, uid_to_num, p_next2, p_next, seq_lengths);
 			}
 
 
@@ -379,12 +360,19 @@ struct ClassificationMetrics {
 		cerr << "Probability diff. (P - P_prev) in the last iteration: " << diff << endl;
 
 		// Return the abundance
-		map<UId, double> abundance;
-		for(map<uint64_t, uint64_t>::iterator itr = uid_to_num.begin(); itr != uid_to_num.end(); itr++) {
-			uint64_t uid = itr->first; uint64_t num = itr->second;
-			assert_lt(num, p.size());
-			abundance[uid] = p[num];
+		double sum = 0.0;
+		// Calculate abundance normalized by genome size (standard)
+		//   and without the genome size taken into account
+		map<UId, array<double, 2> > abundance;
+		for (size_t num = 0; num < p.size(); ++num) {
+			sum += (p[num] * seq_lengths[num]);
 		}
+
+		for (const auto& un : uid_to_num) {
+			assert_lt(un.second, p.size());
+			abundance[un.first] = {{ p[un.second], p[un.second]*seq_lengths[un.second]/sum }};
+		}
+	
 		return abundance;
 	}
 
@@ -399,7 +387,7 @@ struct ClassificationMetrics {
 
 		// Find leaves
 		set<uint64_t> leaves;
-		for (map<UId_set, uint64_t>::iterator itr = observed_uid_sets.begin(); itr != observed_uid_sets.end(); itr++) {
+		for (map<UId_set, uint64_t>::iterator itr = counts.begin(); itr != counts.end(); itr++) {
 			const UId_set& ids = itr->first;
 			for(uint64_t tid : ids) {
 				map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(tid);
@@ -422,7 +410,7 @@ struct ClassificationMetrics {
 
 		// Find all descendants coming from the same ancestor
 		map<uint64_t, EList<uint64_t> > ancestors;
-		for(map<UId_set, uint64_t>::iterator itr = observed_uid_sets.begin(); itr != observed_uid_sets.end(); itr++) {
+		for(map<UId_set, uint64_t>::iterator itr = counts.begin(); itr != counts.end(); itr++) {
 			const UId_set& ids = itr->first;
 			for(uint64_t tid : ids) {
 				if(leaves.find(tid) != leaves.end())
@@ -484,7 +472,7 @@ struct ClassificationMetrics {
 		map<uint64_t, uint64_t> tid_to_num; // taxonomic ID to corresponding element of a list
 		EList<double> p;
 		EList<size_t> len; // genome lengths
-		for(map<UId_set, uint64_t>::iterator itr = observed_uid_sets.begin(); itr != observed_uid_sets.end(); itr++) {
+		for(map<UId_set, uint64_t>::iterator itr = counts.begin(); itr != counts.end(); itr++) {
 			const UId_set& ids = itr->first;
 			uint64_t count = itr->second;
 			for(uint64_t tid : ids) {
@@ -511,7 +499,7 @@ struct ClassificationMetrics {
 					if(size_itr != size_table.end()) {
 						len.push_back(size_itr->second);
 					} else {
-						len.push_back(std::numeric_limits<size_t>::max());
+						len.push_back(numeric_limits<size_t>::max());
 					}
 				} else {
 					uint64_t num = tid_to_num[tid];
@@ -555,8 +543,8 @@ struct ClassificationMetrics {
 			//    Varadhan, R. & Roland, C. Scand. J. Stat. 35, 335–353 (2008).
 			//    Also, this algorithm is used in Sailfish - http://www.nature.com/nbt/journal/v32/n5/full/nbt.2862.html
 #if 1
-			EM(observed_uid_sets, ancestors, tid_to_num, p, p_next, len);
-			EM(observed_uid_sets, ancestors, tid_to_num, p_next, p_next2, len);
+			EM(counts, ancestors, tid_to_num, p, p_next, len);
+			EM(counts, ancestors, tid_to_num, p_next, p_next2, len);
 			double sum_squared_r = 0.0, sum_squared_v = 0.0;
 			for(size_t i = 0; i < p.size(); i++) {
 				p_r[i] = p_next[i] - p[i];
@@ -569,7 +557,7 @@ struct ClassificationMetrics {
 				for(size_t i = 0; i < p.size(); i++) {
 					p_next2[i] = max(0.0, p[i] - 2 * gamma * p_r[i] + gamma * gamma * p_v[i]);
 				}
-				EM(observed_uid_sets, ancestors, tid_to_num, p_next2, p_next, len);
+				EM(counts, ancestors, tid_to_num, p_next2, p_next, len);
 			}
 
 #else
@@ -612,11 +600,8 @@ struct ClassificationMetrics {
 	}
 */
 
-	map<UId, ReadCounts> species_counts;                        // read counts for each sequence
-	map<UId, HyperLogLogPlusMinus<uint64_t> > species_kmers;    // unique k-mer count for each sequence
-
-	map<UId_set, uint64_t> observed_uid_sets;
-	uint32_t               num_non_leaves;
+	map<UId_set, ReadCounts> counts;                        // read counts for each sequence
+	map<TaxId, HyperLogLogPlusMinus<uint64_t> > kmers;    // unique k-mer count for each sequence
 
 	MUTEX_T mutex_m;
 };

@@ -289,19 +289,17 @@ static const map<string, REPORTCOLS> report_col_name_map = {
 		{"depth", REPORTCOLS::DEPTH},
 		{"genomeSize", REPORTCOLS::GENOME_SIZE},
 		{"numReads", REPORTCOLS::NUM_READS},
-		{"numUniqueReads", REPORTCOLS::NUM_UNIQUE_READS},
-		{"summedHitLen", REPORTCOLS::SUMMED_HIT_LENGTH},
-		{"numWeightedReads", REPORTCOLS::NUM_WEIGHTED_READS},
+		{"numReadsClade", REPORTCOLS::NUM_READS_CLADE},
 		{"numUniqueKmers", REPORTCOLS::NUM_UNIQUE_KMERS},
-		{"sumScore", REPORTCOLS::SUM_SCORE},
+		{"totalHitLen", REPORTCOLS::TOTAL_HIT_LENGTH},
+		{"totalScore", REPORTCOLS::TOTAL_SCORE},
 		{"abundance", REPORTCOLS::ABUNDANCE},
 		{"abundance_len", REPORTCOLS::ABUNDANCE_LEN},
 
-		{"percent", REPORTCOLS::ABUNDANCE},
-		{"numReads", REPORTCOLS::NUM_READS},
+		{"percent", REPORTCOLS::PERCENTAGE},
 		{"taxId", REPORTCOLS::TAX_ID},
-		{"reads_clade", REPORTCOLS::NUM_READS}, // Change to clade reads!
-		{"reads_stay", REPORTCOLS::NUM_READS_STAY}, // Change to clade reads!
+		{"reads_clade", REPORTCOLS::NUM_READS_CLADE}, // Change to clade reads!
+		{"reads_stay", REPORTCOLS::NUM_READS}, // Change to clade reads!
 
 };
 
@@ -532,8 +530,8 @@ static void resetOptions() {
     tab_col_def = "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches";
     parse_col_fmt(tab_col_def, tab_col_name_map, tab_cols_str, tab_cols);
     
-    kraken_report_col_def = "percent,reads_clade,reads_stay,taxRank,taxId,spaced_name";
-    report_col_def = "name,taxID,taxRank,genomeSize,numReads,numUniqueReads,abundance";
+    kraken_report_col_def = "percent,numReadsClade,numReads,taxRank,taxId,spaced_name";
+    report_col_def = "name,taxID,taxRank,genomeSize,reads_clade,reads_stay,abundance";
     parse_col_fmt(report_col_def, report_col_name_map, report_cols_str, report_cols);
 
 #ifdef USE_SRA
@@ -1402,7 +1400,7 @@ static void parseOption(int next_option, const char *arg) {
             break;
         }
         case ARG_MIN_TOTALLEN: {
-        	minTotalLen = parseInt(50, "--min-totallen arg must be at least 50", arg);
+        	minTotalLen = parseInt(31, "--min-totallen arg must be at least 50", arg);
         	break;
         }
         case ARG_HOST_TAXIDS: {
@@ -2376,6 +2374,7 @@ static void multiseedSearchWorker(void *vp) {
                                                   gMate1fw,
                                                   gMate2fw,
                                                   minHitLen,
+												  minTotalLen,
                                                   tree_traverse,
                                                   classification_rank,
                                                   host_taxIDs,
@@ -3088,7 +3087,7 @@ static void driver(
             ClassificationReport qr(reportOfb, ebwt, spm, report_cols, show_zeros);
 
             // summarize from uid to higher levels
-            qr.print_report();
+            qr.print_report("kraken");
 
 			reportOfb.close();
 		}
