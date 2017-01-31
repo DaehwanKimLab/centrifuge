@@ -22,7 +22,7 @@ private:
 	 */
 	struct TaxCounts : ReadCounts {
 		uint64_t n_reads_clade = 0;
-		array<double,2> abundance = {0.0, 0.0};
+		array<double,2> abundance = {{0.0, 0.0}};
 
 		TaxCounts& operator+=(const TaxCounts& b) {
 			n_reads += b.n_reads;
@@ -98,7 +98,7 @@ private:
 
 	const EList<REPORTCOLS> _report_cols;
 	const bool _show_zeros;
-	ofstream& _reportOfb;
+	ofstream _reportOfb;
 	FORMAT _format;
 	double _total_n_reads = 0;
 
@@ -278,7 +278,7 @@ private:
 public:
 
 
-	void print_report(string format) {
+	void print_report(string format, string rank) {
 		_total_n_reads = 
 			_taxinfo.at(0).counts.n_reads_clade + 
 			_taxinfo.at(1).counts.n_reads_clade + 
@@ -292,6 +292,9 @@ public:
 			print_report(-1,0);
 		} else {
 			// print stuff at a certain level ..
+			//_uid_abundance;
+			//_taxinfo
+				
 		}
 	}
 
@@ -334,7 +337,7 @@ public:
 	}
 
 	ClassificationReport(
-			ofstream & reportOfb,
+			string file_name,
 			const Ebwt<index_t>& ebwt,
 			const ClassificationMetrics& spm,
 			EList<REPORTCOLS>& report_cols,
@@ -345,12 +348,16 @@ public:
 				_taxinfo { get_taxinfo(ebwt, spm) },
 				_report_cols { report_cols },
 				_show_zeros { show_zeros },
-				_reportOfb { reportOfb }
+				_reportOfb(file_name.c_str())
 				{
 					//EList<string> p_refnames;
 					//readEbwtRefnames<index_t>(fname, p_refnames);
 
 				}
+	
+	~ClassificationReport() {
+		_reportOfb.close();
+	}
 
 				//================
 };
