@@ -368,7 +368,7 @@ static void print_ref_sequences(
 template<typename index_t, typename TStr>
 static void print_index_sequences(ostream& fout, Ebwt<index_t>& ebwt)
 {
-	EList<string>* refnames = &(ebwt.refnames());
+	const EList<string>* refnames = &(ebwt.refnames());
 
 	TStr cat_ref;
 	ebwt.restore(cat_ref);
