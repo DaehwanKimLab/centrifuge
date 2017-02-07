@@ -306,9 +306,9 @@ public:
 			// The taxinfo uids must always have counts, as it is initialized from there
 			vector<pair<UId, ReadCounts> > uids = _taxinfo.at(tax_id).uids;
 
-			//sort(uids.begin(), uids.end(), [&](auto a, auto b) -> bool { 
-			//		return( a.second > b.second );
-			//		});
+			sort(uids.begin(), uids.end(), [&](pair<UId,ReadCounts>& a, pair<UId,ReadCounts>& b) -> bool { 
+					return( a.second.n_reads > b.second.n_reads );
+					});
 			for (auto& ur : uids) {
 				string uid_name = " >" + _uid_refnames[ur.first];
 				//string uid_name = "->" + _uid_to_tid[uid].first;
@@ -321,9 +321,9 @@ public:
 			// TODO: Order by abundance
 			vector<UId> children = _taxinfo.at(tax_id).children;
 
-			//sort(children.begin(), children.end(), [&](TaxId a, TaxId b) -> bool { 
-			//		return( _taxinfo.at(a).counts.abundance >
-			//					_taxinfo.at(b).counts.abundance); });
+			sort(children.begin(), children.end(), [&](TaxId a, TaxId b) -> bool { 
+					return( _taxinfo.at(a).counts.n_reads_clade >
+								_taxinfo.at(b).counts.n_reads_clade); });
 
 			for (auto child : children) {
 				if (child == tax_id) continue;  // Should only happen for root / taxId 1
