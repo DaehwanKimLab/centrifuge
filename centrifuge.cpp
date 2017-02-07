@@ -267,7 +267,8 @@ static EList<string> report_cols_str;
 
 static const map<string, TABCOLS> tab_col_name_map = {
 		{{"readID"},{TABCOLS::READ_ID}}, {{"seqID"},{TABCOLS::SEQ_ID}},
-		{{"taxLevel"},{TABCOLS::TAX_RANK}}, {{"taxRank"},{TABCOLS::TAX_RANK}}, {{"taxID"},{TABCOLS::TAX_ID}}, {{"taxName"},{TABCOLS::TAX_NAME}},
+		{{"taxLevel"},{TABCOLS::TAX_RANK}}, {{"taxRank"},{TABCOLS::TAX_RANK}}, {{"taxID"},{TABCOLS::TAX_ID}},
+		{{"taxName"},{TABCOLS::TAX_NAME}},
 		{{"score"},{TABCOLS::SCORE}}, {{"2ndBestScore"},{TABCOLS::SCORE2}},
 		{{"hitLength"},{TABCOLS::HIT_LENGTH}}, {{"queryLength"},{TABCOLS::QUERY_LENGTH}}, {{"numMatches"},{TABCOLS::NUM_MATCHES}},
 		{{"readSeq"},{TABCOLS::SEQ}}, {{"readQual"},{TABCOLS::QUAL}},
@@ -319,7 +320,11 @@ static void parse_col_fmt(
     for(size_t i = 0; i < fmt_cols_str.size(); i++) {
         typename map<string, T>::const_iterator it = col_name_map.find(fmt_cols_str[i]);
         if (it == col_name_map.end()) {
-            cerr << "Column definition "  << fmt_cols_str[i] << " invalid." << endl;
+            cerr << "Column definition "  << fmt_cols_str[i] << " invalid. Choose one of the following:" << endl;
+            for (const auto& it : col_name_map) {
+            	cerr << "    " << it.first << endl;
+            }
+
             exit(1);
         }
         fmt_cols.push_back(it->second);
