@@ -325,6 +325,8 @@ public:
 
         	}
         }
+		} else {
+			cerr << "Unidentified read ..." << endl;
 		}
 
 		//cerr << uids.size() << "   " << _hitMap.size() << endl;
