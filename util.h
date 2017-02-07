@@ -133,5 +133,4 @@ const typename MAP::mapped_type& get_with_default(const MAP& m,
     return it->second;
 }
 
-
 #endif /*ifndef UTIL_H_*/

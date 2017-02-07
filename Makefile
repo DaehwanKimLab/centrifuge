@@ -26,7 +26,7 @@ GCC_SUFFIX =
 CC = $(GCC_PREFIX)/gcc$(GCC_SUFFIX)
 CPP = $(GCC_PREFIX)/g++$(GCC_SUFFIX)
 #CXX = $(CPP) -fdiagnostics-color=always
-CXX = $(CPP) -fdiagnostics-color=always -std=c++11 -fmax-errors=3
+CXX = $(CPP) -std=c++11 -fmax-errors=3 -gdwarf-2
 HEADERS = $(wildcard *.h)
 BOWTIE_MM = 1
 BOWTIE_SHARED_MEM = 0

@@ -245,11 +245,11 @@ static EList<uint64_t> thread_rids;
 static MUTEX_T         thread_rids_mutex;
 
 static uint32_t minHitLen;   // minimum length of partial hits
-static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
+static string reportFile;    // file name of specices report file
 static bool abundance_analysis;
 static bool tree_traverse;
-// static bool show_zeros;  // whow zeros in quant report
+static bool show_zeros;  // whow zeros in quant report
 static string classification_rank;
 static EList<TaxId> host_taxIDs;
 static EList<TaxId> excluded_taxIDs;
@@ -259,7 +259,7 @@ static string tab_col_def;
 static EList<TABCOLS> tab_cols;
 static EList<string> tab_cols_str;
 
-
+static string report_format;
 static string report_col_def;
 static string kraken_report_col_def;
 static EList<REPORTCOLS> report_cols;
@@ -535,6 +535,7 @@ static void resetOptions() {
     tab_col_def = "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches";
     parse_col_fmt(tab_col_def, tab_col_name_map, tab_cols_str, tab_cols);
     
+    report_format = "kraken";
     kraken_report_col_def = "percent,numReadsClade,numReads,taxRank,taxId,spaced_name";
     report_col_def = "name,taxID,taxRank,genomeSize,reads_clade,reads_stay,abundance";
     parse_col_fmt(report_col_def, report_col_name_map, report_cols_str, report_cols);
@@ -704,6 +705,7 @@ static struct option long_options[] = {
     {(char*)"exclude-taxids",   required_argument, 0,  ARG_EXCLUDE_TAXIDS},
     {(char*)"out-fmt",          required_argument, 0,  ARG_OUT_FMT},
     {(char*)"tab-fmt-cols",     required_argument, 0,  ARG_TAB_FMT_COLS},
+	{(char*)"report-fmt",       required_argument, 0,  ARG_REPORT_FMT},
 	{(char*)"report-fmt-cols",     required_argument, 0,  ARG_REPORT_FMT_COLS},
 #ifdef USE_SRA
     {(char*)"sra-acc",   required_argument, 0,        ARG_SRA_ACC},
@@ -822,7 +824,7 @@ static void printUsage(ostream& out) {
 	out << "  --out-fmt <str>       define output format, either 'tab' or 'sam' (tab)" << endl
 		<< "  --tab-fmt-cols <str>  columns in tabular format, comma separated " << endl 
         << "                          default: " << tab_col_def << endl
-		<< "  --report-fmt <str>   report format: either tab, kraken/hierachical, or metaphlan/mpa" << endl
+		<< "  --report-fmt <str>   report format: either tab, kraken, or metaphlan" << endl
 		<< "  --report-cols <str>  columns in report, comma separated " << endl
 	    << "                          default: " << report_col_def << endl;
 	out << "  -t/--time             print wall-clock time taken by search phases" << endl;
@@ -1474,6 +1476,11 @@ static void parseOption(int next_option, const char *arg) {
             parse_col_fmt(arg, tab_col_name_map, tab_cols_str, tab_cols);
     		break;
 		}
+		case ARG_REPORT_FMT: {
+            // TODO: Check that it's a good format!
+            report_format = arg;
+		    break;
+        }
 		case ARG_REPORT_FMT_COLS: {
 		    parse_col_fmt(arg, report_col_name_map, report_cols_str, report_cols);
 		    break;
@@ -3080,21 +3087,11 @@ static void driver(
 		if (!reportFile.empty()) {
             // write the species report into the corresponding file
             cerr << "report file " << reportFile << endl;
-			ofstream reportOfb;
-			reportOfb.open(reportFile.c_str());
-			ClassificationMetrics& spm = metrics.spmu;
-
-            //bool kraken_format = true;
-            //bool include_kmercounts = false;
-            bool show_zeros = false;
-
             parse_col_fmt(kraken_report_col_def, report_col_name_map, report_cols_str, report_cols);
-            ClassificationReport qr(reportOfb, ebwt, spm, report_cols, show_zeros);
+            // Use classification_rank
+            ClassificationReport qr(reportFile, ebwt, metrics.spmu, report_cols, show_zeros);
+            qr.print_report("kraken", classification_rank);
 
-            // summarize from uid to higher levels
-            qr.print_report("kraken");
-
-			reportOfb.close();
 		}
 
 
