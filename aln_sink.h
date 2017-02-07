@@ -1834,6 +1834,7 @@ void AlnSinkSam<index_t>::appendMate(
 	bool firstfield = true;
 	uint64_t taxid =  rs->taxID();
 	const basic_string<char> empty_string = "";
+	const basic_string<char> na_string = "<N/A>";
 
 	for (size_t i=0; i < this->tab_cols_.size(); ++i) {
 		BEGIN_FIELD;
@@ -1852,7 +1853,7 @@ void AlnSinkSam<index_t>::appendMate(
 
 			case TABCOLS::TAX_ID:       appendTaxID(o, taxid); break;
 			case TABCOLS::TAX_RANK:     o.append(get_tax_rank_string(rs->taxRank())); break;
-			case TABCOLS::TAX_NAME:     o.append(find_or_use_default(ebwt.name(), taxid, empty_string).c_str()); break;
+			case TABCOLS::TAX_NAME:     o.append(find_or_use_default(ebwt.name(), taxid, na_string).c_str()); break;
 
 			case TABCOLS::SCORE:        appendNumber<uint64_t>(o, rs->score(), buf); break;
 			case TABCOLS::SCORE2:       appendNumber<uint64_t>(o,
