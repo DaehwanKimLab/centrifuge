@@ -211,7 +211,84 @@ can be generated from a GI taxid dump:
 
 ### Custom database
 
-TODO: Add toy example for nodes.dmp, names.dmp and seqid2taxid.map
+To build a custom database, you need the provide the follwing four files to `centrifuge-build`:
+
+  - `--conversion-table`: tab-separated file mapping sequence IDs to taxonomy IDs. Sequence IDs are the header up to the first space or second pipe (`|`).  
+  - `--taxonomy-tree`: `\t|\t`-separated file mapping taxonomy IDs to their parents and rank, up to the root of the tree. When using NCBI taxonomy IDs, this will be the `nodes.dmp` from `ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz`.
+  - `--name-table`: '\t|\t'-separated file mapping taxonomy IDs to a name. A further column (typically column 4) must specify `scientific name`. When using NCBI taxonomy IDs, `names.dmp` is the appropriate file.
+  - reference sequences: The ID of the sequences are the header up to the first space or second pipe (`|`)
+
+When using custom taxonomy IDs, use only positive integers greater-equal to `1` and use `1` for the root of the tree.
+
+#### More info on `--taxonomy-tree` and `--name-table`
+
+The format of these files are based on `nodes.dmp` and `names.dmp` from the NCBI taxonomy database dump. 
+
+- Field terminator is `\t|\t`
+- Row terminator is `\t|\n`
+
+The `taxonomy-tree` / nodes.dmp file consists of taxonomy nodes. The description for each node includes the following
+fields:
+
+    tax_id                  -- node id in GenBank taxonomy database
+    parent tax_id           -- parent node id in GenBank taxonomy database
+    rank                    -- rank of this node (superkingdom, kingdom, ..., no rank)
+
+Further fields are ignored.
+
+The `name-table` / names.dmp is the taxonomy names file:
+
+    tax_id                  -- the id of node associated with this name
+    name_txt                -- name itself
+    unique name             -- the unique variant of this name if name not unique
+    name class              -- (scientific name, synonym, common name, ...)
+
+`name class` **has** to be `scientific name` to be included in the build. All other lines are ignored
+
+#### Example
+
+*Conversion table `ex.conv`*: 
+    
+    Seq1	11
+    Seq2	12
+    Seq3	13
+    Seq4	11
+
+
+*Taxonomy tree `ex.tree`*: 
+
+    1	|	1	|	root
+    10	|	1	|	kingdom
+    11	|	10	|	species
+    12	|	10	|	species
+    13	|	1	|	species
+
+*Name table `ex.name`*:
+
+    1	|	root	|		|	scientific name	|
+    10	|	Bacteria	|		|	scientific name	|
+    11	|	Bacterium A	|		|	scientific name	|
+    12	|	Bacterium B	|		|	scientific name	|
+    12	|	Some other species	|		|	scientific name	|
+
+*Reference sequences `ex.fa`*:
+
+    >Seq1
+    AAAACGTACGA.....
+    >Seq2
+    AAAACGTACGA.....
+    >Seq3
+    AAAACGTACGA.....
+    >Seq4
+    AAAACGTACGA.....
+
+To build the database, call
+
+    centrifuge-build --conversion-table ex.conv \
+                     --taxonomy-tree ex.tree --name-table ex.name \ 
+                     ex.fa ex
+
+which results in three index files named `ex.1.cf`, `ex.2.cf` and `ex.3.cf`.
 
 
 ### Centrifuge classification output
