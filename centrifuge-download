@@ -262,6 +262,7 @@ SPECIES_TAXID_FIELD=7
 VERSION_STATUS_FIELD=11
 ASSEMBLY_LEVEL_FIELD=12
 FTP_PATH_FIELD=20
+FTP_PATH_FIELD2=21  ## Needed for wrongly formatted virus files - hopefully just a temporary fix
 
 AWK_QUERY="\$$VERSION_STATUS_FIELD==\"latest\""
 [[ "$ASSEMBLY_LEVEL" != "Any" ]] && AWK_QUERY="$AWK_QUERY && \$$ASSEMBLY_LEVEL_FIELD==\"$ASSEMBLY_LEVEL\""
@@ -321,10 +322,21 @@ for DOMAIN in $DOMAINS; do
 
     N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
     [[ $N_EXPECTED -gt 0 ]] || { echo "Domain $DOMAIN has no genomes with specified filter." >&2; exit 1; }
-    echo "Downloading $N_EXPECTED $DOMAIN genomes at assembly level $ASSEMBLY_LEVEL ... (will take a while)" >&2
-    cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
-       tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
+
+    if [[ "$DOMAIN" == "viral" ]]; then
+      ## Wrong columns in viral assembly summary files - the path is sometimes in field 20, sometimes 21
+      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD,$FTP_PATH_FIELD2" "$ASSEMBLY_SUMMARY_FILE" | \
+       sed 's/^\(.*\)\t\(ftp:.*\)\t.*/\1\t\2/;s/^\(.*\)\t.*\t\(ftp:.*\)/\1\t\2/' | \
+      sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+         tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
+    else
+      echo "Downloading $N_EXPECTED $DOMAIN genomes at assembly level $ASSEMBLY_LEVEL ... (will take a while)" >&2
+      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+         tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
+    fi
     echo >&2
+
+
 
     if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
     	echo "Downloadinging rna sequence files" >&2
