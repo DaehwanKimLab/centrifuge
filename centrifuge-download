@@ -154,7 +154,7 @@ COMMON OPTIONS
 
 WHEN USING database refseq OR genbank:
  -d <domain>            What domain to download. One or more of ${ALL_GENOMES// /, } (comma separated).
- -a <assembly level>    Only download genomes with the specified assembly level. Default: '$ASSEMBLY_LEVEL'.
+ -a <assembly level>    Only download genomes with the specified assembly level. Default: '$ASSEMBLY_LEVEL'. Use 'Any' for any assembly level.
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
  -r                     Download RNA sequences, too.
@@ -263,7 +263,8 @@ VERSION_STATUS_FIELD=11
 ASSEMBLY_LEVEL_FIELD=12
 FTP_PATH_FIELD=20
 
-AWK_QUERY="\$$ASSEMBLY_LEVEL_FIELD==\"$ASSEMBLY_LEVEL\" && \$$VERSION_STATUS_FIELD==\"latest\""
+AWK_QUERY="\$$VERSION_STATUS_FIELD==\"latest\""
+[[ "$ASSEMBLY_LEVEL" != "Any" ]] && AWK_QUERY="$AWK_QUERY && \$$VERSION_STATUS_FIELD==\"latest\""
 [[ "$REFSEQ_CATEGORY" != "" ]] && AWK_QUERY="$AWK_QUERY && \$$REFSEQ_CAT_FIELD==\"$REFSEQ_CATEGORY\""
 
 TAXID=${TAXID//,/|}
