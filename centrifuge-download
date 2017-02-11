@@ -11,10 +11,10 @@ if hash rsync 2>/dev/null; then
         DL_MODE="rsync"
 elif hash wget 2>/dev/null; then
 	DL_PROG="wget -N --reject=index.html -qO"
-        DL_MODE="ftp"
+        DL_MODE="https"
 else 
 	DL_PROG="curl -s -o"
-        DL_MODE="ftp"
+        DL_MODE="https"
 fi
 export DL_PROG DL_MODE
 
