@@ -11,6 +11,7 @@ KEEP_FILES?=0
 get_ref_file_names = $(addprefix $(REFERENCE_SEQUENCES_DIR)/, $(addsuffix $(1), \
 	$(addprefix all-,$(COMPLETE_GENOMES)) \
 	$(addprefix all-,$(addsuffix -chromosome_level,$(CHROMOSOME_LEVEL_GENOMES))) \
+	$(addprefix all-,$(addsuffix -any_level,$(ANY_LEVEL_GENOMES))) \
 	$(addprefix mammalian-reference-,$(MAMMALIAN_TAXIDS)) \
 	$(addprefix all-compressed-,$(COMPLETE_GENOMES_COMPRESSED)) \
 	$(if $(INCLUDE_CONTAMINANTS),contaminants)))
@@ -42,6 +43,10 @@ STANDARD TARGETS:
                         and all viral genomes
 
     p+h+v               As above, but with uncompressed bacterial genomes
+
+	p+v
+
+	v
 
 Alternatively, a IDX_NAME and one or more genomes may be specified as
 options to build a custom database.
@@ -79,25 +84,37 @@ all:
 
 IDX_NAME?=$(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
 
-INDICES=p+h+v p_compressed p_compressed+h+v refseq_microbial refseq_full nt
+INDICES=p+h+v p+v v p p_compressed p_compressed+h+v refseq_microbial refseq_full nt
 
-p+h+v: export COMPLETE_GENOMES:=archaea bacteria viral
+p+h+v: export ANY_LEVEL_GENOMES:=viral
+p+h+v: export COMPLETE_GENOMES:=archaea bacteria
 p+h+v: export MAMMALIAN_TAXIDS:=9606
 p+h+v: export INCLUDE_CONTAMINANTS:=1
 p+h+v: export IDX_NAME:=p+h+v
 
-p_compressed: export COMPLETE_GENOMES:=
+p+v: export ANY_LEVEL_GENOMES:=viral
+p+v: export COMPLETE_GENOMES:=archaea bacteria
+p+v: export INCLUDE_CONTAMINANTS:=1
+p+v: export IDX_NAME:=p+v
+
+v: export ANY_LEVEL_GENOMES:=viral
+v: export IDX_NAME:=v
+
+p: export COMPLETE_GENOMES:=archaea bacteria
+p: export IDX_NAME:=p
+
 p_compressed: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
 p_compressed: export IDX_NAME:=p_compressed
 
-p_compressed+h+v: export COMPLETE_GENOMES:=viral
+p_compressed+h+v: export ANY_LEVEL_GENOMES:=viral
 p_compressed+h+v: export COMPLETE_GENOMES_COMPRESSED:=archaea bacteria
 p_compressed+h+v: export MAMMALIAN_TAXIDS:=9606
 p_compressed+h+v: export INCLUDE_CONTAMINANTS:=1
 p_compressed+h+v: export IDX_NAME:=p_compressed+h+v
 
-refseq_microbial: export COMPLETE_GENOMES:=archaea bacteria fungi protozoa viral
+refseq_microbial: export COMPLETE_GENOMES:=archaea bacteria fungi protozoa
 refseq_microbial: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
+refseq_microbial: export ANY_LEVEL_GENOMES:=viral
 ##refseq_microbial: export SMALL_GENOMES:=mitochondrion plasmid plastid # TODO
 refseq_microbial: export MAMMALIAN_TAXIDS:=9606 10090
 refseq_microbial: export INCLUDE_CONTAMINANTS:=1
@@ -106,6 +123,7 @@ refseq_microbial: export CF_BUILD_OPTS+=--ftabchars 14
 
 refseq_full: export COMPLETE_GENOMES:=archaea bacteria fungi invertebrate plant protozoa vertebrate_mammalian vertebrate_other viral
 refseq_full: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
+refseq_full: export ANY_LEVEL_GENOMES:=viral
 refseq_full: export SMALL_GENOMES:=mitochondrion plasmid plastid
 refseq_full: export MAMMALIAN_TAXIDS:=9606 10090
 refseq_full: export INCLUDE_CONTAMINANTS:=1
@@ -237,6 +255,20 @@ $(REFERENCE_SEQUENCES_DIR)/all-%-chromosome_level.fna: | $(REFERENCE_SEQUENCES_D
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	@echo Downloading and dust-masking $*
 	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -a "Chromosome" -d "$*" -P $(THREADS) refseq > \
+		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
+	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
+	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
+ifeq (1,$(KEEP_FILES))
+	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
+	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
+else
+	rm -rf $(TMP_DIR)
+endif
+
+$(REFERENCE_SEQUENCES_DIR)/all-%-any_level.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
+	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
+	@echo Downloading and dust-masking $*
+	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -a "Any" -d "$*" -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
 	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
