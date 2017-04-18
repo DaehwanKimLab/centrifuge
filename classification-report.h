@@ -41,7 +41,6 @@ private:
 			return *this;
 		}
 
-
 		TaxCounts& addChild(const TaxCounts& child) {
 			total_score += child.total_score;
 			total_hit_len += child.total_hit_len;
@@ -58,8 +57,6 @@ private:
 			n_reads_clade += child.n_reads;
 			return *this;
 		}
-
-
 
 		TaxCounts() {}
 
@@ -157,8 +154,6 @@ private:
 		}
 		return parentsA[lca_pos];
 	}
-
-
 
 	// return lowest common ancestor of a set of taxid
 	TaxId lca(const map<TaxId, TaxonomyNode>& tree, const set<TaxId>& taxids) {
@@ -276,7 +271,6 @@ private:
 	}
 
 public:
-
 
 	void print_report(string format, string rank) {
 		_total_n_reads = 

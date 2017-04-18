@@ -42,23 +42,6 @@ ReadCounts operator+(ReadCounts a, const ReadCounts& b) {
 	return a += b;
 }
 
-enum class REPORTCOLS : uint8_t {
-	SPACED_NAME,
-	NAME,
-	TAX_ID,
-	TAX_RANK,
-	DEPTH,
-	GENOME_SIZE,
-	NUM_READS,
-	NUM_READS_CLADE,
-	NUM_UNIQUE_KMERS,
-	TOTAL_SCORE,
-	TOTAL_HIT_LENGTH,
-	ABUNDANCE,
-	ABUNDANCE_LEN,
-	PERCENTAGE
-};
-
 typedef set<uint64_t> UId_set;
 
 /**

@@ -282,28 +282,6 @@ static const map<string, TABCOLS> tab_col_name_map = {
 		{{"readSeq1"},{TABCOLS::SEQ1}}, {{"readSeq2"},{TABCOLS::SEQ2}}, {{"readQual1"},{TABCOLS::QUAL1}}, {{"readQual2"},{TABCOLS::QUAL2}}
 };
 
-static const map<string, REPORTCOLS> report_col_name_map = {
-		{"name", REPORTCOLS::NAME},
-		{"spaced_name", REPORTCOLS::SPACED_NAME},
-		{"taxID", REPORTCOLS::TAX_ID},
-		{"taxRank", REPORTCOLS::TAX_RANK},
-		{"depth", REPORTCOLS::DEPTH},
-		{"genomeSize", REPORTCOLS::GENOME_SIZE},
-		{"numReads", REPORTCOLS::NUM_READS},
-		{"numReadsClade", REPORTCOLS::NUM_READS_CLADE},
-		{"numUniqueKmers", REPORTCOLS::NUM_UNIQUE_KMERS},
-		{"totalHitLen", REPORTCOLS::TOTAL_HIT_LENGTH},
-		{"totalScore", REPORTCOLS::TOTAL_SCORE},
-		{"abundance", REPORTCOLS::ABUNDANCE},
-		{"abundance_len", REPORTCOLS::ABUNDANCE_LEN},
-
-		{"percent", REPORTCOLS::PERCENTAGE},
-		{"taxId", REPORTCOLS::TAX_ID},
-		{"reads_clade", REPORTCOLS::NUM_READS_CLADE}, // Change to clade reads!
-		{"reads_stay", REPORTCOLS::NUM_READS}, // Change to clade reads!
-
-};
-
 #ifdef USE_SRA
 static EList<string> sra_accs;
 #endif
