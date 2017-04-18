@@ -20,6 +20,8 @@
 #ifndef CLASSIFIER_H_
 #define CLASSIFIER_H_
 
+//#define LI_DEBUG
+
 #include <algorithm>
 #include <vector>
 #include <unordered_map>
@@ -150,6 +152,7 @@ public:
 		//uint32_t max_length = 0;
         //uint32_t max_score = 0;
         
+        //
         uint32_t ts = 0; // time stamp
         // for each mate. only called once for unpaired data
         for(int rdi = 0; rdi < (this->_paired ? 2 : 1); rdi++) {
@@ -341,6 +344,7 @@ public:
         }
         if(!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits) {
         	DEBUG_MSG("Returning - hitmap-size still greater than rp.khits");
+	    reportUnclassified( sink ) ;
             return 0;
         }
        
@@ -359,7 +363,7 @@ public:
             max_score += (rdlen > 15 ? calc_score(rdlen) : 0);
         }
         
-       
+      	bool reported = false ; 
         for(size_t gi = 0; gi < _hitMap.size(); gi++) {
             assert_gt(_hitMap[gi].best_score[0], 0);
             HitCount<index_t>& hitCount = _hitMap[gi];
@@ -387,7 +391,11 @@ public:
                     isFw);
             sink.report(0, &rs);
         }
-        return 0;
+
+	if ( reported == false ) 
+		reportUnclassified( sink ) ;
+        
+	return 0;
     }
     
     bool getGenomeIdx(
@@ -504,6 +512,9 @@ private:
                                                 mineFw, mineRc, testHit,
                                                 rnd);
                             index_t tmpLen = testHit.getPartialHit( testHit.offsetSize() - 1 ).len();
+#ifdef LI_DEBUG
+                            cout << "(adjust: " << tmpLen << ")";
+#endif
                             if(tmpLen >= 31) {
                                 lastHit._len = tmpLen;
                             }
