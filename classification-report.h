@@ -8,6 +8,8 @@
 #ifndef CLASSIFICATION_REPORT_H_
 #define CLASSIFICATION_REPORT_H_
 
+#include "report-cols.h"
+
 class ClassificationReport {
 private:
 
@@ -97,7 +99,7 @@ private:
 	const bool _show_zeros;
 	ofstream _reportOfb;
 	FORMAT _format;
-	double _total_n_reads = 0;
+	const double _total_n_reads = 0.0;
 
 	inline bool set_to_parent(const map<TaxId, TaxonomyNode>& tree, TaxId& taxid) {
 		if (taxid == 0 || taxid == TaxId(-1))
@@ -197,6 +199,7 @@ private:
 			{ 0, { 0, 'U', "unclassified"}},
 			{TaxId(-1), {TaxId(-1), 'N', "uncategorized"}}
 		};
+		taxinfo[0].counts = TaxCounts({spm.n_unclassified_reads},{0.0 ,0.0});
 
 		cerr << "taxinfo1" << endl;
 		// fill rank, name, and children
@@ -273,10 +276,6 @@ private:
 public:
 
 	void print_report(string format, string rank) {
-		_total_n_reads = 
-			_taxinfo.at(0).counts.n_reads_clade + 
-			_taxinfo.at(1).counts.n_reads_clade + 
-			_taxinfo.at(-1).counts.n_reads_clade;
 		if (format == "kraken") {
 			// A: print number of unidentified reads
 			print_report(0,0);
@@ -293,7 +292,11 @@ public:
 	}
 
 	void print_report(TaxId tax_id, uint64_t depth) {
+		if (_taxinfo.find(tax_id) == _taxinfo.end()) {
+			return;
+		}
 
+		// TODO: Check that tax_id is in taxinfo
 		if (_show_zeros || _taxinfo.at(tax_id).counts.n_reads_clade > 0) {
 			print_line(true, tax_id, _taxinfo.at(tax_id).name, depth, _taxinfo.at(tax_id).counts);
 
@@ -330,6 +333,16 @@ public:
 
 	}
 
+	double get_total_n_reads() {
+		double total_reads = 0.0;
+		for (auto i : {-1,0,1}) {
+			if (_taxinfo.find(i) != _taxinfo.end()) {
+				total_reads = _taxinfo.at(i).counts.n_reads_clade;
+			}
+		}
+		return total_reads;
+	}
+
 	ClassificationReport(
 			string file_name,
 			const Ebwt<index_t>& ebwt,
@@ -342,7 +355,8 @@ public:
 				_taxinfo { get_taxinfo(ebwt, spm) },
 				_report_cols { report_cols },
 				_show_zeros { show_zeros },
-				_reportOfb(file_name.c_str())
+				_reportOfb(file_name.c_str()),
+				_total_n_reads { get_total_n_reads() }
 				{
 					//EList<string> p_refnames;
 					//readEbwtRefnames<index_t>(fname, p_refnames);
