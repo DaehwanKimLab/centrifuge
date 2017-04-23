@@ -174,6 +174,7 @@ enum {
     ARG_TAB_FMT_COLS,
     ARG_REPORT_FMT,
     ARG_REPORT_FMT_COLS,
+	ARG_COUNT_UIDS,
 #ifdef USE_SRA
     ARG_SRA_ACC,
 #endif

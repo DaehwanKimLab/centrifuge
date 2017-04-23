@@ -259,6 +259,7 @@ static string tab_col_def;
 static EList<TABCOLS> tab_cols;
 static EList<string> tab_cols_str;
 
+static bool count_uids;
 static string report_format;
 static string report_col_def;
 static string kraken_report_col_def;
@@ -685,6 +686,7 @@ static struct option long_options[] = {
     {(char*)"tab-fmt-cols",     required_argument, 0,  ARG_TAB_FMT_COLS},
 	{(char*)"report-fmt",       required_argument, 0,  ARG_REPORT_FMT},
 	{(char*)"report-fmt-cols",     required_argument, 0,  ARG_REPORT_FMT_COLS},
+	{(char*)"count-on-uids",     no_argument, 0,  ARG_COUNT_UIDS},
 #ifdef USE_SRA
     {(char*)"sra-acc",   required_argument, 0,        ARG_SRA_ACC},
 #endif
@@ -1462,6 +1464,11 @@ static void parseOption(int next_option, const char *arg) {
 		case ARG_REPORT_FMT_COLS: {
 		    parse_col_fmt(arg, report_col_name_map, report_cols_str, report_cols);
 		    break;
+		}
+
+		case ARG_COUNT_UIDS: {
+			count_uids = true;
+			break;
 		}
 
 #ifdef USE_SRA
@@ -2358,6 +2365,7 @@ static void multiseedSearchWorker(void *vp) {
                                    rp,            // reporting parameters
                                    (size_t)tid);  // thread id
     
+	DEBUG_MSG("Set-up classifier\n");
     Classifier<index_t, local_index_t> classifier(
                                                   ebwtFw,
                                                   multiseed_refnames,
@@ -2366,6 +2374,7 @@ static void multiseedSearchWorker(void *vp) {
                                                   minHitLen,
 												  minTotalLen,
                                                   tree_traverse,
+												  count_uids,
                                                   classification_rank,
                                                   host_taxIDs,
                                                   excluded_taxIDs);

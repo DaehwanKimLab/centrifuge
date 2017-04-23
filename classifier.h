@@ -53,6 +53,7 @@ public:
                size_t minHitLen,
 			   size_t minTotalLen,
                bool tree_traverse,
+			   bool count_uids,
                const string& classification_rank,
                const EList<uint64_t>& hostGenomes,
                const EList<uint64_t>& excluded_taxIDs) :
@@ -65,7 +66,8 @@ public:
     _minTotalLen(minTotalLen),
     _mate1fw(mate1fw),
     _mate2fw(mate2fw),
-    _tree_traverse(tree_traverse)
+    _tree_traverse(tree_traverse),
+	_count_uids(count_uids)
     {
         _classification_rank = get_tax_rank_id(classification_rank.c_str());
         _classification_rank = TaxonomyPathTable::rank_to_pathID(_classification_rank);
@@ -140,7 +142,7 @@ public:
         _hitMap.clear();
         
         const index_t increment = (2 * _minHitLen <= 33) ? 10 : (2 * _minHitLen - 33);
-		//DEBUG_MSG("increment: " << increment << endl);
+		DEBUG_MSG("increment: " << increment << endl);
         const ReportingParams& rp = sink.reportingParams();
         index_t maxGenomeHitSize = rp.khits; // maximum number of hits to report (and investigate) per read
 		bool isFw = false;
@@ -334,17 +336,15 @@ public:
 
 		//cerr << uids.size() << "   " << _hitMap.size() << endl;
 
-        spm.counts[uids].addHit(best_score);
-
-        
-        // If the number of hits is more than -k,
+        // If the number of hits is more than -k (rp.khits),
         //   traverse up the taxonomy tree to reduce the number
         if (!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits) {
-        	reduceHitmapTraverseTree(rp.khits);
+        	reduceHitmapTraverseTree(_hitMap, _tree_traverse, rp.khits);
         }
         if(!only_host_taxIDs && _hitMap.size() > (size_t)rp.khits) {
         	DEBUG_MSG("Returning - hitmap-size still greater than rp.khits");
-	    reportUnclassified( sink ) ;
+        	++spm.n_unclassified_reads;
+        	sink.reportUnclassified( _hitMap.size() ) ;
             return 0;
         }
        
@@ -363,6 +363,13 @@ public:
             max_score += (rdlen > 15 ? calc_score(rdlen) : 0);
         }
         
+		if (_count_uids) {
+			spm.counts[uids].addHit(best_score);
+		} else {
+			// Stuff for taxId adding or shu
+		}
+
+
       	bool reported = false ; 
         for(size_t gi = 0; gi < _hitMap.size(); gi++) {
             assert_gt(_hitMap[gi].best_score[0], 0);
@@ -388,12 +395,16 @@ public:
                     taxRank,
 					hitCount.best_score[0],
                     hitCount.readPositions,
-                    isFw);
+                    isFw,
+					_hitMap.size()); // TODO: hitmap.size probably is not the true n_hits!
             sink.report(0, &rs);
+            reported = true;
         }
 
-	if ( reported == false ) 
-		reportUnclassified( sink ) ;
+	if ( !reported ) {
+		++spm.n_unclassified_reads;
+		sink.reportUnclassified( 0) ;
+	}
         
 	return 0;
     }
@@ -453,13 +464,13 @@ private:
     bool                         _mate2fw;
     
     bool                         _tree_traverse;
+    bool                         _count_uids;
     uint8_t                      _classification_rank;
     set<uint64_t>                _host_taxIDs; // favor these genomes
     set<uint64_t>                _excluded_taxIDs;
     
     // Temporary variables
     ReadBWTHit<index_t>          _tempHit;
-    EList<pair<uint32_t, uint64_t> > _hitTaxCount;  // pair of count and taxID
     EList<uint64_t>              _tempPath;
     
     void searchForwardAndReverse(
@@ -836,122 +847,6 @@ private:
         return partialHit._coords;
     }
 
-    int reduceHitmapTraverseTree(int max_hits) {
-    	// Count the number of the best hits
-            HitScore best_score = _hitMap[0].best_score;
-            for(size_t i = 1; i < _hitMap.size(); i++) {
-                if(best_score < _hitMap[i].best_score) {
-                    best_score = _hitMap[i].best_score;
-                }
-            }
-
-            // Remove secondary hits
-            for(int i = 0; i < (int)_hitMap.size(); i++) {
-                if(_hitMap[i].best_score < best_score) {
-                    if(i + 1 < (int) _hitMap.size()) {
-                        _hitMap[i] = _hitMap.back();
-                    }
-                    _hitMap.pop_back();
-                    i--;
-                }
-            }
-
-            if(!_tree_traverse) {
-                if(_hitMap.size() > (size_t)max_hits)
-                    return 0;
-            }
-
-            uint8_t rank = 0;
-            while(_hitMap.size() > (size_t)max_hits) {
-                _hitTaxCount.clear();
-                for(size_t i = 0; i < _hitMap.size(); i++) {
-                    while(_hitMap[i].rank < rank) {
-                        if(_hitMap[i].rank + 1 >= (int)_hitMap[i].path.size()) {
-                            _hitMap[i].rank = std::numeric_limits<uint8_t>::max();
-                            break;
-                        }
-                        _hitMap[i].rank += 1;
-                        _hitMap[i].taxID = _hitMap[i].path[_hitMap[i].rank];
-                        _hitMap[i].leaf = false;
-                    }
-                    if(_hitMap[i].rank > rank) continue;
-
-                    uint64_t parent_taxID = (rank + 1 >= (int) _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
-                    // Traverse up the tree more until we get non-zero taxID.
-                    if(parent_taxID == 0) continue;
-
-                    size_t j = 0;
-                    for(; j < _hitTaxCount.size(); j++) {
-                        if(_hitTaxCount[j].second == parent_taxID) {
-                            _hitTaxCount[j].first += 1;
-                            break;
-                        }
-                    }
-                    if(j == _hitTaxCount.size()) {
-                        _hitTaxCount.expand();
-                        _hitTaxCount.back().first = 1;
-                        _hitTaxCount.back().second = parent_taxID;
-                    }
-                }
-                if(_hitTaxCount.size() <= 0) {
-                    if(rank < _hitMap[0].path.size()) {
-                        rank++;
-                        continue;
-                    } else {
-                        break;
-                    }
-                }
-                _hitTaxCount.sort();
-                size_t j = _hitTaxCount.size();
-                while(j-- > 0) {
-                    uint64_t parent_taxID = _hitTaxCount[j].second;
-                    HitScore max_score;
-                    for(size_t i = 0; i < _hitMap.size(); i++) {
-                        assert_geq(_hitMap[i].rank, rank);
-                        if(_hitMap[i].rank != rank) continue;
-                        uint64_t cur_parent_taxID = (rank + 1u >= _hitMap[i].path.size() ? 1u : _hitMap[i].path[rank + 1]);
-                        if(parent_taxID == cur_parent_taxID) {
-                            _hitMap[i].uniqueID = std::numeric_limits<uint64_t>::max();
-                            _hitMap[i].rank = rank + 1;
-                            _hitMap[i].taxID = parent_taxID;
-                            _hitMap[i].leaf = false;
-                        }
-                        if(parent_taxID == _hitMap[i].taxID) {
-                            if(_hitMap[i].best_score > max_score) {
-                                max_score = _hitMap[i].best_score;
-                            }
-                        }
-                    }
-
-                    bool first = true;
-                    size_t rep_i = _hitMap.size();
-                    for(size_t i = 0; i < _hitMap.size(); i++) {
-                        if(parent_taxID == _hitMap[i].taxID) {
-                            if(!first) {
-                                assert_lt(rep_i, _hitMap.size());
-                                _hitMap[rep_i].num_leaves += _hitMap[i].num_leaves;
-                                if(i + 1 < _hitMap.size()) {
-                                    _hitMap[i] = _hitMap.back();
-                                }
-                                _hitMap.pop_back();
-                                i--;
-                            } else {
-                                first = false;
-                                rep_i = i;
-                            }
-                        }
-                    }
-
-                    if(_hitMap.size() <= (size_t)max_hits)
-                        break;
-                }
-                rank++;
-                if(rank > _hitMap[0].path.size())
-                    break;
-            }
-            return 1;
-    }
-
 
     // compare BWTHits by size, ascending, first, then by length, descending
     //   TODO: move this operator into BWTHits if that is the standard way we would like to sort
@@ -964,28 +859,146 @@ private:
                     if (a.size() < b.size()) return true;
                     if (a.size() > b.size()) return false;
                 }
-                
+
                 // sort descending by length
                 if (b.len() < a.len()) return true;
                 if (b.len() > a.len()) return false;
             }
-            
+
             // sort by the weighted len
             if(b.len() * a.size() < a.len() * b.size()) return true;
             if(b.len() * a.size() > a.len() * b.size()) return false;
-            
+
             // sort ascending by size
             if(a.size() < b.size()) return true;
             if(a.size() > b.size()) return false;
-            
+
             // sort descending by length
             if(b.len() < a.len()) return true;
             if(b.len() > a.len()) return false;
-            
+
             return false;
         }
     };
 };
+
+
+int reduceHitmapTraverseTree(EList<HitCount<index_t> >& _hitMap,  bool _tree_traverse, int max_hits) {
+    EList<pair<uint32_t, uint64_t> > _hitTaxCount;  // pair of count and taxID
+	// Count the number of the best hits
+	HitScore best_score = _hitMap[0].best_score;
+	for(size_t i = 1; i < _hitMap.size(); i++) {
+		if(best_score < _hitMap[i].best_score) {
+			best_score = _hitMap[i].best_score;
+		}
+	}
+
+	// Remove secondary hits
+	for(int i = 0; i < (int)_hitMap.size(); i++) {
+		if(_hitMap[i].best_score < best_score) {
+			if(i + 1 < (int) _hitMap.size()) {
+				_hitMap[i] = _hitMap.back();
+			}
+			_hitMap.pop_back();
+			i--;
+		}
+	}
+
+	if(!_tree_traverse) {
+		if(_hitMap.size() > (size_t)max_hits)
+			return 0;
+	}
+
+	uint8_t rank = 0;
+	while(_hitMap.size() > (size_t)max_hits) {
+		_hitTaxCount.clear();
+		for(size_t i = 0; i < _hitMap.size(); i++) {
+			while(_hitMap[i].rank < rank) {
+				if(_hitMap[i].rank + 1 >= (int)_hitMap[i].path.size()) {
+					_hitMap[i].rank = std::numeric_limits<uint8_t>::max();
+					break;
+				}
+				_hitMap[i].rank += 1;
+				_hitMap[i].taxID = _hitMap[i].path[_hitMap[i].rank];
+				_hitMap[i].leaf = false;
+			}
+			if(_hitMap[i].rank > rank) continue;
+
+			uint64_t parent_taxID = (rank + 1 >= (int) _hitMap[i].path.size() ? 1 : _hitMap[i].path[rank + 1]);
+			// Traverse up the tree more until we get non-zero taxID.
+			if(parent_taxID == 0) continue;
+
+			size_t j = 0;
+			for(; j < _hitTaxCount.size(); j++) {
+				if(_hitTaxCount[j].second == parent_taxID) {
+					_hitTaxCount[j].first += 1;
+					break;
+				}
+			}
+			if(j == _hitTaxCount.size()) {
+				_hitTaxCount.expand();
+				_hitTaxCount.back().first = 1;
+				_hitTaxCount.back().second = parent_taxID;
+			}
+		}
+		if(_hitTaxCount.size() <= 0) {
+			if(rank < _hitMap[0].path.size()) {
+				rank++;
+				continue;
+			} else {
+				break;
+			}
+		}
+		_hitTaxCount.sort();
+		size_t j = _hitTaxCount.size();
+		while(j-- > 0) {
+			uint64_t parent_taxID = _hitTaxCount[j].second;
+			HitScore max_score;
+			for(size_t i = 0; i < _hitMap.size(); i++) {
+				assert_geq(_hitMap[i].rank, rank);
+				if(_hitMap[i].rank != rank) continue;
+				uint64_t cur_parent_taxID = (rank + 1u >= _hitMap[i].path.size() ? 1u : _hitMap[i].path[rank + 1]);
+				if(parent_taxID == cur_parent_taxID) {
+					_hitMap[i].uniqueID = std::numeric_limits<uint64_t>::max();
+					_hitMap[i].rank = rank + 1;
+					_hitMap[i].taxID = parent_taxID;
+					_hitMap[i].leaf = false;
+				}
+				if(parent_taxID == _hitMap[i].taxID) {
+					if(_hitMap[i].best_score > max_score) {
+						max_score = _hitMap[i].best_score;
+					}
+				}
+			}
+
+			bool first = true;
+			size_t rep_i = _hitMap.size();
+			for(size_t i = 0; i < _hitMap.size(); i++) {
+				if(parent_taxID == _hitMap[i].taxID) {
+					if(!first) {
+						assert_lt(rep_i, _hitMap.size());
+						_hitMap[rep_i].num_leaves += _hitMap[i].num_leaves;
+						if(i + 1 < _hitMap.size()) {
+							_hitMap[i] = _hitMap.back();
+						}
+						_hitMap.pop_back();
+						i--;
+					} else {
+						first = false;
+						rep_i = i;
+					}
+				}
+			}
+
+			if(_hitMap.size() <= (size_t)max_hits)
+				break;
+		}
+		rank++;
+		if(rank > _hitMap[0].path.size())
+			break;
+	}
+	return 1;
+}
 
 
 #endif /*CLASSIFIER_H_*/

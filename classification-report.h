@@ -336,7 +336,7 @@ public:
 			const ClassificationMetrics& spm,
 			EList<REPORTCOLS>& report_cols,
 			bool show_zeros) :
-				_uid_abundance { spm.calculateAbundance2(ebwt) },
+				_uid_abundance { spm.calculateAbundanceOnUIDs(ebwt) },
 				_uid_to_tid { ebwt.uid_to_tid() },
 				_uid_refnames { ebwt.refnames() },
 				_taxinfo { get_taxinfo(ebwt, spm) },
