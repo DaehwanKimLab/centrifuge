@@ -221,6 +221,7 @@ public:
         summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
 		isFw_ = other.isFw_;
+		n_results_ = other.n_results_;
     }
     
     AlnRes& operator=(const AlnRes& other) {
@@ -233,6 +234,7 @@ public:
         summedHitLen_ = other.summedHitLen_;
 		readPositions_ = other.readPositions_;
 		isFw_ = other.isFw_;
+		n_results_ = other.n_results_;
         return *this;
     }
     
@@ -246,6 +248,7 @@ public:
         max_score_ = 0;
         uid_ = "";
         tid_ = 0;
+        n_results_ = 0;
         taxRank_ = RANK_UNKNOWN;
         summedHitLen_ = 0.0;
 		readPositions_.clear();
@@ -264,6 +267,7 @@ public:
     uint64_t           taxID()          const { return tid_;   }
     uint8_t            taxRank()        const { return taxRank_; }
     double             summedHitLen()   const { return summedHitLen_; }
+    uint64_t           nResults()       const { return n_results_; }
 
 	const EList<pair<uint32_t,uint32_t> >& readPositionsPtr() const { return readPositions_; }
 
@@ -326,7 +330,8 @@ public:
               uint8_t taxRank,
 			  double summedHitLen,
 			  const EList<pair<uint32_t, uint32_t> >& readPositions,
-			  bool isFw)
+			  bool isFw,
+			  uint64_t n_results)
     {
         score_  = score;
         max_score_ = max_score;
@@ -336,6 +341,7 @@ public:
         summedHitLen_ = summedHitLen;
 		readPositions_ = readPositions;
 		isFw_ = isFw;
+		n_results_ = n_results;
     }
 
 protected:
@@ -343,6 +349,7 @@ protected:
     TAlScore     max_score_;
     string       uid_;
     uint64_t     tid_;
+    uint64_t     n_results_;
     uint8_t      taxRank_;
     double       summedHitLen_; // sum of the length of all partial hits, divided by the number of genome matches
 	bool         isFw_;

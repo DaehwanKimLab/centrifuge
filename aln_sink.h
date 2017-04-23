@@ -323,6 +323,7 @@ class AlnSink {
 public:
 
 	explicit AlnSink(
+					 Ebwt<index_t>*   ebwt,
                      OutputQueue& oq,
                      const StrList& refnames,
                      const EList<TABCOLS>& tab_cols,
@@ -330,6 +331,7 @@ public:
     oq_(oq),
     refnames_(refnames),
     tab_cols_(tab_cols),
+	ebwt_(ebwt),
     quiet_(quiet)
 	{
 	}
@@ -391,6 +393,7 @@ public:
 		ClassificationMetrics& sm,             // species metrics
 		bool                  getLock = true) // true iff lock held by caller
 	{
+		DEBUG_MSG("reportHits()" << endl);
 		assert(rd1 != NULL || rd2 != NULL);
 		assert(rs1 != NULL || rs2 != NULL);
 
@@ -416,6 +419,7 @@ public:
 		bool                  report2,        // report alns for both mates?
 		bool                  getLock = true) // true iff lock held by caller
 	{
+		DEBUG_MSG("reportUnaligned" << endl);
 		// FIXME: reportUnaligned does nothing
 		//append(o, threadId, rd1, rd2, rdid, NULL, NULL, summ, prm, NULL,report2);
 	}
@@ -524,12 +528,14 @@ public:
 		return oq_;
 	}
 
+	const EList<TABCOLS>&     tab_cols_; // Columns that are printed in tabular format
+	Ebwt<index_t>*   ebwt_;
+
 protected:
     
 	OutputQueue&       oq_;           // output queue
 	int                numWrappers_;  // # threads owning a wrapper for this HitSink
 	const StrList&     refnames_;     // reference names
-	const EList<TABCOLS>&     tab_cols_; // Columns that are printed in tabular format
 	bool               quiet_;        // true -> don't print alignment stats at the end
 	ReportingMetrics   met_;          // global repository of reporting metrics
 };
@@ -707,6 +713,8 @@ public:
 		bool suppressSeedSummary = true,
 		bool suppressAlignments = false);
 	
+	void reportUnclassified(uint64_t n_results=0);
+
 	/**
 	 * Called by the aligner when a new unpaired or paired alignment is
 	 * discovered in the given stage.  This function checks whether the
@@ -718,7 +726,8 @@ public:
 	 */
 	bool report(
 		int stage,
-        const AlnRes* rs);
+        const AlnRes* rs,
+		bool is_concordant = true);
 
 #ifndef NDEBUG
 	/**
@@ -933,11 +942,11 @@ public:
                const StrList&   refnames,     // reference names
 			   const EList<TABCOLS>&   tab_cols, // columns to output in the tabular format
                bool             quiet) :
-    AlnSink<index_t>(oq,
+    AlnSink<index_t>(ebwt,
+    				 oq,
                      refnames,
 					 tab_cols,
-                     quiet),
-    ebwt_(ebwt)
+                     quiet)
     { }
 	
 	virtual ~AlnSinkSam() { }
@@ -962,8 +971,9 @@ public:
 		bool report2,              // report alns for both mates
 		size_t n_results)          // number of results for read
 	{
+		DEBUG_MSG("append()" << endl);
 		assert(rd1 != NULL || rd2 != NULL);
-        appendMate(*ebwt_, o, *rd1, rd2, rdid, rs1, rs2, summ, prm, sm, n_results);
+        appendMate(*this->ebwt_, o, *rd1, rd2, rdid, rs1, rs2, summ, prm, sm, n_results);
 	}
 
 protected:
@@ -1166,6 +1176,19 @@ int AlnSinkWrap<index_t>::nextRead(
 	return 0;
 }
 
+template <typename index_t>
+void AlnSinkWrap<index_t>::reportUnclassified(uint64_t n_results)
+{
+    AlnRes rs ;
+    EList<pair<uint32_t,uint32_t> > dummy ;
+    dummy.push_back( make_pair( 0, 0 ) ) ;
+    rs.init( 0, 0, string( "unclassified" ), 0, 0, 0, dummy, true, n_results ) ;
+    //report( 0, &rs, false ) ;
+    printReadResult(g_.tab_cols_, *g_.ebwt_ , obuf_, *rd1_, rd2_, &rs, 0);
+
+}
+
+
 /**
  * Inform global, shared AlnSink object that we're finished with this read.
  * The global AlnSink is responsible for updating counters, creating the output
@@ -1233,8 +1256,6 @@ void AlnSinkWrap<index_t>::finishRead(
 		}
 	}
 
-	// TODO FB: Consider counting species here, and allow to disable counting
-
 	if(!suppressAlignments) {
 		// Ask the ReportingState what to report
 		st_.finish();
@@ -1251,6 +1272,7 @@ void AlnSinkWrap<index_t>::finishRead(
 			met.nunpaired++;
 		}
 		// Report concordant paired-end alignments if possible
+		DEBUG_MSG("Nconcord: " << nconcord << "\n");
 		if(nconcord > 0) {
 			AlnSetSumm concordSumm(rd1_, rd2_, &rs_);
 			// Possibly select a random subset
@@ -1294,6 +1316,9 @@ void AlnSinkWrap<index_t>::finishRead(
 			// write read to file
 			//g_.outq().finishRead(obuf_, rdid_, threadid_);
 			return;
+		} else {
+			++smet.n_unclassified_reads;
+			this->reportUnclassified();
 		}
 		
 #if 0
@@ -1391,11 +1416,15 @@ void AlnSinkWrap<index_t>::finishRead(
  */
 template <typename index_t>
 bool AlnSinkWrap<index_t>::report(int stage,
-								  const AlnRes* rs)
+								  const AlnRes* rs,
+								  bool is_concordant)
 {
 	assert(init_);
 	assert(rs != NULL);
-    st_.foundConcordant();
+	if (is_concordant) {
+		st_.foundConcordant();
+	}
+
     rs_.push_back(*rs);
 
 	// Tally overall alignment score
@@ -1826,6 +1855,13 @@ void AlnSinkSam<index_t>::appendMate(
 									 ClassificationMetrics& sm,
 									 size_t n_results)
 {
+	DEBUG_MSG("appendMate()" << endl);
+	printReadResult(this->tab_cols_, ebwt, o, rd, rdo, rs, (summ.secbest().valid()? summ.secbest().score() : 0));
+
+}
+
+
+void printReadResult(const EList<TABCOLS>& tab_cols_, Ebwt<index_t>& ebwt, BTString& o, const Read& rd, const Read* rdo, AlnRes* rs, int64_t sec_best_score = 0) {
 	if(rs == NULL) {
 		return;
 	}
@@ -1836,9 +1872,9 @@ void AlnSinkSam<index_t>::appendMate(
 	const basic_string<char> empty_string = "";
 	const basic_string<char> na_string = "<N/A>";
 
-	for (size_t i=0; i < this->tab_cols_.size(); ++i) {
+	for (size_t i=0; i < tab_cols_.size(); ++i) {
 		BEGIN_FIELD;
-		switch (this->tab_cols_[i]) {
+		switch (tab_cols_[i]) {
 			case TABCOLS::READ_ID:      appendReadID(o, rd.name); break;
 			case TABCOLS::SEQ_ID:       appendSeqID(o, rs, ebwt.tree()); break;
 			case TABCOLS::SEQ:          o.append((string(rd.patFw.toZBuf()) +
@@ -1856,14 +1892,13 @@ void AlnSinkSam<index_t>::appendMate(
 			case TABCOLS::TAX_NAME:     o.append(find_or_use_default(ebwt.name(), taxid, na_string).c_str()); break;
 
 			case TABCOLS::SCORE:        appendNumber<uint64_t>(o, rs->score(), buf); break;
-			case TABCOLS::SCORE2:       appendNumber<uint64_t>(o,
-									   (summ.secbest().valid()? summ.secbest().score() : 0),
-									   buf); break;
+			case TABCOLS::SCORE2:       appendNumber<uint64_t>(o, sec_best_score, buf); break;
 			case TABCOLS::HIT_LENGTH:   appendNumber<uint64_t>(o, rs->summedHitLen(), buf); break;
 			case TABCOLS::QUERY_LENGTH: appendNumber<uint64_t>(o,
 									   (rd.patFw.length() + (rdo != NULL ? rdo->patFw.length() : 0)),
 									   buf); break;
-			case TABCOLS::NUM_MATCHES:  appendNumber<uint64_t>(o, n_results, buf); break;
+			//case TABCOLS::NUM_MATCHES:  appendNumber<uint64_t>(o, n_results, buf); break;
+			case TABCOLS::NUM_MATCHES:  appendNumber<uint64_t>(o, rs->nResults(), buf); break;
 			case TABCOLS::PLACEHOLDER:  o.append("");
 			case TABCOLS::PLACEHOLDER_STAR:  o.append("*");
 			case TABCOLS::PLACEHOLDER_ZERO:  o.append("0");
@@ -1873,9 +1908,6 @@ void AlnSinkSam<index_t>::appendMate(
 	}
 	o.append("\n");
 
-
-//    (sc[rs->speciesID_])++;
-   
 }
 
 // #include <iomanip>
