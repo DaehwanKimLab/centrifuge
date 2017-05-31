@@ -237,20 +237,6 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
-$(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
-	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	@echo Downloading and dust-masking $*
-	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -d "$*" -P $(THREADS) refseq > \
-		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
-	ls $(TMP_DIR)/$* | grep "\.fna$" | xargs cat > $@.tmp && mv $@.tmp $@
-	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
-ifeq (1,$(KEEP_FILES))
-	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
-	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
-else
-	rm -rf $(TMP_DIR)
-endif
-
 $(REFERENCE_SEQUENCES_DIR)/all-%-chromosome_level.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	@echo Downloading and dust-masking $*
@@ -279,7 +265,19 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
-
+$(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
+	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
+	@echo Downloading and dust-masking $*
+	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -d "$*" -P $(THREADS) refseq > \
+		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
+	ls $(TMP_DIR)/$* | grep "\.fna$" | xargs cat > $@.tmp && mv $@.tmp $@
+	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
+ifeq (1,$(KEEP_FILES))
+	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
+	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
+else
+	rm -rf $(TMP_DIR)
+endif
 
 $(REFERENCE_SEQUENCES_DIR)/contaminants.fna: | $(REFERENCE_SEQUENCES_DIR)
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
