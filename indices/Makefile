@@ -66,12 +66,12 @@ EXAMPLES:
 
 	# same as:
 	make COMPLETE_GENOMES=archaea COMPLETE_GENOMES_COMPRESSED=bacteria IDX_NAME=p_compressed
-	
+
 	# Make an index with just the human genome
 	make IDX_NAME=h MAMMALIAN_TAXIDS=9606
 
 	# All archaeal genomes and contaminant sequences from UniVec and EmVec
-	make IDX_NAME=a COMPLETE_GENOMES=archaea  INCLUDE_CONTAMINANTS=1 
+	make IDX_NAME=a COMPLETE_GENOMES=archaea  INCLUDE_CONTAMINANTS=1
 
 endef
 export USAGE
@@ -79,7 +79,7 @@ export USAGE
 ###################################################################################################
 ifndef IDX_NAME
 
-all: 
+all:
 	@echo "$$USAGE"
 
 IDX_NAME?=$(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
@@ -143,7 +143,7 @@ DONT_DUSTMASK=
 TAXONOMY_DOWNLOAD_OPTS?=
 REFERENCE_SEQUENCES=$(call get_ref_file_names,.fna)
 TAXID_MAPS=$(call get_ref_file_names,$(TAXID_SUFFIX))
-CF_BUILD_OPTS?= 
+CF_BUILD_OPTS?=
 
 ifeq (nt,$(IDX_NAME))
 ifeq ($(strip $(DONT_DUSTMASK)),)
@@ -214,7 +214,7 @@ $(REFERENCE_SEQUENCES_DIR)/mammalian-reference-%.fna: | $(REFERENCE_SEQUENCES_DI
 	@[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	centrifuge-download -o $(TMP_DIR) -d "vertebrate_mammalian" -a "Chromosome" -t $* -c 'reference genome' -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX), $(notdir $@))
-	cat $(TMP_DIR)/vertebrate_mammalian/*.fna > $@.tmp && mv $@.tmp $@
+	find $(TMP_DIR)/vertebrate_mammalian -name "*.fna" | xargs cat > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
 	[[ -d $(DL_DIR)/vertebrate_mammalian ]] || mkdir -p $(DL_DIR)/vertebrate_mammalian
@@ -237,26 +237,12 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
-$(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
-	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
-	@echo Downloading and dust-masking $*
-	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -d "$*" -P $(THREADS) refseq > \
-		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
-	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
-	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
-ifeq (1,$(KEEP_FILES))
-	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
-	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
-else
-	rm -rf $(TMP_DIR)
-endif
-
 $(REFERENCE_SEQUENCES_DIR)/all-%-chromosome_level.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	@echo Downloading and dust-masking $*
 	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -a "Chromosome" -d "$*" -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
-	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
+	find $(TMP_DIR)/$* -name "*.fna" | xargs cat > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
 	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
@@ -270,7 +256,7 @@ $(REFERENCE_SEQUENCES_DIR)/all-%-any_level.fna: | $(REFERENCE_SEQUENCES_DIR) .du
 	@echo Downloading and dust-masking $*
 	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -a "Any" -d "$*" -P $(THREADS) refseq > \
 		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
-	cat $(TMP_DIR)/$*/*.fna > $@.tmp && mv $@.tmp $@
+	find $(TMP_DIR)/$* -name "*.fna" | xargs cat > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
 	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
@@ -279,12 +265,24 @@ else
 	rm -rf $(TMP_DIR)
 endif
 
-
+$(REFERENCE_SEQUENCES_DIR)/all-%.fna: | $(REFERENCE_SEQUENCES_DIR) .dustmasker-ok
+	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
+	@echo Downloading and dust-masking $*
+	centrifuge-download -o $(TMP_DIR) $(CF_DOWNLOAD_OPTS) -d "$*" -P $(THREADS) refseq > \
+		$(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
+	find $(TMP_DIR)/$* -name "*.fna" | xargs cat > $@.tmp && mv $@.tmp $@
+	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
+ifeq (1,$(KEEP_FILES))
+	[[ -d $(DL_DIR)/$* ]] || mkdir -p $(DL_DIR)/$*
+	mv $(TMP_DIR)/$*/* $(DL_DIR)/$*
+else
+	rm -rf $(TMP_DIR)
+endif
 
 $(REFERENCE_SEQUENCES_DIR)/contaminants.fna: | $(REFERENCE_SEQUENCES_DIR)
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	centrifuge-download -o $(TMP_DIR) contaminants > $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
-	cat $(TMP_DIR)/contaminants/*.fna > $@.tmp && mv $@.tmp $@
+	find $(TMP_DIR)/contaminants -name "*.fna" | xargs cat > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
 	[[ -d $(DL_DIR)/contaminants ]] || mkdir -p $(DL_DIR)/contaminants
@@ -300,7 +298,7 @@ ifeq ($(strip $(DONT_DUSTMASK)),)
 	$(error dustmasker program does not exist. Install NCBI blast+, or set option DONT_DUSTMASK=1)
 endif
 endif
-	
+
 
 taxonomy/names.dmp: taxonomy/nodes.dmp
 taxonomy/nodes.dmp: | .path-ok
