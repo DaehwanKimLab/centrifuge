@@ -191,6 +191,7 @@ CENTRIFUGE_SCRIPT_LIST = 	centrifuge \
 	centrifuge-build \
 	centrifuge-inspect \
 	centrifuge-download \
+	centrifuge-kreport \
 	$(wildcard centrifuge-*.pl)
 
 
