@@ -78,7 +78,7 @@ if ($is_cnts_table) {
     next if defined $min_length && $hitLength < $min_length;
     next if defined $min_score && $score < $min_score;
     $taxo_counts{$taxid} += 1/$numMatches;
-    $seq_count++;
+    $seq_count += 1/$numMatches;
   }
 }
 my $classified_count = $seq_count - $taxo_counts{0};
