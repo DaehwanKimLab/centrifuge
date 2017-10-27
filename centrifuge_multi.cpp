@@ -54,9 +54,7 @@
 
 using namespace std;
 
-static EList<string> mates1;  // mated reads (first mate)
-static EList<string> mates2;  // mated reads (second mate)
-static EList<string> mates12; // mated reads (1st/2nd interleaved in 1 file)
+static string samplesheet;
 static string adjIdxBase;
 bool gColor;              // colorspace (not supported)
 int gVerbose;             // be talkative
@@ -167,9 +165,6 @@ static string rgs;            // SAM outputs for @RG header line
 static string rgs_optflag;    // SAM optional flag to add corresponding to @RG ID
 static bool msample;          // whether to report a random alignment when maxed-out via -m/-M
 int      gGapBarrier;         // # diags on top/bot only to be entered diagonally
-static EList<string> qualities;
-static EList<string> qualities1;
-static EList<string> qualities2;
 static string polstr;         // temporary holder for policy string
 static bool  msNoCache;       // true -> disable local cache
 static int   bonusMatchType;  // how to reward matches
@@ -219,8 +214,6 @@ static bool doTri;            // do triangular mini-fills?
 static string defaultPreset;  // default preset; applied immediately
 static bool ignoreQuals;      // all mms incur same penalty, regardless of qual
 static string wrapper;        // type of wrapper script, so we can print correct usage
-static EList<string> queries; // list of query files
-static string outfile;        // write SAM output to this file
 static int mapqv;             // MAPQ calculation version
 static int tighten;           // -M tighten mode (0=none, 1=best, 2=secbest+1)
 static bool doExactUpFront;   // do exact search up front if seeds seem good enough
@@ -241,7 +234,6 @@ static EList<uint64_t> thread_rids;
 static MUTEX_T         thread_rids_mutex;
 
 static uint32_t minHitLen;   // minimum length of partial hits
-static string reportFile;    // file name of specices report file
 static uint32_t minTotalLen; // minimum summed length of partial hits per read
 static bool abundance_analysis;
 static bool tree_traverse;
@@ -261,6 +253,128 @@ static EList<string> sra_accs;
 #endif
 
 #define DMAX std::numeric_limits<double>::max()
+
+
+
+/**
+ * Encapsulates a synchronized source of both paired-end reads and
+ * unpaired reads, where the paired-end must come from parallel files.
+ */
+class SampleSheet {
+
+protected:
+    EList<string>* queries;
+    EList<string>* mate1s;
+    EList<string>* mate2s;
+    EList<string>* reports;
+    EList<string>* outFiles;
+
+
+public:
+
+
+    SampleSheet(const string& ss_file) {
+        assert(ss_file != NULL);
+
+        queries = new EList<string>();
+        mate1s = new EList<string>();
+        mate2s = new EList<string>();
+        reports = new EList<string>();
+        outFiles = new EList<string>();
+
+        ifstream infile(ss_file.c_str());
+        string line;
+        while (std::getline(infile, line)) {
+            string orig_line = line;
+
+            EList<string> parts;
+            tokenize(line, ',', parts);
+
+            if (parts.empty()) {
+                continue;
+            }
+
+            if (parts[0] == "r1") {
+                continue;
+            }
+
+            if (parts.size() != 5) {
+                cerr << "Error: Unexpected number of columns in samplesheet file.  Expected 5, found " << parts.size() << "." << endl;
+                cerr << "Problem line: " << orig_line << endl;
+                throw 1;
+            }
+
+            string mate1 = parts[0];  // mated reads (first mate)
+            string mate2 = parts[1];  // mated reads (second mate)
+            string query = parts[2];
+            string outfile = parts[3];
+            string report = parts[4];
+
+            if (mate1.empty() && mate2.empty() && query.empty()) {
+                cerr << "Error: no input specified for sample." << endl;
+                cerr << "Problem line: " << orig_line << endl;
+                throw 1;
+            }
+
+            if (query.empty()) {
+                if (mate1.empty() || mate2.empty()) {
+                    cerr << "Error: both pairs need to be specified for a paired-end sample." << endl;
+                    cerr << "Problem line: " << orig_line << endl;
+                    throw 1;
+                }
+            }
+
+            if (outfile.empty()) {
+                cerr << "Error: output file for sample was not specified but is required." << endl;
+                cerr << "Problem line: " << orig_line << endl;
+                throw 1;
+            }
+
+            if(!mate1.empty() && mate1 == mate2) {
+                cerr << "Warning: Same mate file \"" << mate1.c_str() << "\" appears as argument to both -1 and -2" << endl;
+                cerr << "Problem line: " << orig_line << endl;
+            }
+
+            queries->push_back(query);
+            mate1s->push_back(mate1);
+            mate2s->push_back(mate2);
+            outFiles->push_back(outfile);
+            reports->push_back(report);
+        }
+
+
+    }
+
+    ~SampleSheet() {
+        if(queries) delete queries;
+        if(mate1s) delete mate1s;
+        if(mate2s) delete mate2s;
+        if(outFiles) delete outFiles;
+        if(reports) delete reports;
+    }
+
+    size_t getNumSamples() const {
+        return queries->size();
+    }
+
+    string getQuery(int index) const {
+        return queries->get(index);
+    }
+    string getM1(int index) const {
+        return mate1s->get(index);
+    }
+    string getM2(int index) const {
+        return mate2s->get(index);
+    }
+    string getOutFile(int index) const {
+        return outFiles->get(index);
+    }
+    string getReport(int index) const {
+        return reports->get(index);
+    }
+
+
+};
 
 
 static void parse_col_fmt(const string arg, EList<string>& tab_fmt_cols_str, EList<uint32_t>& tab_fmt_cols) {
@@ -286,10 +400,8 @@ static void resetOptions() {
 	cerr << "Setting standard options" << endl;
 #endif
 
-	mates1.clear();
-	mates2.clear();
-	mates12.clear();
-	adjIdxBase	            = "";
+    samplesheet	            = "";
+    adjIdxBase	            = "";
 	gColor                  = false;
 	gVerbose                = 0;
 	startVerbose			= 0;
@@ -399,9 +511,6 @@ static void resetOptions() {
 	rgs_optflag				= "";    // SAM optional flag to add corresponding to @RG ID
 	msample				    = true;
 	gGapBarrier				= 4;     // disallow gaps within this many chars of either end of alignment
-	qualities.clear();
-	qualities1.clear();
-	qualities2.clear();
 	polstr.clear();
 	msNoCache       = true; // true -> disable local cache
 	bonusMatchType  = DEFAULT_MATCH_BONUS_TYPE;
@@ -453,10 +562,9 @@ static void resetOptions() {
 	extra_opts.clear();
 	extra_opts_cur = 0;
 	bt2index.clear();        // read Bowtie 2 index from files with this prefix
+    samplesheet.clear();
 	ignoreQuals = false;     // all mms incur same penalty, regardless of qual
 	wrapper.clear();         // type of wrapper script, so we can print correct usage
-	queries.clear();         // list of query files
-	outfile.clear();         // write SAM output to this file
 	mapqv = 2;               // MAPQ calculation version
 	tighten = 3;             // -M tightening mode
 	doExactUpFront = true;   // do exact search up front if seeds seem good enough
@@ -470,7 +578,6 @@ static void resetOptions() {
 	bowtie2p5 = false;
     minHitLen = 22;
     minTotalLen = 0;
-    reportFile = "centrifuge_report.tsv";
     abundance_analysis = true;
     tree_traverse = true;
     host_taxIDs.clear();
@@ -557,9 +664,6 @@ static struct option long_options[] = {
 	{(char*)"khits",        required_argument, 0,            'k'},
 	{(char*)"minins",       required_argument, 0,            'I'},
 	{(char*)"maxins",       required_argument, 0,            'X'},
-	{(char*)"quals",        required_argument, 0,            'Q'},
-	{(char*)"Q1",           required_argument, 0,            ARG_QUALS1},
-	{(char*)"Q2",           required_argument, 0,            ARG_QUALS2},
 	{(char*)"refidx",       no_argument,       0,            ARG_REFIDX},
 	{(char*)"partition",    required_argument, 0,            ARG_PARTITION},
 	{(char*)"ff",           no_argument,       0,            ARG_FF},
@@ -627,8 +731,6 @@ static struct option long_options[] = {
 	{(char*)"index",            required_argument, 0,        'x'},
 	{(char*)"arg-desc",         no_argument,       0,        ARG_DESC},
 	{(char*)"wrapper",          required_argument, 0,        ARG_WRAPPER},
-	{(char*)"unpaired",         required_argument, 0,        'U'},
-	{(char*)"output",           required_argument, 0,        'S'},
 	{(char*)"mapq-v",           required_argument, 0,        ARG_MAPQ_V},
 	{(char*)"dovetail",         no_argument,       0,        ARG_DOVETAIL},
 	{(char*)"no-dovetail",      no_argument,       0,        ARG_NO_DOVETAIL},
@@ -676,8 +778,7 @@ static struct option long_options[] = {
     {(char*)"min-hitlen",       required_argument, 0,        ARG_MIN_HITLEN},
     {(char*)"min-totallen",     required_argument, 0,        ARG_MIN_TOTALLEN},
     {(char*)"host-taxids",      required_argument, 0,        ARG_HOST_TAXIDS},
-	{(char*)"report-file",      required_argument, 0,        ARG_REPORT_FILE},
-    {(char*)"no-abundance",     no_argument,       0,        ARG_NO_ABUNDANCE},
+	{(char*)"no-abundance",     no_argument,       0,        ARG_NO_ABUNDANCE},
     {(char*)"no-traverse",      no_argument,       0,        ARG_NO_TRAVERSE},
     {(char*)"classification-rank", required_argument,    0,  ARG_CLASSIFICATION_RANK},
     {(char*)"exclude-taxids",   required_argument, 0,  ARG_EXCLUDE_TAXIDS},
@@ -730,41 +831,14 @@ static void printArgDesc(ostream& out) {
  * Print a summary usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by the Centrifuge developer team (centrifuge.metagenomics@gmail.com)" << endl;
-	string tool_name = "centrifuge-class";
-	if(wrapper == "basic-0") {
-		tool_name = "centrifuge";
-	}
-    out << "Usage: " << endl
-#ifdef USE_SRA
-    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number>} [-S <filename>] [--report-file <report>]" << endl
-#else
-    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <filename>] [--report-file <report>]" << endl
-#endif
+	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by the Centrifuge developer team (centrifuge.metagenomics@gmail.com) modified by Daniel Mapleson (daniel.mapleson@earlham.ac.uk)" << endl;
+	string tool_name = "centrifuge-multi";
+	out << "Usage: " << endl
+        << "  " << tool_name.c_str() << " [options]* -x <cf-idx> -S <samplesheet>" << endl
 	    << endl
 		<<     "  <cf-idx>   Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
-	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
-	if(wrapper == "basic-0") {
-		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
-	}
-	out <<     "  <m2>       Files with #2 mates, paired with files in <m1>." << endl;
-	if(wrapper == "basic-0") {
-		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
-	}
-	out <<     "  <r>        Files with unpaired reads." << endl;
-	if(wrapper == "basic-0") {
-		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
-	}
-#ifdef USE_SRA
-    out <<     "  <SRA accession number>        Comma-separated list of SRA accession numbers, e.g. --sra-acc SRR353653,SRR353654." << endl;
-#endif
-	out <<     "  <filename>      File for classification output (default: stdout)" << endl
-	    <<     "  <report>   File for tabular report output (default: " << reportFile << ")" << endl
+	    <<     "  <samplesheet>       Samplesheet describing multiple inputs and outputs" << endl
 	    << endl
-	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
-		<< "  specified many times.  E.g. '-U file1.fq,file2.fq -U file3.fq'." << endl
-		// Wrapper script should write <bam> line next
-		<< endl
 	    << "Options (defaults in parentheses):" << endl
 		<< endl
 	    << " Input:" << endl
@@ -783,9 +857,6 @@ static void printUsage(ostream& out) {
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
 	    << "  --nofw             do not align forward (original) version of read (off)" << endl
 	    << "  --norc             do not align reverse-complement version of read (off)" << endl
-#ifdef USE_SRA
-        << "  --sra-acc          SRA accession ID" << endl
-#endif
 		<< endl
 		<< "Classification:" << endl
 		<< "  --min-hitlen <int>    minimum length of partial hits (default " << minHitLen << ", must be greater than 15)" << endl
@@ -794,21 +865,10 @@ static void printUsage(ostream& out) {
         << "  --exclude-taxids <taxids> comma-separated list of taxonomic IDs that will be excluded in classification" << endl
 		<< endl
 	    << " Output:" << endl;
-	//if(wrapper == "basic-0") {
-	//	out << "  --bam              output directly to BAM (by piping through 'samtools view')" << endl;
-	//}
 	out << "  --out-fmt <str>       define output format, either 'tab' or 'sam' (tab)" << endl
 		<< "  --tab-fmt-cols <str>  columns in tabular format, comma separated " << endl 
         << "                          default: " << tab_fmt_col_def << endl;
 	out << "  -t/--time             print wall-clock time taken by search phases" << endl;
-	if(wrapper == "basic-0") {
-	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
-	    << "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
-	    << "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
-	    << "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
-	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
-		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
-	}
 	out << "  --quiet               print nothing to stderr except serious errors" << endl
 	//  << "  --refidx              refer to ref. seqs by 0-based index rather than name" << endl
 		<< "  --met-file <path>     send metrics to file at <path> (off)" << endl
@@ -818,9 +878,6 @@ static void printUsage(ostream& out) {
 	    << " Performance:" << endl
 	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
-#ifdef BOWTIE_MM
-	    << "  --mm               use memory-mapped I/O for index; many instances can share" << endl
-#endif
 		<< endl
 	    << " Other:" << endl
 		<< "  --qc-filter        filter out reads that are bad according to QSEQ filter" << endl
@@ -830,12 +887,6 @@ static void printUsage(ostream& out) {
 	    << "  --version          print version information and quit" << endl
 	    << "  -h/--help          print this usage message" << endl
 	    ;
-	if(wrapper.empty()) {
-		cerr << endl
-		     << "*** Warning ***" << endl
-			 << "'centrifuge-class' was run directly.  It is recommended that you run the wrapper script 'centrifuge' instead." << endl
-			 << endl;
-	}
 }
 
 /**
@@ -947,11 +998,6 @@ static void parseOption(int next_option, const char *arg) {
 			}
 			break;
 		}
-		case '1': tokenize(arg, ",", mates1); break;
-		case '2': tokenize(arg, ",", mates2); break;
-		case ARG_ONETWO: tokenize(arg, ",", mates12); format = TAB_MATE5; break;
-		case ARG_TAB5:   tokenize(arg, ",", mates12); format = TAB_MATE5; break;
-		case ARG_TAB6:   tokenize(arg, ",", mates12); format = TAB_MATE6; break;
 		case 'f': format = FASTA; break;
 		case 'F': {
 			format = FASTA_CONT;
@@ -1040,18 +1086,6 @@ static void parseOption(int next_option, const char *arg) {
 		case 'u':
 			qUpto = (uint32_t)parseInt(1, "-u/--qupto arg must be at least 1", arg);
 			break;
-		case 'Q':
-			tokenize(arg, ",", qualities);
-			integerQuals = true;
-			break;
-		case ARG_QUALS1:
-			tokenize(arg, ",", qualities1);
-			integerQuals = true;
-			break;
-		case ARG_QUALS2:
-			tokenize(arg, ",", qualities2);
-			integerQuals = true;
-			break;
 		case ARG_CACHE_LIM:
 			cacheLimit = (uint32_t)parseInt(1, "--cachelim arg must be at least 1", arg);
 			break;
@@ -1061,6 +1095,7 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		case ARG_WRAPPER: wrapper = arg; break;
         case 'x': bt2index = arg; break;
+        case 'S': samplesheet = arg; break;
 		case 'p':
 			nthreads = parseInt(1, "-p/--threads arg must be at least 1", arg);
 			break;
@@ -1365,15 +1400,6 @@ static void parseOption(int next_option, const char *arg) {
 			break;
 		}
 		case ARG_DESC: printArgDesc(cout); throw 0;
-		case 'S': outfile = arg; break;
-		case 'U': {
-			EList<string> args;
-			tokenize(arg, ",", args);
-			for(size_t i = 0; i < args.size(); i++) {
-				queries.push_back(args[i]);
-			}
-			break;
-		}
 		case ARG_VERSION: showVersion = 1; break;
         case ARG_MIN_HITLEN: {
             minHitLen = parseInt(15, "--min-hitlen arg must be at least 15", arg);
@@ -1393,10 +1419,6 @@ static void parseOption(int next_option, const char *arg) {
                 host_taxIDs.push_back(tid);
             }
             break;
-        }
-        case ARG_REPORT_FILE: {
-        	reportFile = arg;
-        	break;
         }
         case ARG_NO_ABUNDANCE: {
             abundance_analysis = false;
@@ -1549,54 +1571,12 @@ static void parseOptions(int argc, const char **argv) {
 		assert_gt(mhits, 0);
 		msample = true;
 	}
-	if(mates1.size() != mates2.size()) {
-		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << mates2.size() << endl
-		     << "mate files/sequences were specified with -2.  The same number of mate files/" << endl
-		     << "sequences must be specified with -1 and -2." << endl;
-		throw 1;
-	}
-	if(qualities.size() && format != FASTA) {
-		cerr << "Error: one or more quality files were specified with -Q but -f was not" << endl
-		     << "enabled.  -Q works only in combination with -f and -C." << endl;
-		throw 1;
-	}
-	if(qualities1.size() && format != FASTA) {
-		cerr << "Error: one or more quality files were specified with --Q1 but -f was not" << endl
-		     << "enabled.  --Q1 works only in combination with -f and -C." << endl;
-		throw 1;
-	}
-	if(qualities2.size() && format != FASTA) {
-		cerr << "Error: one or more quality files were specified with --Q2 but -f was not" << endl
-		     << "enabled.  --Q2 works only in combination with -f and -C." << endl;
-		throw 1;
-	}
-	if(qualities1.size() > 0 && mates1.size() != qualities1.size()) {
-		cerr << "Error: " << mates1.size() << " mate files/sequences were specified with -1, but " << qualities1.size() << endl
-		     << "quality files were specified with --Q1.  The same number of mate and quality" << endl
-		     << "files must sequences must be specified with -1 and --Q1." << endl;
-		throw 1;
-	}
-	if(qualities2.size() > 0 && mates2.size() != qualities2.size()) {
-		cerr << "Error: " << mates2.size() << " mate files/sequences were specified with -2, but " << qualities2.size() << endl
-		     << "quality files were specified with --Q2.  The same number of mate and quality" << endl
-		     << "files must sequences must be specified with -2 and --Q2." << endl;
-		throw 1;
-	}
 	if(!rgs.empty() && rgid.empty()) {
 		cerr << "Warning: --rg was specified without --rg-id also "
 		     << "being specified.  @RG line is not printed unless --rg-id "
 			 << "is specified." << endl;
 	}
-	// Check for duplicate mate input files
-	if(format != CMDLINE) {
-		for(size_t i = 0; i < mates1.size(); i++) {
-			for(size_t j = 0; j < mates2.size(); j++) {
-				if(mates1[i] == mates2[j] && !gQuiet) {
-					cerr << "Warning: Same mate file \"" << mates1[i].c_str() << "\" appears as argument to both -1 and -2" << endl;
-				}
-			}
-		}
-	}
+
 	// If both -s and -u are used, we need to adjust qUpto accordingly
 	// since it uses rdid to know if we've reached the -u limit (and
 	// rdids are all shifted up by skipReads characters)
@@ -2747,37 +2727,8 @@ static void multiseedSearch(
     multiseed_refnames = refnames;
 	AutoArray<tthread::thread*> threads(nthreads);
 	AutoArray<int> tids(nthreads);
-	{
-		// Load the other half of the index into memory
-		assert(!ebwtFw.isInMemory());
-		Timer _t(cerr, "Time loading forward index: ", timing);
-		ebwtFw.loadIntoMemory(
-			0,  // colorspace?
-			-1, // not the reverse index
-			true,         // load SA samp? (yes, need forward index's SA samp)
-			true,         // load ftab (in forward index)
-			true,         // load rstarts (in forward index)
-			!noRefNames,  // load names?
-			startVerbose);
-	}
-#if 0
-	if(multiseedMms > 0 || do1mmUpFront) {
-		// Load the other half of the index into memory
-		assert(!ebwtBw.isInMemory());
-		Timer _t(cerr, "Time loading mirror index: ", timing);
-		ebwtBw.loadIntoMemory(
-			0, // colorspace?
-			// It's bidirectional search, so we need the reverse to be
-			// constructed as the reverse of the concatenated strings.
-			1,
-			true,        // load SA samp in reverse index
-			true,         // yes, need ftab in reverse index
-			true,        // load rstarts in reverse index
-			!noRefNames,  // load names?
-			startVerbose);
-	}
-#endif
-	// Start the metrics thread
+
+    // Start the metrics thread
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
         
@@ -2806,7 +2757,7 @@ template<typename TStr>
 static void driver(
 	const char * type,
 	const string& bt2indexBase,
-	const string& outfile)
+	const SampleSheet& samplesheet)
 {
 	if(gVerbose || startVerbose)  {
 		cerr << "Entered driver(): "; logTime(cerr, true);
@@ -2837,33 +2788,6 @@ static void driver(
 		fastaContFreq, // frequency of sampled reads for FastaContinuous...
 		skipReads      // skip the first 'skip' patterns
 	);
-	if(gVerbose || startVerbose) {
-		cerr << "Creating PatternSource: "; logTime(cerr, true);
-	}
-	PairedPatternSource *patsrc = PairedPatternSource::setupPatternSources(
-		queries,     // singles, from argv
-		mates1,      // mate1's, from -1 arg
-		mates2,      // mate2's, from -2 arg
-		mates12,     // both mates on each line, from --12 arg
-#ifdef USE_SRA
-                                                                           sra_accs,    // SRA accessions
-#endif
-		qualities,   // qualities associated with singles
-		qualities1,  // qualities associated with m1
-		qualities2,  // qualities associated with m2
-		pp,          // read read-in parameters
-                                                                           nthreads,
-		gVerbose || startVerbose); // be talkative
-	// Open hit output file
-	if(gVerbose || startVerbose) {
-		cerr << "Opening hit output file: "; logTime(cerr, true);
-	}
-	OutFileBuf *fout;
-	if(!outfile.empty()) {
-		fout = new OutFileBuf(outfile.c_str(), false);
-	} else {
-		fout = new OutFileBuf();
-	}
 	// Initialize Ebwt object and read in header
 	if(gVerbose || startVerbose) {
 		cerr << "About to initialize fw Ebwt: "; logTime(cerr, true);
@@ -2876,8 +2800,8 @@ static void driver(
 	    true,     // index is for the forward direction
 	    /* overriding: */ offRate,
 		0, // amount to add to index offrate or <= 0 to do nothing
-	    useMm,    // whether to use memory-mapped files
-	    useShmem, // whether to use shared memory
+	    false,    // whether to use memory-mapped files
+	    false, // whether to use shared memory
 	    mmSweep,  // sweep memory-mapped files
 	    !noRefNames, // load names?
 		true,        // load SA sample?
@@ -2888,32 +2812,7 @@ static void driver(
 	    false /*passMemExc*/,
 	    sanityCheck);
 	Ebwt<index_t>* ebwtBw = NULL;
-#if 0
-	// We need the mirror index if mismatches are allowed
-	if(multiseedMms > 0 || do1mmUpFront) {
-		if(gVerbose || startVerbose) {
-			cerr << "About to initialize rev Ebwt: "; logTime(cerr, true);
-		}
-		ebwtBw = new HierEbwt<index_t, local_index_t>(
-			adjIdxBase + ".rev",
-			0,       // index is colorspace
-			1,       // TODO: maybe not
-		    false, // index is for the reverse direction
-		    /* overriding: */ offRate,
-			0, // amount to add to index offrate or <= 0 to do nothing
-		    useMm,    // whether to use memory-mapped files
-		    useShmem, // whether to use shared memory
-		    mmSweep,  // sweep memory-mapped files
-		    !noRefNames, // load names?
-			true,        // load SA sample?
-			true,        // load ftab?
-			true,        // load rstarts?
-		    gVerbose,    // whether to be talkative
-		    startVerbose, // talkative during initialization
-		    false /*passMemExc*/,
-		    sanityCheck);
-	}
-#endif
+
 	if(sanityCheck && !os.empty()) {
 		// Sanity check number of patterns and pattern lengths in Ebwt
 		// against original strings
@@ -2936,77 +2835,138 @@ static void driver(
 		ebwt.evictFromMemory();
 	}
 
-	//TODO Put in for loop per sample
+    // Load the other half of the index into memory
+    assert(!ebwt.isInMemory());
+    Timer _t(cerr, "Time loading forward index: ", timing);
+    ebwt.loadIntoMemory(
+            0,  // colorspace?
+            -1, // not the reverse index
+            true,         // load SA samp? (yes, need forward index's SA samp)
+            true,         // load ftab (in forward index)
+            true,         // load rstarts (in forward index)
+            !noRefNames,  // load names?
+            startVerbose);
 
-	OutputQueue oq(
-		*fout,                   // out file buffer
-		reorder && nthreads > 1, // whether to reorder when there's >1 thread
-		nthreads,                // # threads
-		nthreads > 1,            // whether to be thread-safe
-		skipReads);              // first read will have this rdid
-	{
-		Timer _t(cerr, "Time searching: ", timing);
-		// Set up penalities
-		if(bonusMatch > 0 && !localAlign) {
-			cerr << "Warning: Match bonus always = 0 in --end-to-end mode; ignoring user setting" << endl;
-			bonusMatch = 0;
-		}
-		Scoring sc(
-                   bonusMatch,     // constant reward for match
-                   penMmcType,     // how to penalize mismatches
-                   penMmcMax,      // max mm pelanty
-                   penMmcMin,      // min mm pelanty
-                   scoreMin,       // min score as function of read len
-                   nCeil,          // max # Ns as function of read len
-                   penNType,       // how to penalize Ns in the read
-                   penN,           // constant if N pelanty is a constant
-                   penNCatPair,    // whether to concat mates before N filtering
-                   penRdGapConst,  // constant coeff for read gap cost
-                   penRfGapConst,  // constant coeff for ref gap cost
-                   penRdGapLinear, // linear coeff for read gap cost
-                   penRfGapLinear, // linear coeff for ref gap cost
-                   gGapBarrier);    // # rows at top/bot only entered diagonally
+    EList<string> refnames;
+    readEbwtRefnames<index_t>(adjIdxBase, refnames);
 
-		//TODO this can do outside loop?
-		EList<string> refnames;
-		readEbwtRefnames<index_t>(adjIdxBase, refnames);
 
-		EList<size_t> reflens;
-		// Set up hit sink; if sanityCheck && !os.empty() is true,
-		// then instruct the sink to "retain" hits in a vector in
-		// memory so that we can easily sanity check them later on
-		AlnSink<index_t> *mssink = NULL;
-        Timer *_tRef = new Timer(cerr, "Time loading reference: ", timing);
-        auto_ptr<BitPairReference> refs;
-        delete _tRef;
-        switch(outType) {
-			case OUTPUT_SAM: {
-				mssink = new AlnSinkSam<index_t>(
-                                                 &ebwt,
-                                                 oq,           // output queue
-                                                 refnames,     // reference names
-                                                 tab_fmt_cols, // columns in tab format
-                                                 gQuiet);      // don't print alignment summary at end
-                if(!samNoHead) {
-					BTString buf;
-                    // TODO: Write '@SQ\tSN:AA\tLN:length fields
-					fout->writeString(buf);
-				}
-				// Write header for read-results file
-                if (!sam_format) {
-                fout->writeChars(tab_fmt_cols_str[0].c_str());
-                for (size_t i = 1; i < tab_fmt_cols_str.size(); ++i) {
-                    fout->writeChars("\t");
-                    fout->writeChars(tab_fmt_cols_str[i].c_str());
+    for (size_t sample_index = 0; sample_index < samplesheet.getNumSamples(); sample_index++) {
+
+        if(gVerbose || startVerbose) {
+            cerr << "Creating PatternSource for sample: " << sample_index << " ";
+            logTime(cerr, true);
+        }
+        EList<string> queries;
+        EList<string> mates1;  // mated reads (first mate)
+        EList<string> mates2;  // mated reads (second mate)
+        EList<string> mates12; //
+        EList<string> qualities;
+        EList<string> qualities1;
+        EList<string> qualities2;
+
+        string query = samplesheet.getQuery(sample_index);
+        if (!query.empty()) {
+            queries.push_back(query);
+            cerr << "Single end file in: " << query << endl;
+        }
+        string m1 = samplesheet.getM1(sample_index);
+        if (!m1.empty()) {
+            mates1.push_back(m1);
+            cerr << "M1 file in: " << m1 << endl;
+        }
+        string m2 = samplesheet.getM2(sample_index);
+        if (!m2.empty()) {
+            mates2.push_back(m2);
+            cerr << "M2 file in: " << m2 << endl;
+        }
+
+
+        PairedPatternSource *patsrc = PairedPatternSource::setupPatternSources(
+                queries,     // singles, from argv
+                mates1,      // mate1's, from -1 arg
+                mates2,      // mate2's, from -2 arg
+                mates12,     // both mates on each line, from --12 arg
+                qualities,   // qualities associated with singles
+                qualities1,  // qualities associated with m1
+                qualities2,  // qualities associated with m2
+                pp,          // read read-in parameters
+                nthreads,
+                gVerbose || startVerbose); // be talkative
+
+
+        // Open hit output file
+        if(gVerbose || startVerbose) {
+            cerr << "Opening hit output file: " << sample_index << ": " << samplesheet.getOutFile(sample_index); logTime(cerr, true);
+        }
+        OutFileBuf *fout = new OutFileBuf(samplesheet.getOutFile(sample_index).c_str(), false);
+
+        OutputQueue oq(
+                *fout,                   // out file buffer
+                reorder && nthreads > 1, // whether to reorder when there's >1 thread
+                nthreads,                // # threads
+                nthreads > 1,            // whether to be thread-safe
+                skipReads);              // first read will have this rdid
+        {
+            Timer _t(cerr, "Time searching: ", timing);
+            // Set up penalities
+            if (bonusMatch > 0 && !localAlign) {
+                cerr << "Warning: Match bonus always = 0 in --end-to-end mode; ignoring user setting" << endl;
+                bonusMatch = 0;
+            }
+            Scoring sc(
+                    bonusMatch,     // constant reward for match
+                    penMmcType,     // how to penalize mismatches
+                    penMmcMax,      // max mm pelanty
+                    penMmcMin,      // min mm pelanty
+                    scoreMin,       // min score as function of read len
+                    nCeil,          // max # Ns as function of read len
+                    penNType,       // how to penalize Ns in the read
+                    penN,           // constant if N pelanty is a constant
+                    penNCatPair,    // whether to concat mates before N filtering
+                    penRdGapConst,  // constant coeff for read gap cost
+                    penRfGapConst,  // constant coeff for ref gap cost
+                    penRdGapLinear, // linear coeff for read gap cost
+                    penRfGapLinear, // linear coeff for ref gap cost
+                    gGapBarrier);    // # rows at top/bot only entered diagonally
+
+
+            EList<size_t> reflens;
+            // Set up hit sink; if sanityCheck && !os.empty() is true,
+            // then instruct the sink to "retain" hits in a vector in
+            // memory so that we can easily sanity check them later on
+            AlnSink<index_t> *mssink = NULL;
+            Timer *_tRef = new Timer(cerr, "Time loading reference: ", timing);
+            auto_ptr<BitPairReference> refs;
+            delete _tRef;
+            switch (outType) {
+                case OUTPUT_SAM: {
+                    mssink = new AlnSinkSam<index_t>(
+                            &ebwt,
+                            oq,           // output queue
+                            refnames,     // reference names
+                            tab_fmt_cols, // columns in tab format
+                            gQuiet);      // don't print alignment summary at end
+                    if (!samNoHead) {
+                        BTString buf;
+                        // TODO: Write '@SQ\tSN:AA\tLN:length fields
+                        fout->writeString(buf);
+                    }
+                    // Write header for read-results file
+                    if (!sam_format) {
+                        fout->writeChars(tab_fmt_cols_str[0].c_str());
+                        for (size_t i = 1; i < tab_fmt_cols_str.size(); ++i) {
+                            fout->writeChars("\t");
+                            fout->writeChars(tab_fmt_cols_str[i].c_str());
+                        }
+                        fout->writeChars("\n");
+                    }
+                    break;
                 }
-                fout->writeChars("\n");
-                }
-				break;
-			}
-			default:
-				cerr << "Invalid output type: " << outType << endl;
-				throw 1;
-		}
+                default:
+                    cerr << "Invalid output type: " << outType << endl;
+                    throw 1;
+            }
 
 
 		if(gVerbose || startVerbose) {
@@ -3019,135 +2979,139 @@ static void driver(
 		}
 
 
-		// Do the search for all input reads
-		assert(patsrc != NULL);
-		assert(mssink != NULL);
-		multiseedSearch(
-			sc,      // scoring scheme
-			*patsrc, // pattern source
-			*mssink, // hit sink
-			ebwt,    // BWT
-			*ebwtBw, // BWT'
-            refs.get(),
-            refnames,
-			metricsOfb);
-		// Evict any loaded indexes from memory
-		if(ebwt.isInMemory()) {
-			ebwt.evictFromMemory();
-		}
-		if(ebwtBw != NULL) {
-			delete ebwtBw;
-		}
-		if(!gQuiet && !seedSumm) {
-			size_t repThresh = mhits;
-			if(repThresh == 0) {
-				repThresh = std::numeric_limits<size_t>::max();
-			}
-			mssink->finish(
-				repThresh,
-				gReportDiscordant,
-				gReportMixed,
-				hadoopOut);
-		}
-		
-		if (!reportFile.empty()) {
-            // write the species report into the corresponding file
-            cerr << "report file " << reportFile << endl;
-			ofstream reportOfb;
-			reportOfb.open(reportFile.c_str());
-			SpeciesMetrics& spm = metrics.spmu;
-            if(abundance_analysis) {
-                uint8_t rank = get_tax_rank_id(classification_rank.c_str());
-                Timer timer(cerr, "Calculating abundance: ");
-                spm.calculateAbundance(ebwt, rank);
+            // Do the search for all input reads
+            assert(patsrc != NULL);
+            assert(mssink != NULL);
+            multiseedSearch(
+                    sc,      // scoring scheme
+                    *patsrc, // pattern source
+                    *mssink, // hit sink
+                    ebwt,    // BWT
+                    *ebwtBw, // BWT'
+                    refs.get(),
+                    refnames,
+                    metricsOfb);
+            if (!gQuiet && !seedSumm) {
+                size_t repThresh = mhits;
+                if (repThresh == 0) {
+                    repThresh = std::numeric_limits<size_t>::max();
+                }
+                mssink->finish(
+                        repThresh,
+                        gReportDiscordant,
+                        gReportMixed,
+                        hadoopOut);
             }
-            const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
-            const std::map<uint64_t, string>& name_map = ebwt.name();
-            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
-            const map<uint64_t, double>& abundance = spm.abundance;
-            const map<uint64_t, double>& abundance_len = spm.abundance_len;
-			reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
-					  << "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
-            if(false) {
-                reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
-            }
-            reportOfb << "abundance";
-            if(false) {
-                reportOfb << '\t' << "abundance_normalized_by_genome_size";
-            }
-            reportOfb << endl;
-			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 
-                uint64_t taxid = it->first;
-                if(taxid == 0) continue;
-
-                std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
-                if(name_itr != name_map.end()) {
-                    reportOfb << name_itr->second;
-                } else {
-                    reportOfb << taxid;
+            string reportFile = samplesheet.getReport(sample_index);
+            if (!reportFile.empty()) {
+                // write the species report into the corresponding file
+                cerr << "report file " << reportFile << endl;
+                ofstream reportOfb;
+                reportOfb.open(reportFile.c_str());
+                SpeciesMetrics &spm = metrics.spmu;
+                if (abundance_analysis) {
+                    uint8_t rank = get_tax_rank_id(classification_rank.c_str());
+                    Timer timer(cerr, "Calculating abundance: ");
+                    spm.calculateAbundance(ebwt, rank);
                 }
-                reportOfb << '\t' << taxid << '\t';
-
-                uint8_t rank = 0;
-                bool leaf = false;
-                std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
-                
-                if(tree_itr != tree.end()) {
-                    rank = tree_itr->second.rank;
-                    leaf = tree_itr->second.leaf;
+                const std::map<uint64_t, TaxonomyNode> &tree = ebwt.tree();
+                const std::map<uint64_t, string> &name_map = ebwt.name();
+                const std::map<uint64_t, uint64_t> &size_map = ebwt.size();
+                const map<uint64_t, double> &abundance = spm.abundance;
+                const map<uint64_t, double> &abundance_len = spm.abundance_len;
+                reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
+                          << "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
+                if (false) {
+                    reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t'
+                              << "sumScore" << '\t';
                 }
-                if(rank == RANK_UNKNOWN && leaf) {
-                    reportOfb << "leaf";
-                } else {
-                    string rank_str = get_tax_rank_string(rank);
-                    reportOfb << rank_str;
-                }
-                reportOfb << '\t';
-                
-                std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
-                uint64_t genome_size = 0;
-                if(size_itr != size_map.end()) {
-                    genome_size = size_itr->second;
-                }
-                
-                reportOfb << genome_size << '\t'
-						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
-                if(false) {
-                    reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
-                              << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
-                }
-                map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
-                if(ab_len_itr != abundance_len.end()) {
-                    reportOfb << ab_len_itr->second;
-                } else {
-                    reportOfb << "0.0";
-                }
-                map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
-                if(false) {
-                    if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
-                        reportOfb << '\t' << ab_itr->second;
-                    } else {
-                        reportOfb << "\t0.0";
-                    }
+                reportOfb << "abundance";
+                if (false) {
+                    reportOfb << '\t' << "abundance_normalized_by_genome_size";
                 }
                 reportOfb << endl;
+                for (map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin();
+                     it != spm.species_counts.end(); ++it) {
 
-			}
-			reportOfb.close();
-		}
+                    uint64_t taxid = it->first;
+                    if (taxid == 0) continue;
 
+                    std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
+                    if (name_itr != name_map.end()) {
+                        reportOfb << name_itr->second;
+                    } else {
+                        reportOfb << taxid;
+                    }
+                    reportOfb << '\t' << taxid << '\t';
 
-		oq.flush(true);
-		assert_eq(oq.numStarted(), oq.numFinished());
-		assert_eq(oq.numStarted(), oq.numFlushed());
-		delete patsrc;
-		delete mssink;
-		delete metricsOfb;
-		if(fout != NULL) {
-			delete fout;
-		}
-	}
+                    uint8_t rank = 0;
+                    bool leaf = false;
+                    std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
+
+                    if (tree_itr != tree.end()) {
+                        rank = tree_itr->second.rank;
+                        leaf = tree_itr->second.leaf;
+                    }
+                    if (rank == RANK_UNKNOWN && leaf) {
+                        reportOfb << "leaf";
+                    } else {
+                        string rank_str = get_tax_rank_string(rank);
+                        reportOfb << rank_str;
+                    }
+                    reportOfb << '\t';
+
+                    std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
+                    uint64_t genome_size = 0;
+                    if (size_itr != size_map.end()) {
+                        genome_size = size_itr->second;
+                    }
+
+                    reportOfb << genome_size << '\t'
+                              << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
+                    if (false) {
+                        reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
+                                  << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
+                    }
+                    map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
+                    if (ab_len_itr != abundance_len.end()) {
+                        reportOfb << ab_len_itr->second;
+                    } else {
+                        reportOfb << "0.0";
+                    }
+                    map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
+                    if (false) {
+                        if (ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
+                            reportOfb << '\t' << ab_itr->second;
+                        } else {
+                            reportOfb << "\t0.0";
+                        }
+                    }
+                    reportOfb << endl;
+
+                }
+                reportOfb.close();
+            }
+
+            oq.flush(true);
+            assert_eq(oq.numStarted(), oq.numFinished());
+            assert_eq(oq.numStarted(), oq.numFlushed());
+            delete patsrc;
+            delete mssink;
+            delete metricsOfb;
+            if (fout != NULL) {
+                delete fout;
+            }
+        }
+    }
+
+    // Evict any loaded indexes from memory
+    if (ebwt.isInMemory()) {
+        ebwt.evictFromMemory();
+    }
+    if (ebwtBw != NULL) {
+        delete ebwtBw;
+    }
 }
 
 // C++ name mangling is disabled for the bowtie() function to make it
@@ -3209,40 +3173,15 @@ int centrifuge(int argc, const char **argv) {
 				bt2index = argv[optind++];
 			}
 
-			// Get query filename
-			bool got_reads = !queries.empty() || !mates1.empty() || !mates12.empty();
-#ifdef USE_SRA
-            got_reads = got_reads || !sra_accs.empty();
-#endif
-			if(optind >= argc) {
-				if(!got_reads) {
-					printUsage(cerr);
-					cerr << "***" << endl
-#ifdef USE_SRA
-                    << "Error: Must specify at least one read input with -U/-1/-2/--sra-acc" << endl;
-#else
-                    << "Error: Must specify at least one read input with -U/-1/-2" << endl;
-#endif
-					return 1;
-				}
-			} else if(!got_reads) {
-				// Tokenize the list of query files
-				tokenize(argv[optind++], ",", queries);
-				if(queries.empty()) {
-					cerr << "Tokenized query file list was empty!" << endl;
-					printUsage(cerr);
-					return 1;
-				}
-			}
-
-			// Get output filename
-			if(optind < argc && outfile.empty()) {
-				outfile = argv[optind++];
-				cerr << "Warning: Output file '" << outfile.c_str()
-				     << "' was specified without -S.  This will not work in "
-					 << "future Centrifuge versions.  Please use -S instead."
-					 << endl;
-			}
+            // Get index basename (but only if it wasn't specified via --index)
+            if(samplesheet.empty()) {
+                if(optind >= argc) {
+                    cerr << "No samplesheet specified!" << endl;
+                    printUsage(cerr);
+                    return 1;
+                }
+                samplesheet = argv[optind++];
+            }
 
 			// Extra parametesr?
 			if(optind < argc) {
@@ -3252,25 +3191,13 @@ int centrifuge(int argc, const char **argv) {
 					if(i < argc-1) cerr << ", ";
 				}
 				cerr << endl;
-				if(mates1.size() > 0) {
-					cerr << "Note that if <mates> files are specified using -1/-2, a <singles> file cannot" << endl
-						 << "also be specified.  Please run bowtie separately for mates and singles." << endl;
-				}
 				throw 1;
 			}
 
 			// Optionally summarize
 			if(gVerbose) {
 				cout << "Input bt2 file: \"" << bt2index.c_str() << "\"" << endl;
-				cout << "Query inputs (DNA, " << file_format_names[format].c_str() << "):" << endl;
-				for(size_t i = 0; i < queries.size(); i++) {
-					cout << "  " << queries[i].c_str() << endl;
-				}
-				cout << "Quality inputs:" << endl;
-				for(size_t i = 0; i < qualities.size(); i++) {
-					cout << "  " << qualities[i].c_str() << endl;
-				}
-				cout << "Output file: \"" << outfile.c_str() << "\"" << endl;
+                cout << "Input samplesheet file: \"" << samplesheet.c_str() << "\"" << endl;
 				cout << "Local endianness: " << (currentlyBigEndian()? "big":"little") << endl;
 				cout << "Sanity checking: " << (sanityCheck? "enabled":"disabled") << endl;
 			#ifdef NDEBUG
@@ -3283,7 +3210,9 @@ int centrifuge(int argc, const char **argv) {
 				cout << "Press key to continue..." << endl;
 				getchar();
 			}
-			driver<SString<char> >("DNA", bt2index, outfile);
+
+            SampleSheet* ss = new SampleSheet(samplesheet);
+            driver<SString<char> >("DNA", bt2index, *ss);
 		}
 		return 0;
 	} catch(std::exception& e) {
