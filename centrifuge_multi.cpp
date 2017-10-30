@@ -2854,8 +2854,7 @@ static void driver(
     for (size_t sample_index = 0; sample_index < samplesheet.getNumSamples(); sample_index++) {
 
         if(gVerbose || startVerbose) {
-            cerr << "Creating PatternSource for sample: " << sample_index << " ";
-            logTime(cerr, true);
+            cerr << "Creating PatternSource for sample: " << sample_index << ": "; logTime(cerr, true);
         }
         EList<string> queries;
         EList<string> mates1;  // mated reads (first mate)
@@ -2897,7 +2896,7 @@ static void driver(
 
         // Open hit output file
         if(gVerbose || startVerbose) {
-            cerr << "Opening hit output file: " << sample_index << ": " << samplesheet.getOutFile(sample_index); logTime(cerr, true);
+            cerr << "Opening hit output file: " << sample_index << ": " << samplesheet.getOutFile(sample_index) << ": "; logTime(cerr, true);
         }
         OutFileBuf *fout = new OutFileBuf(samplesheet.getOutFile(sample_index).c_str(), false);
 
