@@ -273,7 +273,7 @@ protected:
 public:
 
 
-    SampleSheet(const string& ss_file) {
+    SampleSheet(const string& ss_file, bool verbose) {
         assert(ss_file != NULL);
 
         queries = new EList<string>();
@@ -284,6 +284,9 @@ public:
 
         ifstream infile(ss_file.c_str());
         string line;
+        int nb_12u = 0;
+        int nb_12 = 0;
+        int nb_u = 0;
         while (std::getline(infile, line)) {
             string orig_line = line;
 
@@ -335,6 +338,16 @@ public:
                 cerr << "Problem line: " << orig_line << endl;
             }
 
+            if (!mate1.empty() && !mate2.empty() && !query.empty()) {
+                nb_12u++;
+            }
+            else if (!mate1.empty() && !mate2.empty()) {
+                nb_12++;
+            }
+            else if (!query.empty()) {
+                nb_u++;
+            }
+
             queries->push_back(query);
             mate1s->push_back(mate1);
             mate2s->push_back(mate2);
@@ -342,6 +355,17 @@ public:
             reports->push_back(report);
         }
 
+        if (nb_12u + nb_12 + nb_u == 0) {
+            cerr << "No samples found in samplesheet." << endl;
+            throw 1;
+        }
+
+        if (verbose) {
+            cerr << "Found a total of " << nb_12u + nb_12 + nb_u << " samples in samplesheet." << endl
+                 << " - " << nb_12 << " paired end samples." << endl
+                 << " - " << nb_u << " single end samples." << endl
+                 << " - " << nb_12u << " samples with paired and single end data." << endl;
+        }
 
     }
 
@@ -3210,7 +3234,7 @@ int centrifuge(int argc, const char **argv) {
 				getchar();
 			}
 
-            SampleSheet* ss = new SampleSheet(samplesheet);
+            SampleSheet* ss = new SampleSheet(samplesheet, gVerbose);
             driver<SString<char> >("DNA", bt2index, *ss);
 		}
 		return 0;

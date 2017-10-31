@@ -338,7 +338,7 @@ PairedPatternSource* PairedPatternSource::setupPatternSources(
 	const EList<string>& q1,   // qualities associated with m1
 	const EList<string>& q2,   // qualities associated with m2
 	const PatternParams& p,    // read-in parameters
-                                                              int nthreads,
+    int nthreads,
 	bool verbose)              // be talkative?
 {
 	EList<PatternSource*>* a  = new EList<PatternSource*>();
