@@ -3116,6 +3116,7 @@ static void driver(
                 reportOfb.close();
             }
 
+            // Tidy up this iteration
             oq.flush(true);
             assert_eq(oq.numStarted(), oq.numFinished());
             assert_eq(oq.numStarted(), oq.numFlushed());
@@ -3125,6 +3126,7 @@ static void driver(
             if (fout != NULL) {
                 delete fout;
             }
+            metrics.reset();
         }
     }
 
