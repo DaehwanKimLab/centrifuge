@@ -3238,6 +3238,7 @@ int centrifuge(int argc, const char **argv) {
 
             SampleSheet* ss = new SampleSheet(samplesheet, gVerbose);
             driver<SString<char> >("DNA", bt2index, *ss);
+            delete ss;
 		}
 		return 0;
 	} catch(std::exception& e) {
