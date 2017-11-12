@@ -9,12 +9,17 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use File::Basename;
+use Cwd;
+use Cwd 'cwd' ;
+use Cwd 'abs_path' ;
 
 my ($centrifuge_index, $min_score, $min_length);
 my $only_unique = 0;
 my $show_zeros = 0;
 my $is_cnts_table = 0;
 my $PROG = "centrifuge-kreport";
+my $CWD = dirname( abs_path( $0 ) ) ;
 
 GetOptions(
   "help" => \&display_help,
@@ -150,7 +155,7 @@ sub dfs_summation {
 sub load_taxonomy {
 
   print STDERR "Loading names file ...\n";
-  open NAMES, "-|", "centrifuge-inspect --name-table $centrifuge_index"
+  open NAMES, "-|", "$CWD/centrifuge-inspect --name-table $centrifuge_index"
     or die "$PROG: can't open names file: $!\n";
   while (<NAMES>) {
     chomp;
@@ -162,7 +167,7 @@ sub load_taxonomy {
   close NAMES;
 
   print STDERR "Loading nodes file ...\n";
-  open NODES, "-|", "centrifuge-inspect --taxonomy-tree $centrifuge_index"
+  open NODES, "-|", "$CWD/centrifuge-inspect --taxonomy-tree $centrifuge_index"
     or die "$PROG: can't open nodes file: $!\n";
   while (<NODES>) {
     chomp;
