@@ -76,9 +76,23 @@ if ($is_cnts_table) {
     $seq_count += $count;
   }
 } else {
-  <>;
+  my $header = <>;
+  my @cols = split /\s+/, $header ;
+  my %headerMap ;
+  for ( my $i = 0 ; $i < scalar( @cols ) ; ++$i )
+  {
+  	$headerMap{ $cols[$i] } = $i ;
+  }
   while (<>) {
-    my (undef,$seqID,$taxid,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
+    #my (undef,$seqID,$taxid,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
+    my @cols = split /\s+/ ;
+    my $seqID = $cols[ $headerMap{ "seqID" } ] ; 
+    my $taxid = $cols[ $headerMap{ "taxID" } ] ; 
+    my $score = $cols[ $headerMap{ "score" } ] ; 
+    my $hitLength = $cols[ $headerMap{ "hitLength" } ] ; 
+    my $queryLength = $cols[ $headerMap{ "queryLength" } ] ; 
+    my $numMatches = $cols[ $headerMap{ "numMatches" } ] ; 
+
     next if $only_unique && $numMatches > 1;
     next if defined $min_length && $hitLength < $min_length;
     next if defined $min_score && $score < $min_score;
