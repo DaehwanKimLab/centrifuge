@@ -1,0 +1,5 @@
+/reference-sequences/
+/tmp_p/
+/tmp_p_compressed/
+*.listing
+*.log

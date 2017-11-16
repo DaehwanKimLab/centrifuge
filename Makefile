@@ -82,6 +82,8 @@ else
 	PTHREAD_LIB = -lpthread
 endif
 
+ZLIB = -lz
+
 SEARCH_LIBS = 
 BUILD_LIBS = 
 INSPECT_LIBS =
@@ -102,7 +104,7 @@ ifeq (1,$(USE_SRA))
 	SEARCH_LIBS += -L$(NCBI_NGS_DIR)/lib64 -L$(NCBI_VDB_DIR)/lib64
 endif
 
-LIBS = $(PTHREAD_LIB)
+LIBS = $(PTHREAD_LIB) $(ZLIB)
 
 SHARED_CPPS = ccnt_lut.cpp ref_read.cpp alphabet.cpp shmem.cpp \
 	edit.cpp bt2_idx.cpp \
@@ -181,10 +183,12 @@ endif
 
 CENTRIFUGE_BIN_LIST = centrifuge-build-bin \
 	centrifuge-class \
+	centrifuge-multi \
 	centrifuge-inspect-bin
 
 CENTRIFUGE_BIN_LIST_AUX = centrifuge-build-bin-debug \
 	centrifuge-class-debug \
+	centrifuge-multi-debug \
 	centrifuge-inspect-bin-debug
 
 CENTRIFUGE_SCRIPT_LIST = 	centrifuge \
@@ -242,9 +246,9 @@ all: $(CENTRIFUGE_BIN_LIST)
 
 allall: $(CENTRIFUGE_BIN_LIST) $(CENTRIFUGE_BIN_LIST_AUX)
 
-both: centrifuge-class centrifuge-build-bin
+both: centrifuge-class centrifuge-multi centrifuge-build-bin
 
-both-debug: centrifuge-class-debug centrifuge-build-bin-debug
+both-debug: centrifuge-class-debug centrifuge-multi-debug centrifuge-build-bin-debug
 
 DEFS=-fno-strict-aliasing \
      -DCENTRIFUGE_VERSION="\"$(GIT_VERSION)\"" \
@@ -260,6 +264,22 @@ DEFS=-fno-strict-aliasing \
 #
 # centrifuge targets
 #
+
+centrifuge-multi: centrifuge_multi.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) $(SRA_DEF) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX $(NOASSERT_FLAGS) -Wall \
+	$(INC) $(SEARCH_INC) \
+	-o $@ $< \
+	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
+	$(LIBS) $(SRA_LIB) $(SEARCH_LIBS)
+
+centrifuge-multi-debug: centrifuge_multi.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
+	$(CXX) $(DEBUG_FLAGS) $(DEBUG_DEFS) $(EXTRA_FLAGS) \
+	$(DEFS) $(SRA_DEF) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
+	$(INC) $(SRA_LIB) $(SEARCH_INC) \
+	-o $@ $< \
+	$(SHARED_CPPS) $(CENTRIFUGE_CPPS_MAIN) \
+	$(LIBS) $(SRA_LIB) $(SEARCH_LIBS)
 
 centrifuge-class: centrifuge.cpp $(SEARCH_CPPS) $(SHARED_CPPS) $(HEADERS) $(SEARCH_FRAGMENTS)
 	$(CXX) $(RELEASE_FLAGS) $(RELEASE_DEFS) $(EXTRA_FLAGS) \
