@@ -84,7 +84,7 @@ endif
 
 ZLIB = -lz
 
-SEARCH_LIBS = 
+SEARCH_LIBS = $(LDFLAGS)
 BUILD_LIBS = 
 INSPECT_LIBS =
 
