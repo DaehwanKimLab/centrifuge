@@ -116,7 +116,13 @@ my %read_compress = ();
 my $cap_out = undef;       # Filename for passthrough
 my $no_unal = 0;
 my $large_idx = 0;
+
+# Variables handling the output format
 my $outputFmtSam = 0 ;
+my $tabFmtOptIdx = 0 ;
+my $needReadSeq = 0 ;
+my $removeSeqCols = 0 ;
+
 # Remove whitespace
 for my $i (0..$#bt2_args) {
 	$bt2_args[$i]=~ s/^\s+//; $bt2_args[$i] =~ s/\s+$//;
@@ -180,6 +186,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	}
 	for my $rarg ("un-conc", "al-conc", "un", "al") {
 		if($arg =~ /^--${rarg}$/ || $arg =~ /^--${rarg}-gz$/ || $arg =~ /^--${rarg}-bz2$/) {
+			$needReadSeq = 1 ;
 			$bt2_args[$i] = undef;
 			if(scalar(@args) > 1 && $args[1] ne "") {
 				$read_fns{$rarg} = $args[1];
@@ -203,8 +210,48 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 			$outputFmtSam = 1 ;
 		}
 		#$bt2_args[$i] = undef;
+
+	}
+
+	if ( $arg eq "--tab-fmt-cols" )
+	{
+		$i < scalar(@bt2_args)-1 || Fail("Argument expected in next token!\n");
+		$tabFmtOptIdx = $i + 1 ;
 	}
 }
+
+# Determine whether we need to add two extra columns for seq and qual to out-fmt
+if ( $needReadSeq == 1 && ( $tabFmtOptIdx == 0 || $outputFmtSam == 1 ) )
+{
+	my $i ;
+	my $needAdd = 1 ;
+	if ( $tabFmtOptIdx != 0 )
+	{
+		my @cols = split /,/, $bt2_args[ $tabFmtOptIdx ] ;
+		foreach my $f (@cols)
+		{
+			if ( $f eq "readSeq" )
+			{
+				$needAdd = 0 ;		
+				last ;
+			}
+		}
+
+	}
+	else
+	{
+		push @bt2_args, "--tab-fmt-cols" ;
+		push @bt2_args, "readID,seqID,taxID,score,2ndBestScore,hitLength,queryLength,numMatches" ;
+		$tabFmtOptIdx = scalar( @bt2_args ) - 1 ;
+	}
+	
+	if ( $needAdd )
+	{
+		$removeSeqCols = 1 ;
+		$bt2_args[ $tabFmtOptIdx ] .= ",readSeq,readQual" ; 
+	}
+}
+
 # If the user asked us to redirect some reads to files, or to suppress
 # unaligned reads, then we need to capture the output from Centrifuge and pass it
 # through this wrapper.
@@ -434,6 +481,17 @@ my $cmd = "$align_prog$debug_str --wrapper basic-0 ".join(" ", @bt2_args);
 # Possibly add read input on an anonymous pipe
 $cmd = "$readpipe $cmd" if defined($readpipe);
 
+# The function removes the two extra columns that we added to get the read seq and qual
+sub RemoveSeqCols
+{
+	my $line = $_[0] ;
+	my @cols = split /\t/, $line ;
+	pop @cols ;
+	pop @cols ;
+	my $tab = "\t" ;
+	return join( $tab, @cols ) ;
+}
+
 Info("$cmd\n");
 my $ret;
 if(defined($cap_out)) {
@@ -499,7 +557,6 @@ if(defined($cap_out)) {
 
 	my $seqIndex = -1 ;
 	my $qualIndex = -1 ;
-	my $lengthIndex = -1 ;
 	my $readIdIndex = -1 ;
 	if ( $outputFmtSam == 0 )
 	{
@@ -515,10 +572,6 @@ if(defined($cap_out)) {
 			{
 				$qualIndex = $i ;
 			}
-			elsif ( $cols[$i] =~ /queryLength/ )
-			{
-				$lengthIndex = $i ;
-			}
 			elsif ( $cols[$i] =~ /readID/ )
 			{
 				$readIdIndex = $i ;
@@ -528,13 +581,14 @@ if(defined($cap_out)) {
 		{
 			Error( "Must use readSeq in --tabFmtCols in order to output unaligned reads." )  ;
 		}
+		
+		$outputHeader = RemoveSeqCols( $outputHeader )."\n" if ( $removeSeqCols == 1 ) ;
 		print {$ofh} $outputHeader ;
 	}
 	else
 	{
 		$seqIndex = 9 ;
 		$qualIndex = 10 ;
-		$lengthIndex = 8 ;
 		$readIdIndex = 0 ;
 	}
 
@@ -560,7 +614,7 @@ if(defined($cap_out)) {
 					my @cols = split /\t/ ;
 					my $isPaired = 0 ;
 					my $pair = 0 ;
-					if ( length( $cols[$seqIndex] ) != $cols[$lengthIndex] )
+					if (  $cols[$seqIndex] =~ /_/ )
 					{
 						$pair = 1 ;
 					}
@@ -591,31 +645,26 @@ if(defined($cap_out)) {
 					}
 					my $warnedAboutLength = 0 ;
 					if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
-						my $length = $cols[$lengthIndex] / 2 ;
-						my $seq = $cols[$seqIndex] ;
-						my $qual = $cols[$qualIndex] ;
-						if ( substr( $seq, $length, 1 ) ne "N" && !$warnedAboutLength )
-						{
-							Error( "The length of the paired-end reads are different. The output from --al-conc or --un-conc will be different from input." ) ;
-							$warnedAboutLength = 1 ;
-						}
+						my @seq = split /_/, $cols[$seqIndex] ;
+						my @qual = split /_/, $cols[$qualIndex] ;
+						
 						my $l1 ;
 						my $l2 ;
 						if ( $qualIndex != -1 )
 						{
-							$l1 = "@".$cols[ $readIdIndex ]."\n".substr( $seq, 0, $length )."\n+\n".substr( $qual, 0, $length )."\n" ;
+							$l1 = "@".$cols[ $readIdIndex ]."\n".$seq[0]."\n+\n".$qual[0]."\n" ;
 						}
 						else 
 						{
-							$l1 = ">".$cols[ $readIdIndex ]."\n".substr( $seq, 0, $length )."\n" ;
+							$l1 = ">".$cols[ $readIdIndex ]."\n".$seq[0]."\n" ;
 						}
 						if ( $qualIndex != -1 )
 						{
-							$l2 = "@".$cols[ $readIdIndex ]."\n".substr( $seq, $length + 1, $length )."\n+\n".substr( $qual, $length + 1, $length )."\n" ;
+							$l2 = "@".$cols[ $readIdIndex ]."\n".$seq[1]."\n+\n".$qual[1]."\n" ;
 						}
 						else 
 						{
-							$l2 = ">".$cols[ $readIdIndex ]."\n".substr( $seq, $length + 1, $length )."\n" ;
+							$l2 = ">".$cols[ $readIdIndex ]."\n".$seq[1]."\n" ;
 						}
 
 						if     ( !$unal) {
@@ -629,6 +678,7 @@ if(defined($cap_out)) {
 				}
 			}
 		}
+		$_ = RemoveSeqCols( $_ ) if ( $removeSeqCols == 1 ) ;
 		print {$ofh} "$_\n" if !$filt;
 	}
 	for my $k (@fhs_to_close) { close($k); }

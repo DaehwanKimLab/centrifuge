@@ -2305,9 +2305,9 @@ void AlnSinkSam<index_t>::appendMate(
 			case READ_ID:      appendReadID(o, rd.name); break;
 			case SEQ_ID:       appendSeqID(o, rs, ebwt.tree()); break;
 			case SEQ:          o.append((string(rd.patFw.toZBuf()) + 
-										(rdo == NULL? "" : "N" + string(rdo->patFw.toZBuf()))).c_str()); break;
+										(rdo == NULL? "" : "_" + string(rdo->patFw.toZBuf()))).c_str()); break;
 			case QUAL:         o.append((string(rd.qual.toZBuf()) + 
-										(rdo == NULL? "" : "I" + string(rdo->qual.toZBuf()))).c_str()); break;
+										(rdo == NULL? "" : "_" + string(rdo->qual.toZBuf()))).c_str()); break;
 
 			case SEQ1:         o.append(rd.patFw.toZBuf()); break;
 			case QUAL1:        o.append(rd.qual.toZBuf()); break;
