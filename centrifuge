@@ -646,7 +646,7 @@ if(defined($cap_out)) {
 					my $warnedAboutLength = 0 ;
 					if((defined($read_fhs{"un-conc"}) || defined($read_fhs{"al-conc"})) && $pair) {
 						my @seq = split /_/, $cols[$seqIndex] ;
-						my @qual = split /_/, $cols[$qualIndex] ;
+						my @qual = ( substr( $cols[$qualIndex], 0, length( $seq[0] ) ), substr( $cols[$qualIndex], length( $seq[0] ) + 1 ) ) ;
 						
 						my $l1 ;
 						my $l2 ;
