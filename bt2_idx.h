@@ -3433,6 +3433,7 @@ void Ebwt<index_t>::buildToDisk(
 	// Add by Li. Collect the boundary information for each reference sequence.
 	std::map<uint64_t, string> refOffsetMap ;
 	std::map<uint64_t, string> saBoundaryMap ;
+	const uint64_t refOverlap = 11 ; // the last refOverlap bp of a ref sequence will be classified to the next ref sequence.
 	{
 		index_t refOffset = 0 ;
 		size_t refNameIdx = 0 ;
@@ -3442,7 +3443,10 @@ void Ebwt<index_t>::buildToDisk(
 			if ( szs[i].first )
 			{
 				//cout<<_refnames[ refNameIdx ]<<" "<<refOffset<<endl ;
-				refOffsetMap[ refOffset ] = get_uid( _refnames[ refNameIdx ] )  ;
+				uint64_t o = refOffset - refOverlap ;
+				if ( o < 0 )
+					o = 0 ;
+				refOffsetMap[ o ] = get_uid( _refnames[ refNameIdx ] )  ;
 				++refNameIdx ;
 			}
 
@@ -3464,157 +3468,161 @@ void Ebwt<index_t>::buildToDisk(
 #ifdef SIXTY4_FORMAT
 		for(int bpi = 0; bpi < 32; bpi++, si++)
 #else
-		for(int bpi = 0; bpi < 4; bpi++, si++)
+			for(int bpi = 0; bpi < 4; bpi++, si++)
 #endif
-		{
-			int bwtChar;
-			bool count = true;
-			if(si <= len) {
-				// Still in the SA; extract the bwtChar
-				index_t saElt = sa.nextSuffix();
-                if(saOut != NULL) {
-                    writeIndex<index_t>(*saOut, saElt, this->toBe());
-                }
-
-				if ( refOffsetMap.find( saElt ) != refOffsetMap.end() )
-				{
-					std::string &uid = refOffsetMap[ saElt ] ;
-					saBoundaryMap[ si ] = uid ;
-					//cout<<saElt<<" "<<uid<<endl ;
-				}
-
-				// (that might have triggered sa to calc next suf block)
-				if(saElt == 0) {
-					// Don't add the '$' in the last column to the BWT
-					// transform; we can't encode a $ (only A C T or G)
-					// and counting it as, say, an A, will mess up the
-					// LR mapping
-					bwtChar = 0; count = false;
-					ASSERT_ONLY(dollarSkipped = true);
-					zOff = si; // remember the SA row that
-					           // corresponds to the 0th suffix
-				} else {
-					bwtChar = (int)(s[saElt-1]);
-					assert_lt(bwtChar, 4);
-					// Update the fchr
-					fchr[bwtChar]++;
-				}
-				// Update ftab
-				if((len-saElt) >= (index_t)eh._ftabChars) {
-					// Turn the first ftabChars characters of the
-					// suffix into an integer index into ftab.  The
-					// leftmost (lowest index) character of the suffix
-					// goes in the most significant bit pair if the
-					// integer.
-					index_t sufInt = 0;
-					for(int i = 0; i < eh._ftabChars; i++) {
-						sufInt <<= 2;
-						assert_lt((index_t)i, len-saElt);
-						sufInt |= (unsigned char)(s[saElt+i]);
+			{
+				int bwtChar;
+				bool count = true;
+				if(si <= len) {
+					// Still in the SA; extract the bwtChar
+					index_t saElt = sa.nextSuffix();
+					if(saOut != NULL) {
+						writeIndex<index_t>(*saOut, saElt, this->toBe());
 					}
-					// Assert that this prefix-of-suffix is greater
-					// than or equal to the last one (true b/c the
-					// suffix array is sorted)
-					#ifndef NDEBUG
-					if(lastSufInt > 0) assert_geq(sufInt, lastSufInt);
-					lastSufInt = sufInt;
-					#endif
+
+					if ( refOffsetMap.find( saElt ) != refOffsetMap.end() )
+					{
+						std::string &uid = refOffsetMap[ saElt ] ;
+						saBoundaryMap[ si ] = uid ;
+						//cout<<saElt<<" "<<uid<<endl ;
+					}
+
+					// (that might have triggered sa to calc next suf block)
+					if(saElt == 0) {
+						// Don't add the '$' in the last column to the BWT
+						// transform; we can't encode a $ (only A C T or G)
+						// and counting it as, say, an A, will mess up the
+						// LR mapping
+						bwtChar = 0; count = false;
+						ASSERT_ONLY(dollarSkipped = true);
+						zOff = si; // remember the SA row that
+						// corresponds to the 0th suffix
+					} else {
+						bwtChar = (int)(s[saElt-1]);
+						assert_lt(bwtChar, 4);
+						// Update the fchr
+						fchr[bwtChar]++;
+					}
 					// Update ftab
-					assert_lt(sufInt+1, ftabLen);
-					ftab[sufInt+1]++;
-					if(absorbCnt > 0) {
-						// Absorb all short suffixes since the last
-						// transition into this transition
-						absorbFtab[sufInt] = absorbCnt;
-						absorbCnt = 0;
+					if((len-saElt) >= (index_t)eh._ftabChars) {
+						// Turn the first ftabChars characters of the
+						// suffix into an integer index into ftab.  The
+						// leftmost (lowest index) character of the suffix
+						// goes in the most significant bit pair if the
+						// integer.
+						index_t sufInt = 0;
+						for(int i = 0; i < eh._ftabChars; i++) {
+							sufInt <<= 2;
+							assert_lt((index_t)i, len-saElt);
+							sufInt |= (unsigned char)(s[saElt+i]);
+						}
+						// Assert that this prefix-of-suffix is greater
+						// than or equal to the last one (true b/c the
+						// suffix array is sorted)
+#ifndef NDEBUG
+						if(lastSufInt > 0) assert_geq(sufInt, lastSufInt);
+						lastSufInt = sufInt;
+#endif
+						// Update ftab
+						assert_lt(sufInt+1, ftabLen);
+						ftab[sufInt+1]++;
+						if(absorbCnt > 0) {
+							// Absorb all short suffixes since the last
+							// transition into this transition
+							absorbFtab[sufInt] = absorbCnt;
+							absorbCnt = 0;
+						}
+					} else {
+						// Otherwise if suffix is fewer than ftabChars
+						// characters long, then add it to the 'absorbCnt';
+						// it will be absorbed into the next transition
+						assert_lt(absorbCnt, 255);
+						absorbCnt++;
+					}
+					// Update the number of distinct k-mers
+					if(kmer_size > 0) {
+						size_t idx = acc_szs.bsearchLoBound(saElt);
+						assert_lt(idx, acc_szs.size());
+						bool different = false;
+						for(size_t k = 0; k < kmer_size; k++) {
+							if((acc_szs[idx]-saElt) > k) {
+								uint8_t bp = s[saElt+k];
+								if(kmer[k] != bp || kmer_count[k] <= 0 || different) {
+									kmer_count[k]++;
+									different = true;
+								}
+								kmer[k] = bp;
+							}
+							else {
+								break;
+							}
+						}
+					}
+					// Suffix array offset boundary? - update offset array
+					if((si & eh._offMask) == si) {
+						assert_lt((si >> eh._offRate), eh._offsLen);
+						// Write offsets directly to the secondary output
+						// stream, thereby avoiding keeping them in memory
+						index_t tidx = 0, toff = 0, tlen = 0;
+						bool straddled2 = false;
+						if(saElt > 0) {
+							index_t adjustSaElt = saElt + refOverlap ;
+							if ( adjustSaElt >= len )
+								adjustSaElt = saElt ;
+								
+							joinedToTextOff(
+									0,
+									saElt - 1,
+									tidx,
+									toff,
+									tlen,
+									false,        // reject straddlers?
+									straddled2);  // straddled?
+						}
+						if(this->_offw) {
+							writeIndex<uint32_t>(out2, (uint32_t)tidx, this->toBe());
+						} else {
+							assert_lt(tidx, std::numeric_limits<uint16_t>::max());
+							writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
+						}
 					}
 				} else {
-					// Otherwise if suffix is fewer than ftabChars
-					// characters long, then add it to the 'absorbCnt';
-					// it will be absorbed into the next transition
-					assert_lt(absorbCnt, 255);
-					absorbCnt++;
-				}
-                // Update the number of distinct k-mers
-                if(kmer_size > 0) {
-                    size_t idx = acc_szs.bsearchLoBound(saElt);
-                    assert_lt(idx, acc_szs.size());
-                    bool different = false;
-                    for(size_t k = 0; k < kmer_size; k++) {
-                        if((acc_szs[idx]-saElt) > k) {
-                            uint8_t bp = s[saElt+k];
-                            if(kmer[k] != bp || kmer_count[k] <= 0 || different) {
-                                kmer_count[k]++;
-                                different = true;
-                            }
-                            kmer[k] = bp;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                }
-				// Suffix array offset boundary? - update offset array
-				if((si & eh._offMask) == si) {
-					assert_lt((si >> eh._offRate), eh._offsLen);
-					// Write offsets directly to the secondary output
-					// stream, thereby avoiding keeping them in memory
-                    index_t tidx = 0, toff = 0, tlen = 0;
-                    bool straddled2 = false;
-                    if(saElt > 0) {
-                        joinedToTextOff(
-                                        0,
-                                        saElt - 1,
-                                        tidx,
-                                        toff,
-                                        tlen,
-                                        false,        // reject straddlers?
-                                        straddled2);  // straddled?
-                    }
-                    if(this->_offw) {
-                        writeIndex<uint32_t>(out2, (uint32_t)tidx, this->toBe());
-                    } else {
-                        assert_lt(tidx, std::numeric_limits<uint16_t>::max());
-                        writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
-                    }
-				}
-			} else {
-				// Strayed off the end of the SA, now we're just
-				// padding out a bucket
-				#ifndef NDEBUG
-				if(inSA) {
-					// Assert that we wrote all the characters in the
-					// string before now
-					assert_eq(si, len+1);
-					inSA = false;
-				}
-				#endif
-				// 'A' used for padding; important that padding be
-				// counted in the occ[] array
-				bwtChar = 0;
-			}
-			if(count) occ[bwtChar]++;
-			// Append BWT char to bwt section of current side
-			if(fw) {
-				// Forward bucket: fill from least to most
-#ifdef SIXTY4_FORMAT
-				ebwtSide[sideCur] |= ((uint64_t)bwtChar << (bpi << 1));
-				if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
-#else
-				pack_2b_in_8b(bwtChar, ebwtSide[sideCur], bpi);
-				assert_eq((ebwtSide[sideCur] >> (bpi*2)) & 3, bwtChar);
+					// Strayed off the end of the SA, now we're just
+					// padding out a bucket
+#ifndef NDEBUG
+					if(inSA) {
+						// Assert that we wrote all the characters in the
+						// string before now
+						assert_eq(si, len+1);
+						inSA = false;
+					}
 #endif
-			} else {
-				// Backward bucket: fill from most to least
+					// 'A' used for padding; important that padding be
+					// counted in the occ[] array
+					bwtChar = 0;
+				}
+				if(count) occ[bwtChar]++;
+				// Append BWT char to bwt section of current side
+				if(fw) {
+					// Forward bucket: fill from least to most
 #ifdef SIXTY4_FORMAT
-				ebwtSide[sideCur] |= ((uint64_t)bwtChar << ((31 - bpi) << 1));
-				if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
+					ebwtSide[sideCur] |= ((uint64_t)bwtChar << (bpi << 1));
+					if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
 #else
-				pack_2b_in_8b(bwtChar, ebwtSide[sideCur], 3-bpi);
-				assert_eq((ebwtSide[sideCur] >> ((3-bpi)*2)) & 3, bwtChar);
+					pack_2b_in_8b(bwtChar, ebwtSide[sideCur], bpi);
+					assert_eq((ebwtSide[sideCur] >> (bpi*2)) & 3, bwtChar);
 #endif
-			}
-		} // end loop over bit-pairs
+				} else {
+					// Backward bucket: fill from most to least
+#ifdef SIXTY4_FORMAT
+					ebwtSide[sideCur] |= ((uint64_t)bwtChar << ((31 - bpi) << 1));
+					if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
+#else
+					pack_2b_in_8b(bwtChar, ebwtSide[sideCur], 3-bpi);
+					assert_eq((ebwtSide[sideCur] >> ((3-bpi)*2)) & 3, bwtChar);
+#endif
+				}
+			} // end loop over bit-pairs
 		assert_eq(dollarSkipped ? 3 : 0, (occ[0] + occ[1] + occ[2] + occ[3]) & 3);
 #ifdef SIXTY4_FORMAT
 		assert_eq(0, si & 31);
