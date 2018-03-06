@@ -97,9 +97,14 @@ if ($is_cnts_table) {
     next if defined $min_length && $hitLength < $min_length;
     next if defined $min_score && $score < $min_score;
     $taxo_counts{$taxid} += 1/$numMatches;
-    $seq_count++;
+    $seq_count += 1/$numMatches;
   }
 }
+
+for (keys %taxo_counts) {
+  $taxo_counts{$_} = sprintf("%.0f",$taxo_counts{$_});
+}
+
 my $classified_count = $seq_count - $taxo_counts{0};
 
 my %clade_counts = %taxo_counts;
