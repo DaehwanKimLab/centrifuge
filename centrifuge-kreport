@@ -15,7 +15,7 @@ use Cwd 'cwd' ;
 use Cwd 'abs_path' ;
 
 my ($centrifuge_index, $min_score, $min_length);
-my $only_unique = 0;
+my $no_lca = 0;
 my $show_zeros = 0;
 my $is_cnts_table = 0;
 my $PROG = "centrifuge-kreport";
@@ -28,7 +28,7 @@ GetOptions(
   "is-count-table" => \$is_cnts_table,
   "min-score=i" => \$min_score,
   "min-length=i"=> \$min_length,
-  "only-unique" => \$only_unique
+  "no-lca" => \$no_lca
 ) or usage();
 
 usage() unless defined $centrifuge_index;
@@ -46,7 +46,7 @@ centrifuge-kreport creates Kraken-style reports from centrifuge out files.
 Options:
     -x INDEX            (REQUIRED) Centrifuge index
 
-    --only-unique        Only count reads that were uniquely assigned to one taxon
+    --no-lca             Do not report the LCA of multiple assignments, but report count fractions at the taxa.
     --show-zeros         Show clades that have zero reads, too
     --is-count-table     The format of the file is 'TAXID<tab>COUNT' instead of the standard
                          Centrifuge output format
@@ -62,7 +62,7 @@ sub display_help {
   usage(0);
 }
 
-my (%child_lists, %name_map, %rank_map);
+my (%child_lists, %name_map, %rank_map, %parent_map);
 print STDERR "Loading taxonomy ...\n";
 load_taxonomy();
 
@@ -83,6 +83,9 @@ if ($is_cnts_table) {
   {
   	$headerMap{ $cols[$i] } = $i ;
   }
+
+  my $prevSeqID;
+  my $prev_taxid;
   while (<>) {
     #my (undef,$seqID,$taxid,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
     my @cols = split /\s+/ ;
@@ -93,11 +96,22 @@ if ($is_cnts_table) {
     my $queryLength = $cols[ $headerMap{ "queryLength" } ] ; 
     my $numMatches = $cols[ $headerMap{ "numMatches" } ] ; 
 
-    next if $only_unique && $numMatches > 1;
-    next if defined $min_length && $hitLength < $min_length;
-    next if defined $min_score && $score < $min_score;
-    $taxo_counts{$taxid} += 1/$numMatches;
-    $seq_count++;
+    if ($no_lca) {
+      next if defined $min_length && $hitLength < $min_length;
+      next if defined $min_score && $score < $min_score;
+      $taxo_counts{$taxid} += 1/$numMatches;
+      $seq_count += 1/$numMatches;
+    } else {
+      if (defined $prevSeqID && $seqID eq $prevSeqID) {
+        --$taxo_counts{$prev_taxid};
+        $prev_taxid = lca($prev_taxid, $taxid);
+        ++$taxo_counts{$prev_taxid};
+      } else {
+        ++$taxo_counts{$taxid};;
+        ++$seq_count;
+        $prev_taxid = $taxid;
+      }
+    }
   }
 }
 my $classified_count = $seq_count - $taxo_counts{0};
@@ -138,6 +152,33 @@ sub dfs_report {
       dfs_report($child, $depth + 1);
     }
   }
+}
+
+sub lca {
+  my ($a, $b) = @_;
+  return $b if $a eq 0;
+  return $a if $b eq 0;
+  return $a if $a eq $b;
+  my %a_path;
+  while ($a ge 1) {
+    $a_path{$a} = 1;
+    if (!defined $parent_map{$a}) {
+      print STDERR "Couldn't find parent of taxid $a - ignoring assignment.";
+      last;
+    }
+    last if $a eq $parent_map{$a};
+    $a = $parent_map{$a};
+  }
+  while ($b > 1) {
+    return $b if (defined $a_path{$b});
+    if (!defined $parent_map{$b}) {
+      print STDERR "Couldn't find parent of taxid $b - ignoring assignment.";
+      last;
+    }
+    last if $b eq $parent_map{$b};
+    $b = $parent_map{$b};
+  }
+  return 1;
 }
 
 sub rank_code {
@@ -193,6 +234,7 @@ sub load_taxonomy {
     $child_lists{$parent_id} ||= [];
     push @{ $child_lists{$parent_id} }, $node_id;
     $rank_map{$node_id} = $rank;
+    $parent_map{$node_id} = $parent_id;
   }
   close NODES;
 }
