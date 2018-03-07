@@ -84,11 +84,12 @@ if ($is_cnts_table) {
   	$headerMap{ $cols[$i] } = $i ;
   }
 
-  my $prevSeqID;
+  my $prevReadID;
   my $prev_taxid;
   while (<>) {
     #my (undef,$seqID,$taxid,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
     my @cols = split /\s+/ ;
+    my $readID = $cols[ $headerMap{ "readID" } ] ;
     my $seqID = $cols[ $headerMap{ "seqID" } ] ; 
     my $taxid = $cols[ $headerMap{ "taxID" } ] ; 
     my $score = $cols[ $headerMap{ "score" } ] ; 
@@ -102,16 +103,17 @@ if ($is_cnts_table) {
       $taxo_counts{$taxid} += 1/$numMatches;
       $seq_count += 1/$numMatches;
     } else {
-      if (defined $prevSeqID && $seqID eq $prevSeqID) {
+      if ( ( defined $prevReadID ) && ( $readID eq $prevReadID ) ) {
         --$taxo_counts{$prev_taxid};
         $prev_taxid = lca($prev_taxid, $taxid);
         ++$taxo_counts{$prev_taxid};
       } else {
-        ++$taxo_counts{$taxid};;
+        ++$taxo_counts{$taxid};
         ++$seq_count;
         $prev_taxid = $taxid;
       }
     }
+    $prevReadID = $readID ;
   }
 }
 my $classified_count = $seq_count - $taxo_counts{0};
