@@ -48,7 +48,7 @@ Options:
 
     --no-lca             Do not report the LCA of multiple assignments, but report count fractions at the taxa.
     --show-zeros         Show clades that have zero reads, too
-    --is-count-table     The format of the file is 'TAXID<tab>COUNT' instead of the standard
+    --is-count-table     The format of the file is 'taxID<tab>COUNT' instead of the standard
                          Centrifuge output format
 
     --min-score SCORE    Require a minimum score for reads to be counted
@@ -71,8 +71,8 @@ my $seq_count = 0;
 $taxo_counts{0} = 0;
 if ($is_cnts_table) {
   while (<>) {
-    my ($taxid,$count) = split;
-    $taxo_counts{$taxid} = $count;
+    my ($taxID,$count) = split;
+    $taxo_counts{$taxID} = $count;
     $seq_count += $count;
   }
 } else {
@@ -85,13 +85,13 @@ if ($is_cnts_table) {
   }
 
   my $prevReadID;
-  my $prev_taxid;
+  my $prevTaxID;
   while (<>) {
-    #my (undef,$seqID,$taxid,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
+    #my (undef,$seqID,$taxID,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
     my @cols = split /\s+/ ;
     my $readID = $cols[ $headerMap{ "readID" } ] ;
     my $seqID = $cols[ $headerMap{ "seqID" } ] ; 
-    my $taxid = $cols[ $headerMap{ "taxID" } ] ; 
+    my $taxID = $cols[ $headerMap{ "taxID" } ] ; 
     my $score = $cols[ $headerMap{ "score" } ] ; 
     my $hitLength = $cols[ $headerMap{ "hitLength" } ] ; 
     my $queryLength = $cols[ $headerMap{ "queryLength" } ] ; 
@@ -100,17 +100,17 @@ if ($is_cnts_table) {
     if ($no_lca) {
       next if defined $min_length && $hitLength < $min_length;
       next if defined $min_score && $score < $min_score;
-      $taxo_counts{$taxid} += 1/$numMatches;
+      $taxo_counts{$taxID} += 1/$numMatches;
       $seq_count += 1/$numMatches;
     } else {
       if ( ( defined $prevReadID ) && ( $readID eq $prevReadID ) ) {
-        --$taxo_counts{$prev_taxid};
-        $prev_taxid = lca($prev_taxid, $taxid);
-        ++$taxo_counts{$prev_taxid};
+        --$taxo_counts{$prevTaxID};
+        $prevTaxID = lca($prevTaxID, $taxID);
+        ++$taxo_counts{$prevTaxID};
       } else {
-        ++$taxo_counts{$taxid};
+        ++$taxo_counts{$taxID};
         ++$seq_count;
-        $prev_taxid = $taxid;
+        $prevTaxID = $taxID;
       }
     }
     $prevReadID = $readID ;
@@ -165,7 +165,7 @@ sub lca {
   while ($a ge 1) {
     $a_path{$a} = 1;
     if (!defined $parent_map{$a}) {
-      print STDERR "Couldn't find parent of taxid $a - ignoring assignment.";
+      print STDERR "Couldn't find parent of taxID $a - ignoring assignment.";
       last;
     }
     last if $a eq $parent_map{$a};
@@ -174,7 +174,7 @@ sub lca {
   while ($b > 1) {
     return $b if (defined $a_path{$b});
     if (!defined $parent_map{$b}) {
-      print STDERR "Couldn't find parent of taxid $b - ignoring assignment.";
+      print STDERR "Couldn't find parent of taxID $b - ignoring assignment.";
       last;
     }
     last if $b eq $parent_map{$b};
