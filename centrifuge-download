@@ -7,12 +7,12 @@ exists() {
 }
 
 cut_after_first_space_or_second_pipe() {
-	grep '^>' | sed 's/ .*//' | sed 's/\([^|]*|[^|]*\).*/\1/'
+    grep '^>' | sed 's/ .*//' | sed 's/\([^|]*|[^|]*\).*/\1/'
 }
 export -f cut_after_first_space_or_second_pipe
 
 map_headers_to_taxid() {
-	grep '^>' | cut_after_first_space_or_second_pipe | sed -e "s/^>//" -e  "s/\$/	$1/"
+    grep '^>' | cut_after_first_space_or_second_pipe | sed -e "s/^>//" -e  "s/\$/    $1/"
 }
 export -f map_headers_to_taxid
 
@@ -25,36 +25,42 @@ function download_n_process() {
     IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
 
     NAME=`basename $FILEPATH .gz`
+    GZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME.gz"
+    UNZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME"
+    DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna"
+    [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$UNZIPPED_FILE
 
-    if [ $DL_MODE = "rsync" ]; then
-        FILEPATH=${FILEPATH/ftp/rsync}
-        $DL_CMD "$FILEPATH" "$LIBDIR/$DOMAIN/$NAME.gz" || \
-        { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
-    else
-        $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+    if [[ ! -s "$RES_FILE" ]]; then
+        if [ $DL_MODE = "rsync" ]; then
+            FILEPATH=${FILEPATH/ftp/rsync}
+            $DL_CMD "$FILEPATH" "$LIBDIR/$DOMAIN/$NAME.gz" || \
+            { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+        else
+            $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+        fi
+    
+        [[ -s "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
+        gunzip -f "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
+    
+        
+        if [[ "$CHANGE_HEADER" == "1" ]]; then
+            sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
+        fi
+    
+        if [[ "$FILTER_UNPLACED" == "1" ]]; then
+            echo TODO 2>&1
+            ##sed -n '1,/^>.*unplaced/p; /'
+        fi
+    
+        if [[ "$DO_DUST" == "1" ]]; then
+          ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
+          dustmasker -infmt fasta -in $LIBDIR/$DOMAIN/$NAME -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $DUSTMASKED_FILE
+          rm $LIBDIR/$DOMAIN/$NAME
+        fi
     fi
 
-    [[ -f "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
-    gunzip -f "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
-
-	
-    if [[ "$CHANGE_HEADER" == "1" ]]; then
-        sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
-	fi
-
-	if [[ "$FILTER_UNPLACED" == "1" ]]; then
-        echo TODO 2>&1
-		##sed -n '1,/^>.*unplaced/p; /'
-	fi
-
-	## Output sequenceID to taxonomy ID map to STDOUT
-	cat $LIBDIR/$DOMAIN/$NAME | map_headers_to_taxid $TAXID
-
-    if [[ "$DO_DUST" == "1" ]]; then
-      ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
-      dustmasker -infmt fasta -in $LIBDIR/$DOMAIN/$NAME -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna
-      rm $LIBDIR/$DOMAIN/$NAME
-    fi
+    ## Output sequenceID to taxonomy ID map to STDOUT
+    cat $RES_FILE | map_headers_to_taxid $TAXID
     echo done
 }
 export -f download_n_process
@@ -178,7 +184,7 @@ while getopts "o:P:d:a:c:t:g:urlmv" OPT "$@"; do
         g) DL_PROG="$OPTARG" ;;
         t) TAXID="$OPTARG" ;;
         r) DOWNLOAD_RNA=1 ;;
-		u) FILTER_UNPLACED=1 ;;
+        u) FILTER_UNPLACED=1 ;;
         m) DO_DUST=1 ;;
         v) VERBOSE=1 ;;
         l) CHANGE_HEADER=1 ;;
@@ -197,13 +203,13 @@ DATABASE=$1
 
 
 if [[ "$DL_PROG" == "rsync" ]]; then
-	DL_CMD="rsync --no-motd"
+    DL_CMD="rsync --no-motd"
         DL_MODE="rsync"
 elif [[ "$DL_PROG" == "wget" ]]; then
-	DL_CMD="wget -N --reject=index.html -qO"
+    DL_CMD="wget -N --reject=index.html -qO"
         DL_MODE="https"
 elif [[ "$DL_PROG" == "curl" ]]; then
-	DL_CMD="curl -s -o"
+    DL_CMD="curl -s -o"
         DL_MODE="https"
 else
         echo "Unknown download program - please install one of rsync, wget or curl, and specify it with the -g option" >&2
@@ -242,7 +248,7 @@ if [[ "$DATABASE" == "taxonomy" ]]; then
 fi
 
 dat_to_fna() {
-	grep -E '^DE|^ ' | awk '/^DE/ { sub(/DE */,">"); gsub(/[ |]/,"_") }; { print }' | awk '/^ / { gsub(/ /,""); sub(/[0-9]*$/,"") }; { print }' 
+    grep -E '^DE|^ ' | awk '/^DE/ { sub(/DE */,">"); gsub(/[ |]/,"_") }; { print }' | awk '/^ / { gsub(/ /,""); sub(/[0-9]*$/,"") }; { print }' 
 }
 
 #### CONTAMINANT SEQ DOWNLOAD
@@ -267,15 +273,15 @@ if [[ "$DATABASE" == "contaminants" ]]; then
         sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" UniVec.fna
         sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" EmVec.fna
     else 
-	cat UniVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
-	cat EmVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
+    cat UniVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
+    cat EmVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
     fi
 
    #sed ':a $!N; s/^>.*\n>/>/; P; D' Contaminants/emvec.fa  > Contaminants/emvec.fa
     rm emvec.dat.gz
 
     cd - > /dev/null
-	exit 0;
+    exit 0;
   fi
 fi
 
@@ -307,9 +313,9 @@ TAXID=${TAXID//,/|}
 
 #echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
 if exists wget; then
-	wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
+    wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
 else
-	curl --disable-epsv -s ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
+    curl --disable-epsv -s ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
 fi
 
 if [[ "$CHANGE_HEADER" == "1" ]]; then
@@ -318,7 +324,7 @@ fi
 
 
 for DOMAIN in $DOMAINS; do
-    if [[ -f .listing ]]; then
+    if [[ -s .listing ]]; then
         if [[ ! `grep "^d.* $DOMAIN" .listing` ]]; then
             c_echo "$DOMAIN is not a valid domain - use one of the following:" >&2
             grep '^d' .listing  | sed 's/.* //' | sed 's/^/  /' 1>&2
@@ -328,7 +334,7 @@ for DOMAIN in $DOMAINS; do
     
     #if [[ "$CHANGE_HEADER" != "1" ]]; then
         #echo "Writing taxonomy ID to sequence ID map to STDOUT" >&2
-        #[[ -f "$LIBDIR/$DOMAIN.map" ]] && rm "$LIBDIR/$DOMAIN.map"
+        #[[ -s "$LIBDIR/$DOMAIN.map" ]] && rm "$LIBDIR/$DOMAIN.map"
     #fi
 
     export DOMAIN=$DOMAIN
@@ -371,7 +377,7 @@ for DOMAIN in $DOMAINS; do
 
 
     if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
-    	echo "Downloadinging rna sequence files" >&2
+        echo "Downloadinging rna sequence files" >&2
         cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
             tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
         echo >&2
