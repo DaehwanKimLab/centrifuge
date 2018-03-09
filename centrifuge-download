@@ -6,18 +6,6 @@ exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
-if hash rsync 2>/dev/null; then
-	DL_PROG="rsync --no-motd"
-        DL_MODE="rsync"
-elif hash wget 2>/dev/null; then
-	DL_PROG="wget -N --reject=index.html -qO"
-        DL_MODE="https"
-else 
-	DL_PROG="curl -s -o"
-        DL_MODE="https"
-fi
-export DL_PROG DL_MODE
-
 cut_after_first_space_or_second_pipe() {
 	grep '^>' | sed 's/ .*//' | sed 's/\([^|]*|[^|]*\).*/\1/'
 }
@@ -40,10 +28,10 @@ function download_n_process() {
 
     if [ $DL_MODE = "rsync" ]; then
         FILEPATH=${FILEPATH/ftp/rsync}
-        $DL_PROG "$FILEPATH" "$LIBDIR/$DOMAIN/$NAME.gz" || \
+        $DL_CMD "$FILEPATH" "$LIBDIR/$DOMAIN/$NAME.gz" || \
         { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
     else
-        $DL_PROG "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+        $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
     fi
 
     [[ -f "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
@@ -85,6 +73,7 @@ function count {
    typeset C=0
    while read L; do
       if [[ "$L" == "done" ]]; then
+        [[ "$VERBOSE" == 1 ]] && continue;
         C=$(( C + 1 ))
         _progress=$(( (${C}*100/${1}*100)/100 ))
         _done=$(( (${_progress}*4)/10 ))
@@ -132,12 +121,24 @@ ASSEMBLY_LEVEL="Complete Genome"
 REFSEQ_CATEGORY=""
 TAXID=""
 
+
+DL_PROG="NA"
+if hash rsync 2>/dev/null; then
+  DL_PROG="rsync"
+elif hash wget 2>/dev/null; then
+  DL_PROG="wget"
+elif hash curl 2>/dev/null; then
+  DL_PROG="curl"
+fi
+
+
 BASE_DIR="."
 N_PROC=1
 CHANGE_HEADER=0
 DOWNLOAD_RNA=0
 DO_DUST=0
 FILTER_UNPLACED=0
+VERBOSE=0
 
 USAGE="
 `basename $0` [<options>] <database>
@@ -157,25 +158,29 @@ WHEN USING database refseq OR genbank:
  -a <assembly level>    Only download genomes with the specified assembly level. Default: '$ASSEMBLY_LEVEL'. Use 'Any' for any assembly level.
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
+ -g <program>           Download using program. Options: rsync, curl, wget. Default $DL_PROG (auto-detected).
  -r                     Download RNA sequences, too.
  -u                     Filter unplaced sequences.
  -m                     Mask low-complexity regions using dustmasker. Default: off.
  -l                     Modify header to include taxonomy ID. Default: off.
  -g                     Download GI map.
+ -v                     Verbose mode
 "
 
 # arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
-while getopts "o:P:d:a:c:t:urlm" OPT "$@"; do
+while getopts "o:P:d:a:c:t:g:urlmv" OPT "$@"; do
     case $OPT in
         o) BASE_DIR="$OPTARG" ;;
         P) N_PROC="$OPTARG" ;;
         d) DOMAINS=${OPTARG//,/ } ;;
         a) ASSEMBLY_LEVEL="$OPTARG" ;;
         c) REFSEQ_CATEGORY="$OPTARG" ;;
+        g) DL_PROG="$OPTARG" ;;
         t) TAXID="$OPTARG" ;;
         r) DOWNLOAD_RNA=1 ;;
 		u) FILTER_UNPLACED=1 ;;
         m) DO_DUST=1 ;;
+        v) VERBOSE=1 ;;
         l) CHANGE_HEADER=1 ;;
         \?) echo "Invalid option: -$OPTARG" >&2 
             exit 1 
@@ -190,6 +195,33 @@ shift $((OPTIND-1))
 [[ $# -eq 1 ]] || { printf "$USAGE" >&2 && exit 1; };
 DATABASE=$1
 
+
+if [[ "$DL_PROG" == "rsync" ]]; then
+	DL_CMD="rsync --no-motd"
+        DL_MODE="rsync"
+elif [[ "$DL_PROG" == "wget" ]]; then
+	DL_CMD="wget -N --reject=index.html -qO"
+        DL_MODE="https"
+elif [[ "$DL_PROG" == "curl" ]]; then
+	DL_CMD="curl -s -o"
+        DL_MODE="https"
+else
+        echo "Unknown download program - please install one of rsync, wget or curl, and specify it with the -g option" >&2
+        exit 1
+fi
+
+cecho() {
+  echo $* 1>&2
+  $*
+}
+
+if [[ "$VERBOSE" == "1" ]]; then
+  export -f cecho
+  DL_CMD="cecho $DL_CMD"
+fi
+
+export DL_CMD DL_MODE VERBOSE
+
 #### TAXONOMY DOWNLOAD
 FTP="ftp://ftp.ncbi.nih.gov"
 if [[ "$DATABASE" == "taxonomy" ]]; then 
@@ -197,9 +229,9 @@ if [[ "$DATABASE" == "taxonomy" ]]; then
   if check_or_mkdir_no_fail "$BASE_DIR"; then
     cd "$BASE_DIR" > /dev/null
     if [ $DL_MODE = "rsync" ]; then
-        $DL_PROG ${FTP/ftp/rsync}/pub/taxonomy/taxdump.tar.gz taxdump.tar.gz
+        $DL_CMD ${FTP/ftp/rsync}/pub/taxonomy/taxdump.tar.gz taxdump.tar.gz
     else
-        $DL_PROG taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
+        $DL_CMD taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
     fi
     tar -zxvf taxdump.tar.gz nodes.dmp
     tar -zxvf taxdump.tar.gz names.dmp
@@ -223,11 +255,11 @@ if [[ "$DATABASE" == "contaminants" ]]; then
 
     # download UniVec and EmVec database
     if [ $DL_MODE = "rsync" ]; then
-        $DL_PROG rsync://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec UniVec.fna
-        $DL_PROG rsync://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz emvec.dat.gz
+        $DL_CMD rsync://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec UniVec.fna
+        $DL_CMD rsync://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz emvec.dat.gz
     else
-        $DL_PROG UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
-        $DL_PROG emvec.dat.gz ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
+        $DL_CMD UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
+        $DL_CMD emvec.dat.gz ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
     fi
     gunzip -c emvec.dat.gz | dat_to_fna > EmVec.fna
  
@@ -307,12 +339,12 @@ for DOMAIN in $DOMAINS; do
 
     echo "Downloading ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt ..." >&2
     if [ $DL_MODE = "rsync" ]; then
-        $DL_PROG rsync://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt "$FULL_ASSEMBLY_SUMMARY_FILE" || {
+        $DL_CMD rsync://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt "$FULL_ASSEMBLY_SUMMARY_FILE" || {
             c_echo "rsync Download failed! Have a look at valid domains at ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
             exit 1;
         }
     else
-        $DL_PROG "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE" || {
+        $DL_CMD "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE" || {
             c_echo "Download failed! Have a look at valid domains at ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
             exit 1;
         }
