@@ -767,7 +767,12 @@ public:
 
 			_saGenomeBoundary.clear() ;
 			nsize = readIndex<uint64_t>( in4, this->toBe() ) ;
-			//cout<<nsize<<endl ;
+			cout<<nsize<<" "<<_uid_to_tid.size()<<endl ;
+			for ( uint64_t i = 0 ; i < nsize ; ++i )
+			{
+				_saGenomeBoundary[ i ] = 0 ;
+			}
+			exit( 1 ) ;
 			if ( nsize > 0 )
 			{
 				int t = nsize ;
@@ -781,14 +786,13 @@ public:
 						if(c == '\0' || c == '\n') break;
 						uid.push_back(c);
 					}
-					//cout<<saCoord<<" "<<uid<<" "<< uidStrToIdx[ uid ] <<endl ;
+					cout<<saCoord<<" "<<uid<<" "<< uidStrToIdx[ uid ] <<endl ;
 					_saGenomeBoundary[ saCoord ] = uidStrToIdx[ uid ] ;
 
 				}
 			}
 		}
 		in4.close() ;
-
 	}
 	
 	/// Construct an Ebwt from the given header parameters and string
@@ -3432,6 +3436,7 @@ void Ebwt<index_t>::buildToDisk(
 
 	// Add by Li. Collect the boundary information for each reference sequence.
 	std::map<uint64_t, string> refOffsetMap ;
+	EBitList<128> refOffsetMark( len + 1 ) ;
 	std::map<uint64_t, string> saBoundaryMap ;
 	const uint64_t refOverlap = 11 ; // the last refOverlap bp of a ref sequence will be classified to the next ref sequence.
 	{
@@ -3444,8 +3449,9 @@ void Ebwt<index_t>::buildToDisk(
 			{
 				//cout<<_refnames[ refNameIdx ]<<" "<<refOffset<<endl ;
 				uint64_t o = refOffset - refOverlap ;
-				if ( o < 0 )
+				if ( refOffset < refOverlap )
 					o = 0 ;
+				refOffsetMark.set( o ) ;
 				refOffsetMap[ o ] = get_uid( _refnames[ refNameIdx ] )  ;
 				++refNameIdx ;
 			}
@@ -3480,7 +3486,8 @@ void Ebwt<index_t>::buildToDisk(
 						writeIndex<index_t>(*saOut, saElt, this->toBe());
 					}
 
-					if ( refOffsetMap.find( saElt ) != refOffsetMap.end() )
+					//if ( refOffsetMap.find( saElt ) != refOffsetMap.end() )
+					if ( refOffsetMark.test( saElt ) )
 					{
 						std::string &uid = refOffsetMap[ saElt ] ;
 						saBoundaryMap[ si ] = uid ;
