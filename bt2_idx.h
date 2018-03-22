@@ -785,7 +785,7 @@ public:
 						if(c == '\0' || c == '\n') break;
 						uid.push_back(c);
 					}
-					cout<<saCoord<<" "<<uid<<" "<< uidStrToIdx[ uid ] <<endl ;
+					//cout<<saCoord<<" "<<uid<<" "<< uidStrToIdx[ uid ] <<endl ;
 					_saGenomeBoundary[ saCoord ] = uidStrToIdx[ uid ] ;
 
 				}
