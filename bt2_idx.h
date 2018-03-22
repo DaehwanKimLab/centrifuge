@@ -768,10 +768,7 @@ public:
 			_saGenomeBoundary.clear() ;
 			nsize = readIndex<uint64_t>( in4, this->toBe() ) ;
 			//cout<<nsize<<" "<<_uid_to_tid.size()<<endl ;
-			for ( uint64_t i = 0 ; i < nsize ; ++i )
-			{
-				_saGenomeBoundary[ i ] = 0 ;
-			}
+			
 			if ( nsize > 0 )
 			{
 				int t = nsize ;
