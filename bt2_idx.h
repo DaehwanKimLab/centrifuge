@@ -754,7 +754,7 @@ public:
 		if(verbose || startVerbose) cerr << "Opening \"" << in4Str.c_str() << "\"" << endl;
 		ifstream in4(in4Str.c_str(), ios::binary);
 		if(!in4.good()) {
-			cerr << "Could not open index file " << in4Str.c_str() << endl;
+			if(verbose || startVerbose) cerr << "Could not open index file " << in4Str.c_str() << endl;
 		}
 		else
 		{
@@ -767,12 +767,11 @@ public:
 
 			_saGenomeBoundary.clear() ;
 			nsize = readIndex<uint64_t>( in4, this->toBe() ) ;
-			cout<<nsize<<" "<<_uid_to_tid.size()<<endl ;
+			//cout<<nsize<<" "<<_uid_to_tid.size()<<endl ;
 			for ( uint64_t i = 0 ; i < nsize ; ++i )
 			{
 				_saGenomeBoundary[ i ] = 0 ;
 			}
-			exit( 1 ) ;
 			if ( nsize > 0 )
 			{
 				int t = nsize ;
