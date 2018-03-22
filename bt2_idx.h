@@ -759,11 +759,6 @@ public:
 		else
 		{
 			readU32(in4, this->toBe());
-			std::map<string, uint64_t> uidStrToIdx ;
-			for ( uint64_t i = 0 ; i < _uid_to_tid.size() ; ++i )
-			{
-				uidStrToIdx[ _uid_to_tid[i].first ] = i ;
-			}
 
 			_saGenomeBoundary.clear() ;
 			nsize = readIndex<uint64_t>( in4, this->toBe() ) ;
@@ -771,19 +766,20 @@ public:
 			
 			if ( nsize > 0 )
 			{
-				int t = nsize ;
-				while ( t-- )
+				uint64_t t ;
+				for ( t = 0 ; t < nsize ; ++t )
 				{
 					uint64_t saCoord = readIndex<uint64_t>( in4, this->toBe() ) ;
-					string uid;
+					uint32_t refIdx = readIndex<uint32_t>( in4, this->toBe() ) ;
+					/*string uid;
 					while(true) {
 						char c = '\0';
 						in4 >> c;
 						if(c == '\0' || c == '\n') break;
 						uid.push_back(c);
-					}
+					}*/
 					//cout<<saCoord<<" "<<uid<<" "<< uidStrToIdx[ uid ] <<endl ;
-					_saGenomeBoundary[ saCoord ] = uidStrToIdx[ uid ] ;
+					_saGenomeBoundary[ saCoord ] = refIdx ;
 
 				}
 			}
@@ -1651,7 +1647,7 @@ public:
     const std::map<uint64_t, string>&       name() const { return _name; }
     const std::map<uint64_t, uint64_t>&     size() const { return _size; }
     inline const bool 	    saGenomeBoundaryHas( uint64_t key ) const { return _saGenomeBoundary.find( key ) != _saGenomeBoundary.end() ; }
-    inline const uint64_t saGenomeBoundaryVal( uint64_t key ) const { return _saGenomeBoundary.at(key) ; }
+    inline const uint32_t saGenomeBoundaryVal( uint64_t key ) const { return _saGenomeBoundary.at(key) ; }
     bool                                    compressed() const { return _compressed; }
     
     
@@ -1938,7 +1934,14 @@ public:
 		} else {
 			// Try looking at zoff
 			if ( saGenomeBoundaryHas( elt ) )
-				return (index_t)saGenomeBoundaryVal( elt ) ;
+			{
+				uint32_t ret = (index_t)saGenomeBoundaryVal( elt ) ;
+				if ( this->_offw )
+					return ret ;	
+				else
+					return (uint16_t)ret ;
+
+			}
 
 			return (index_t)OFF_MASK;
 		}
@@ -2076,7 +2079,7 @@ public:
 	template <typename TStr> static TStr join(EList<TStr>& l, uint32_t seed);
 	template <typename TStr> static TStr join(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, uint32_t seed);
 	template <typename TStr> void joinToDisk(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, TStr& ret, ostream& out1, ostream& out2);
-	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut, ostream& out4, const EList<RefRecord>& szs, int kmer_size);
+	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut, ostream& out4, const EList<RefRecord>& szs, int kmer_size );
 
 	// I/O
 	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams<index_t> *params, bool mmSweep, bool loadNames, bool startVerbose);
@@ -3008,7 +3011,7 @@ public:
     TaxonomyPathTable                _paths;
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
-    std::map<uint64_t, uint64_t> _saGenomeBoundary ; // indicate the corresponding SA coordinate corresponds to the start of a ref genome. 
+    std::map<uint64_t, uint32_t> _saGenomeBoundary ; // indicate the corresponding SA coordinate corresponds to the start of a ref genome. 
     
 
 	static const uint64_t default_bmax = OFF_MASK;
@@ -3431,13 +3434,12 @@ void Ebwt<index_t>::buildToDisk(
     }
 
 	// Add by Li. Collect the boundary information for each reference sequence.
-	std::map<uint64_t, string> refOffsetMap ;
 	EBitList<128> refOffsetMark( len + 1 ) ;
-	std::map<uint64_t, string> saBoundaryMap ;
+	std::map<uint64_t, uint32_t> saBoundaryMap ;
 	const uint64_t refOverlap = 11 ; // the last refOverlap bp of a ref sequence will be classified to the next ref sequence.
 	{
 		index_t refOffset = 0 ;
-		size_t refNameIdx = 0 ;
+		//size_t refNameIdx = 0 ;
 		for (size_t i = 0 ; i < szs.size() ; ++i )
 		{
 			//cout<<szs[i].off<<" "<<szs[i].len<<" "<<szs[i].first<<endl ;
@@ -3448,8 +3450,13 @@ void Ebwt<index_t>::buildToDisk(
 				if ( refOffset < refOverlap )
 					o = 0 ;
 				refOffsetMark.set( o ) ;
-				refOffsetMap[ o ] = get_uid( _refnames[ refNameIdx ] )  ;
-				++refNameIdx ;
+				/*std::string uid = get_uid( _refnames[ refNameIdx ] ) ;
+				if ( uid_to_tid.find( uid ) != uid_to_tid.end() )
+					refOffsetMap[o] = uid_to_tid[ uid ] ;
+				else
+					refOffsetMap[o] = 0 ;
+
+				++refNameIdx ;*/
 			}
 
 			refOffset += szs[i].len ;
@@ -3485,8 +3492,20 @@ void Ebwt<index_t>::buildToDisk(
 					//if ( refOffsetMap.find( saElt ) != refOffsetMap.end() )
 					if ( refOffsetMark.test( saElt ) )
 					{
-						std::string &uid = refOffsetMap[ saElt ] ;
-						saBoundaryMap[ si ] = uid ;
+						if ( saElt > 0 )
+						{
+							index_t tidx = 0, toff = 0, tlen = 0;
+							bool straddled2 = false;
+							joinedToTextOff(
+									0,
+									saElt,
+									tidx,
+									toff,
+									tlen,
+									false,        // reject straddlers?
+									straddled2);  // straddled?
+							saBoundaryMap[ si ] = (uint32_t)tidx ;
+						}
 						//cout<<saElt<<" "<<uid<<endl ;
 					}
 
@@ -3572,10 +3591,12 @@ void Ebwt<index_t>::buildToDisk(
 							index_t adjustSaElt = saElt + refOverlap ;
 							if ( adjustSaElt >= len )
 								adjustSaElt = saElt ;
+							if ( adjustSaElt >= len )
+								--adjustSaElt ;
 								
 							joinedToTextOff(
 									0,
-									saElt - 1,
+									adjustSaElt,
 									tidx,
 									toff,
 									tlen,
@@ -3667,14 +3688,10 @@ void Ebwt<index_t>::buildToDisk(
 	
 	// Denote the end for the information of boundary of reference genomes.
 	writeIndex<uint64_t>( out4, saBoundaryMap.size(), this->toBe() ) ;
-	for ( std::map<uint64_t, string>::iterator it = saBoundaryMap.begin() ; it != saBoundaryMap.end() ; ++it )
+	for ( std::map<uint64_t, uint32_t>::iterator it = saBoundaryMap.begin() ; it != saBoundaryMap.end() ; ++it )
 	{
-		writeIndex<index_t>( out4, it->first, this->toBe() ) ;
-		string &uid = it->second ;
-		for(size_t c = 0; c < uid.length(); c++) {
-			out4 << uid[c];
-		}
-		out4<<'\0' ;
+		writeIndex<uint64_t>( out4, it->first, this->toBe() ) ;
+		writeIndex<uint32_t>( out4, it->second, this->toBe() ) ;
 	}
 
 	//
@@ -3936,7 +3953,9 @@ index_t Ebwt<index_t>::getOffset(index_t row) const {
 		}
 	}
 	if ( saGenomeBoundaryHas( (uint64_t)row ) )
+	{
 		return saGenomeBoundaryVal( (uint64_t)row ) ;
+	}
 
 	index_t jumps = 0;
 	SideLocus<index_t> l;
