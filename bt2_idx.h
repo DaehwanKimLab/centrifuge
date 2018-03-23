@@ -3444,7 +3444,7 @@ void Ebwt<index_t>::buildToDisk(
 		for (size_t i = 0 ; i < szs.size() ; ++i )
 		{
 			//cout<<szs[i].off<<" "<<szs[i].len<<" "<<szs[i].first<<endl ;
-			if ( szs[i].first )
+			if ( szs[i].first && szs[i].len > 0 )
 			{
 				//cout<<_refnames[ refNameIdx ]<<" "<<refOffset<<endl ;
 				uint64_t o = refOffset - refOverlap ;
