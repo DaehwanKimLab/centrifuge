@@ -3435,11 +3435,12 @@ void Ebwt<index_t>::buildToDisk(
 
 	// Add by Li. Collect the boundary information for each reference sequence.
 	EBitList<128> refOffsetMark( len + 1 ) ;
+	std::map<uint64_t, uint32_t> refOffsetMap ;
 	std::map<uint64_t, uint32_t> saBoundaryMap ;
 	const uint64_t refOverlap = 11 ; // the last refOverlap bp of a ref sequence will be classified to the next ref sequence.
 	{
 		index_t refOffset = 0 ;
-		//size_t refNameIdx = 0 ;
+		size_t refNameIdx = 0 ;
 		for (size_t i = 0 ; i < szs.size() ; ++i )
 		{
 			//cout<<szs[i].off<<" "<<szs[i].len<<" "<<szs[i].first<<endl ;
@@ -3454,9 +3455,10 @@ void Ebwt<index_t>::buildToDisk(
 				if ( uid_to_tid.find( uid ) != uid_to_tid.end() )
 					refOffsetMap[o] = uid_to_tid[ uid ] ;
 				else
-					refOffsetMap[o] = 0 ;
+					refOffsetMap[o] = 0 ;*/
 
-				++refNameIdx ;*/
+				refOffsetMap[o] = refNameIdx ;
+				++refNameIdx ;
 			}
 
 			refOffset += szs[i].len ;
@@ -3492,20 +3494,7 @@ void Ebwt<index_t>::buildToDisk(
 					//if ( refOffsetMap.find( saElt ) != refOffsetMap.end() )
 					if ( refOffsetMark.test( saElt ) )
 					{
-						if ( saElt > 0 )
-						{
-							index_t tidx = 0, toff = 0, tlen = 0;
-							bool straddled2 = false;
-							joinedToTextOff(
-									0,
-									saElt,
-									tidx,
-									toff,
-									tlen,
-									false,        // reject straddlers?
-									straddled2);  // straddled?
-							saBoundaryMap[ si ] = (uint32_t)tidx ;
-						}
+						saBoundaryMap[ si ] = refOffsetMap[ saElt ] ;
 						//cout<<saElt<<" "<<uid<<endl ;
 					}
 
