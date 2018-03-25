@@ -2656,6 +2656,11 @@ static void multiseedSearchWorker(void *vp) {
                 else if(filt[1]) {
                     classifier.initRead(rds[1], nofw[1], norc[1], minsc[1], maxpen[1], filt[1]);
                 }
+		else
+		{
+		    classifier.reportUnclassified( msinkwrap ) ;
+		}
+
                 if(filt[0] || filt[1]) {
                     classifier.go(sc, ebwtFw, ebwtBw, ref, wlm, prm, him, spm, rnd, msinkwrap);
                     size_t mate = 0;
