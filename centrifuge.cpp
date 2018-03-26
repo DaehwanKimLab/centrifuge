@@ -2762,19 +2762,6 @@ static void multiseedSearch(
     multiseed_refnames = refnames;
 	AutoArray<tthread::thread*> threads(nthreads);
 	AutoArray<int> tids(nthreads);
-	{
-		// Load the other half of the index into memory
-		assert(!ebwtFw.isInMemory());
-		Timer _t(cerr, "Time loading forward index: ", timing);
-		ebwtFw.loadIntoMemory(
-			0,  // colorspace?
-			-1, // not the reverse index
-			true,         // load SA samp? (yes, need forward index's SA samp)
-			true,         // load ftab (in forward index)
-			true,         // load rstarts (in forward index)
-			!noRefNames,  // load names?
-			startVerbose);
-	}
 #if 0
 	if(multiseedMms > 0 || do1mmUpFront) {
 		// Load the other half of the index into memory
@@ -2936,6 +2923,22 @@ static void driver(
 		ebwt.checkOrigs(os, false, false);
 		ebwt.evictFromMemory();
 	}
+
+
+	{
+		// Load the other half of the index into memory
+		assert(!ebwt.isInMemory());
+		Timer _t(cerr, "Time loading forward index: ", timing);
+		ebwt.loadIntoMemory(
+			0,  // colorspace?
+			-1, // not the reverse index
+			true,         // load SA samp? (yes, need forward index's SA samp)
+			true,         // load ftab (in forward index)
+			true,         // load rstarts (in forward index)
+			!noRefNames,  // load names?
+			startVerbose);
+	}
+
 	OutputQueue oq(
 			*fout,                   // out file buffer
 			reorder && nthreads > 1, // whether to reorder when there's >1 thread
