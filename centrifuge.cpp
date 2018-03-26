@@ -260,6 +260,8 @@ static map<string, uint32_t> col_name_map;
 static EList<string> sra_accs;
 #endif
 
+static bool separator ; // whether we want to add separator between classification output and change the output of centrifuge_report
+
 #define DMAX std::numeric_limits<double>::max()
 
 
@@ -521,6 +523,8 @@ static void resetOptions() {
 #ifdef USE_SRA
     sra_accs.clear();
 #endif
+
+    separator = false ;
 }
 
 static const char *short_options = "fF:qbzhcu:rv:s:aP:t3:5:w:p:k:M:1:2:I:X:CQ:N:i:L:U:x:S:g:O:D:R:";
@@ -686,6 +690,7 @@ static struct option long_options[] = {
 #ifdef USE_SRA
     {(char*)"sra-acc",   required_argument, 0,        ARG_SRA_ACC},
 #endif
+	{(char*)"separator",     no_argument, 0,  ARG_SEPARATOR },
 	{(char*)0, 0, 0, 0} // terminator
 };
 
@@ -1455,6 +1460,11 @@ static void parseOption(int next_option, const char *arg) {
             break;
         }
 #endif
+	case ARG_SEPARATOR: 
+	{
+		separator = true ;
+		break ;
+	} 
 		default:
 			printUsage(cerr);
 			throw 1;
@@ -2816,9 +2826,9 @@ static void driver(
 	if(gVerbose || startVerbose)  {
 		cerr << "Entered driver(): "; logTime(cerr, true);
 	}
-    
-    initializeCntLut();
-    
+
+	initializeCntLut();
+
 	// Vector of the reference sequences; used for sanity-checking
 	EList<SString<char> > names, os;
 	EList<size_t> nameLens, seqLens;
@@ -2830,35 +2840,21 @@ static void driver(
 		parseFastas(origFiles, names, nameLens, os, seqLens);
 	}
 	PatternParams pp(
-		format,        // file format
-		fileParallel,  // true -> wrap files with separate PairedPatternSources
-		seed,          // pseudo-random seed
-		useSpinlock,   // use spin locks instead of pthreads
-		solexaQuals,   // true -> qualities are on solexa64 scale
-		phred64Quals,  // true -> qualities are on phred64 scale
-		integerQuals,  // true -> qualities are space-separated numbers
-		fuzzy,         // true -> try to parse fuzzy fastq
-		fastaContLen,  // length of sampled reads for FastaContinuous...
-		fastaContFreq, // frequency of sampled reads for FastaContinuous...
-		skipReads      // skip the first 'skip' patterns
-	);
+			format,        // file format
+			fileParallel,  // true -> wrap files with separate PairedPatternSources
+			seed,          // pseudo-random seed
+			useSpinlock,   // use spin locks instead of pthreads
+			solexaQuals,   // true -> qualities are on solexa64 scale
+			phred64Quals,  // true -> qualities are on phred64 scale
+			integerQuals,  // true -> qualities are space-separated numbers
+			fuzzy,         // true -> try to parse fuzzy fastq
+			fastaContLen,  // length of sampled reads for FastaContinuous...
+			fastaContFreq, // frequency of sampled reads for FastaContinuous...
+			skipReads      // skip the first 'skip' patterns
+			);
 	if(gVerbose || startVerbose) {
 		cerr << "Creating PatternSource: "; logTime(cerr, true);
 	}
-	PairedPatternSource *patsrc = PairedPatternSource::setupPatternSources(
-		queries,     // singles, from argv
-		mates1,      // mate1's, from -1 arg
-		mates2,      // mate2's, from -2 arg
-		mates12,     // both mates on each line, from --12 arg
-#ifdef USE_SRA
-                                                                           sra_accs,    // SRA accessions
-#endif
-		qualities,   // qualities associated with singles
-		qualities1,  // qualities associated with m1
-		qualities2,  // qualities associated with m2
-		pp,          // read read-in parameters
-                                                                           nthreads,
-		gVerbose || startVerbose); // be talkative
 	// Open hit output file
 	if(gVerbose || startVerbose) {
 		cerr << "Opening hit output file: "; logTime(cerr, true);
@@ -2875,23 +2871,23 @@ static void driver(
 	}
 	adjIdxBase = adjustEbwtBase(argv0, bt2indexBase, gVerbose);
 	Ebwt<index_t> ebwt(
-		adjIdxBase,
-	    0,        // index is colorspace
-		-1,       // fw index
-	    true,     // index is for the forward direction
-	    /* overriding: */ offRate,
-		0, // amount to add to index offrate or <= 0 to do nothing
-	    useMm,    // whether to use memory-mapped files
-	    useShmem, // whether to use shared memory
-	    mmSweep,  // sweep memory-mapped files
-	    !noRefNames, // load names?
-		true,        // load SA sample?
-		true,        // load ftab?
-		true,        // load rstarts?
-	    gVerbose, // whether to be talkative
-	    startVerbose, // talkative during initialization
-	    false /*passMemExc*/,
-	    sanityCheck);
+			adjIdxBase,
+			0,        // index is colorspace
+			-1,       // fw index
+			true,     // index is for the forward direction
+			/* overriding: */ offRate,
+			0, // amount to add to index offrate or <= 0 to do nothing
+			useMm,    // whether to use memory-mapped files
+			useShmem, // whether to use shared memory
+			mmSweep,  // sweep memory-mapped files
+			!noRefNames, // load names?
+			true,        // load SA sample?
+			true,        // load ftab?
+			true,        // load rstarts?
+			gVerbose, // whether to be talkative
+			startVerbose, // talkative during initialization
+			false /*passMemExc*/,
+			sanityCheck);
 	Ebwt<index_t>* ebwtBw = NULL;
 #if 0
 	// We need the mirror index if mismatches are allowed
@@ -2900,23 +2896,23 @@ static void driver(
 			cerr << "About to initialize rev Ebwt: "; logTime(cerr, true);
 		}
 		ebwtBw = new HierEbwt<index_t, local_index_t>(
-			adjIdxBase + ".rev",
-			0,       // index is colorspace
-			1,       // TODO: maybe not
-		    false, // index is for the reverse direction
-		    /* overriding: */ offRate,
-			0, // amount to add to index offrate or <= 0 to do nothing
-		    useMm,    // whether to use memory-mapped files
-		    useShmem, // whether to use shared memory
-		    mmSweep,  // sweep memory-mapped files
-		    !noRefNames, // load names?
-			true,        // load SA sample?
-			true,        // load ftab?
-			true,        // load rstarts?
-		    gVerbose,    // whether to be talkative
-		    startVerbose, // talkative during initialization
-		    false /*passMemExc*/,
-		    sanityCheck);
+				adjIdxBase + ".rev",
+				0,       // index is colorspace
+				1,       // TODO: maybe not
+				false, // index is for the reverse direction
+				/* overriding: */ offRate,
+				0, // amount to add to index offrate or <= 0 to do nothing
+				useMm,    // whether to use memory-mapped files
+				useShmem, // whether to use shared memory
+				mmSweep,  // sweep memory-mapped files
+				!noRefNames, // load names?
+				true,        // load SA sample?
+				true,        // load ftab?
+				true,        // load rstarts?
+				gVerbose,    // whether to be talkative
+				startVerbose, // talkative during initialization
+				false /*passMemExc*/,
+				sanityCheck);
 	}
 #endif
 	if(sanityCheck && !os.empty()) {
@@ -2930,224 +2926,388 @@ static void driver(
 	// Sanity-check the restored version of the Ebwt
 	if(sanityCheck && !os.empty()) {
 		ebwt.loadIntoMemory(
-			0,
-			-1, // fw index
-			true, // load SA sample
-			true, // load ftab
-			true, // load rstarts
-			!noRefNames,
-			startVerbose);
+				0,
+				-1, // fw index
+				true, // load SA sample
+				true, // load ftab
+				true, // load rstarts
+				!noRefNames,
+				startVerbose);
 		ebwt.checkOrigs(os, false, false);
 		ebwt.evictFromMemory();
 	}
 	OutputQueue oq(
-		*fout,                   // out file buffer
-		reorder && nthreads > 1, // whether to reorder when there's >1 thread
-		nthreads,                // # threads
-		nthreads > 1,            // whether to be thread-safe
-		skipReads);              // first read will have this rdid
+			*fout,                   // out file buffer
+			reorder && nthreads > 1, // whether to reorder when there's >1 thread
+			nthreads,                // # threads
+			nthreads > 1,            // whether to be thread-safe
+			skipReads);              // first read will have this rdid
+	EList<string> refnames;
+	readEbwtRefnames<index_t>(adjIdxBase, refnames);
+	EList<size_t> reflens;
+
+	AlnSink<index_t> *mssink = NULL;
+	switch(outType) {
+		case OUTPUT_SAM: {
+					 mssink = new AlnSinkSam<index_t>(
+							 &ebwt,
+							 oq,           // output queue
+							 refnames,     // reference names
+							 tab_fmt_cols, // columns in tab format
+							 gQuiet);      // don't print alignment summary at end
+					 if(!samNoHead) {
+						 BTString buf;
+						 // TODO: Write '@SQ\tSN:AA\tLN:length fields
+						 fout->writeString(buf);
+					 }
+					 // Write header for read-results file
+					 if (!sam_format) {
+						 fout->writeChars(tab_fmt_cols_str[0].c_str());
+						 for (size_t i = 1; i < tab_fmt_cols_str.size(); ++i) {
+							 fout->writeChars("\t");
+							 fout->writeChars(tab_fmt_cols_str[i].c_str());
+						 }
+						 fout->writeChars("\n");
+					 }
+					 break;
+				 }
+		default:
+				 cerr << "Invalid output type: " << outType << endl;
+				 throw 1;
+	}
+	// Set up global constraint
+	OutFileBuf *metricsOfb = NULL;
+	if(!metricsFile.empty() && metricsIval > 0) {
+		metricsOfb = new OutFileBuf(metricsFile);
+	}
+
+
+
+	int fileCnt = mates1.size() + queries.size(); // the order should be consistent with the wrapper
+#ifdef USE_SRA
+	fileCnt += sra_accs ;
+#endif
+
+	for ( int fileIdx = 0 ; fileIdx < fileCnt ; ++fileIdx )
 	{
-		Timer _t(cerr, "Time searching: ", timing);
-		// Set up penalities
-		if(bonusMatch > 0 && !localAlign) {
-			cerr << "Warning: Match bonus always = 0 in --end-to-end mode; ignoring user setting" << endl;
-			bonusMatch = 0;
-		}
-		Scoring sc(
-                   bonusMatch,     // constant reward for match
-                   penMmcType,     // how to penalize mismatches
-                   penMmcMax,      // max mm pelanty
-                   penMmcMin,      // min mm pelanty
-                   scoreMin,       // min score as function of read len
-                   nCeil,          // max # Ns as function of read len
-                   penNType,       // how to penalize Ns in the read
-                   penN,           // constant if N pelanty is a constant
-                   penNCatPair,    // whether to concat mates before N filtering
-                   penRdGapConst,  // constant coeff for read gap cost
-                   penRfGapConst,  // constant coeff for ref gap cost
-                   penRdGapLinear, // linear coeff for read gap cost
-                   penRfGapLinear, // linear coeff for ref gap cost
-                   gGapBarrier);    // # rows at top/bot only entered diagonally
-
-		EList<string> refnames;
-		readEbwtRefnames<index_t>(adjIdxBase, refnames);
-
-		EList<size_t> reflens;
-		// Set up hit sink; if sanityCheck && !os.empty() is true,
-		// then instruct the sink to "retain" hits in a vector in
-		// memory so that we can easily sanity check them later on
-		AlnSink<index_t> *mssink = NULL;
-        Timer *_tRef = new Timer(cerr, "Time loading reference: ", timing);
-        auto_ptr<BitPairReference> refs;
-        delete _tRef;
-        switch(outType) {
-			case OUTPUT_SAM: {
-				mssink = new AlnSinkSam<index_t>(
-                                                 &ebwt,
-                                                 oq,           // output queue
-                                                 refnames,     // reference names
-                                                 tab_fmt_cols, // columns in tab format
-                                                 gQuiet);      // don't print alignment summary at end
-                if(!samNoHead) {
-					BTString buf;
-                    // TODO: Write '@SQ\tSN:AA\tLN:length fields
-					fout->writeString(buf);
-				}
-				// Write header for read-results file
-                if (!sam_format) {
-                fout->writeChars(tab_fmt_cols_str[0].c_str());
-                for (size_t i = 1; i < tab_fmt_cols_str.size(); ++i) {
-                    fout->writeChars("\t");
-                    fout->writeChars(tab_fmt_cols_str[i].c_str());
-                }
-                fout->writeChars("\n");
-                }
-				break;
-			}
-			default:
-				cerr << "Invalid output type: " << outType << endl;
-				throw 1;
-		}
-
-
-		if(gVerbose || startVerbose) {
-			cerr << "Dispatching to search driver: "; logTime(cerr, true);
-		}
-		// Set up global constraint
-		OutFileBuf *metricsOfb = NULL;
-		if(!metricsFile.empty() && metricsIval > 0) {
-			metricsOfb = new OutFileBuf(metricsFile);
-		}
-
-
-		// Do the search for all input reads
-		assert(patsrc != NULL);
-		assert(mssink != NULL);
-		multiseedSearch(
-			sc,      // scoring scheme
-			*patsrc, // pattern source
-			*mssink, // hit sink
-			ebwt,    // BWT
-			*ebwtBw, // BWT'
-            refs.get(),
-            refnames,
-			metricsOfb);
-		// Evict any loaded indexes from memory
-		if(ebwt.isInMemory()) {
-			ebwt.evictFromMemory();
-		}
-		if(ebwtBw != NULL) {
-			delete ebwtBw;
-		}
-		if(!gQuiet && !seedSumm) {
-			size_t repThresh = mhits;
-			if(repThresh == 0) {
-				repThresh = std::numeric_limits<size_t>::max();
-			}
-			mssink->finish(
-				repThresh,
-				gReportDiscordant,
-				gReportMixed,
-				hadoopOut);
-		}
+		// note the name is not plural here, we handle one by one.
+		EList<string> query ;
+		EList<string> mate1;  // mated reads (first mate)
+		EList<string> mate2;  // mated reads (second mate)
+		EList<string> mate12; //
+#ifdef USE_SRA
+		EList<string >sra_acc ;    // SRA accession
+#endif
 		
+		
+		if(gVerbose || startVerbose) {
+			cerr << "creating patternsource for "<< fileIdx + 1 << "-th input: " ; logTime(cerr, true);
+		}
+		if ( fileIdx < mates1.size() )	
+		{
+			// mate pair
+			mate1.push_back( mates1[ fileIdx ] ) ; 
+			mate2.push_back( mates2[ fileIdx ] ) ;
+		}
+		else if ( fileIdx < mates1.size() + queries.size() )
+		{
+			// single end read
+			query.push_back( queries[ fileIdx - mates1.size() ] ) ;
+		}
+#ifdef USE_SRA
+		else
+		{
+			// only should reach here when sra is defined  
+			sra_acc.push_back( sra_accs[ fileIdx - mates1.size() - queries.size() ] ) ;
+		}
+#endif 
+
+		PairedPatternSource *patsrc = PairedPatternSource::setupPatternSources(
+			query,     // singles, from argv
+			mate1,      // mate1's, from -1 arg
+			mate2,      // mate2's, from -2 arg
+			mate12,     // both mates on each line, from --12 arg
+#ifdef USE_SRA
+			sra_acc,    // SRA accessions
+#endif
+			qualities,   // qualities associated with singles
+			qualities1,  // qualities associated with m1
+			qualities2,  // qualities associated with m2
+			pp,          // read read-in parameters
+			nthreads,
+			gVerbose || startVerbose); // be talkative
+
+
+		{
+			Timer _t(cerr, "Time searching: ", timing);
+			// Set up penalities
+			if(bonusMatch > 0 && !localAlign) {
+				cerr << "Warning: Match bonus always = 0 in --end-to-end mode; ignoring user setting" << endl;
+				bonusMatch = 0;
+			}
+			Scoring sc(
+					bonusMatch,     // constant reward for match
+					penMmcType,     // how to penalize mismatches
+					penMmcMax,      // max mm pelanty
+					penMmcMin,      // min mm pelanty
+					scoreMin,       // min score as function of read len
+					nCeil,          // max # Ns as function of read len
+					penNType,       // how to penalize Ns in the read
+					penN,           // constant if N pelanty is a constant
+					penNCatPair,    // whether to concat mates before N filtering
+					penRdGapConst,  // constant coeff for read gap cost
+					penRfGapConst,  // constant coeff for ref gap cost
+					penRdGapLinear, // linear coeff for read gap cost
+					penRfGapLinear, // linear coeff for ref gap cost
+					gGapBarrier);    // # rows at top/bot only entered diagonally
+
+
+			// Set up hit sink; if sanityCheck && !os.empty() is true,
+			// then instruct the sink to "retain" hits in a vector in
+			// memory so that we can easily sanity check them later on
+			Timer *_tRef = new Timer(cerr, "Time loading reference: ", timing);
+			auto_ptr<BitPairReference> refs;
+			delete _tRef;
+
+
+			if(gVerbose || startVerbose) {
+				cerr << "Dispatching to search driver: "; logTime(cerr, true);
+			}
+
+
+			// Do the search for all input reads
+			assert(patsrc != NULL);
+			assert(mssink != NULL);
+			multiseedSearch(
+					sc,      // scoring scheme
+					*patsrc, // pattern source
+					*mssink, // hit sink
+					ebwt,    // BWT
+					*ebwtBw, // BWT'
+					refs.get(),
+					refnames,
+					metricsOfb);
+			if(!gQuiet && !seedSumm) {
+				size_t repThresh = mhits;
+				if(repThresh == 0) {
+					repThresh = std::numeric_limits<size_t>::max();
+				}
+				mssink->finish(
+						repThresh,
+						gReportDiscordant,
+						gReportMixed,
+						hadoopOut);
+			}
+
+
+			oq.flush(true) ;
+			assert_eq(oq.numStarted(), oq.numFinished());
+			assert_eq(oq.numStarted(), oq.numFlushed());
+			
+			if ( separator )
+			{
+				fout->writeChars( "#File_End_Here\n" );
+
+				std::ostringstream oss ;
+				oss << "centrifuge_report_" << fileIdx<<".tsv" ;
+				reportFile = oss.str() ;
+				if (!reportFile.empty()) {
+					// write the species report into the corresponding file
+					cerr << "report file " << reportFile << endl;
+					ofstream reportOfb;
+					reportOfb.open(reportFile.c_str());
+					SpeciesMetrics& spm = metrics.spmu;
+					if(abundance_analysis) {
+						uint8_t rank = get_tax_rank_id(classification_rank.c_str());
+						Timer timer(cerr, "Calculating abundance: ");
+						spm.calculateAbundance(ebwt, rank);
+					}
+					const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+					const std::map<uint64_t, string>& name_map = ebwt.name();
+					const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
+					const map<uint64_t, double>& abundance = spm.abundance;
+					const map<uint64_t, double>& abundance_len = spm.abundance_len;
+					reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
+						<< "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
+					if(false) {
+						reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
+					}
+					reportOfb << "abundance";
+					if(false) {
+						reportOfb << '\t' << "abundance_normalized_by_genome_size";
+					}
+					reportOfb << endl;
+					for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
+
+						uint64_t taxid = it->first;
+						if(taxid == 0) continue;
+
+						std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
+						if(name_itr != name_map.end()) {
+							reportOfb << name_itr->second;
+						} else {
+							reportOfb << taxid;
+						}
+						reportOfb << '\t' << taxid << '\t';
+
+						uint8_t rank = 0;
+						bool leaf = false;
+						std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
+
+						if(tree_itr != tree.end()) {
+							rank = tree_itr->second.rank;
+							leaf = tree_itr->second.leaf;
+						}
+						if(rank == RANK_UNKNOWN && leaf) {
+							reportOfb << "leaf";
+						} else {
+							string rank_str = get_tax_rank_string(rank);
+							reportOfb << rank_str;
+						}
+						reportOfb << '\t';
+
+						std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
+						uint64_t genome_size = 0;
+						if(size_itr != size_map.end()) {
+							genome_size = size_itr->second;
+						}
+
+						reportOfb << genome_size << '\t'
+							<< it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
+						if(false) {
+							reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
+								<< spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
+						}
+						map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
+						if(ab_len_itr != abundance_len.end()) {
+							reportOfb << ab_len_itr->second;
+						} else {
+							reportOfb << "0.0";
+						}
+						map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
+						if(false) {
+							if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
+								reportOfb << '\t' << ab_itr->second;
+							} else {
+								reportOfb << "\t0.0";
+							}
+						}
+						reportOfb << endl;
+
+					}
+					reportOfb.close();
+				}
+				metrics.reset() ;
+			}
+
+
+			delete patsrc;
+		}
+	} // end for-loop of fileCnt
+
+	// Coalesced report here if we don't want separator.
+	if ( !separator )
+	{
 		if (!reportFile.empty()) {
-            // write the species report into the corresponding file
-            cerr << "report file " << reportFile << endl;
+			// write the species report into the corresponding file
+			cerr << "report file " << reportFile << endl;
 			ofstream reportOfb;
 			reportOfb.open(reportFile.c_str());
 			SpeciesMetrics& spm = metrics.spmu;
-            if(abundance_analysis) {
-                uint8_t rank = get_tax_rank_id(classification_rank.c_str());
-                Timer timer(cerr, "Calculating abundance: ");
-                spm.calculateAbundance(ebwt, rank);
-            }
-            const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
-            const std::map<uint64_t, string>& name_map = ebwt.name();
-            const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
-            const map<uint64_t, double>& abundance = spm.abundance;
-            const map<uint64_t, double>& abundance_len = spm.abundance_len;
+			if(abundance_analysis) {
+				uint8_t rank = get_tax_rank_id(classification_rank.c_str());
+				Timer timer(cerr, "Calculating abundance: ");
+				spm.calculateAbundance(ebwt, rank);
+			}
+			const std::map<uint64_t, TaxonomyNode>& tree = ebwt.tree();
+			const std::map<uint64_t, string>& name_map = ebwt.name();
+			const std::map<uint64_t, uint64_t>& size_map = ebwt.size();
+			const map<uint64_t, double>& abundance = spm.abundance;
+			const map<uint64_t, double>& abundance_len = spm.abundance_len;
 			reportOfb << "name" << '\t' << "taxID" << '\t' << "taxRank" << '\t'
-					  << "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
-            if(false) {
-                reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
-            }
-            reportOfb << "abundance";
-            if(false) {
-                reportOfb << '\t' << "abundance_normalized_by_genome_size";
-            }
-            reportOfb << endl;
+				<< "genomeSize" << '\t' << "numReads" << '\t' << "numUniqueReads" << '\t';
+			if(false) {
+				reportOfb << "summedHitLen" << '\t' << "numWeightedReads" << '\t' << "numUniqueKmers" << '\t' << "sumScore" << '\t';
+			}
+			reportOfb << "abundance";
+			if(false) {
+				reportOfb << '\t' << "abundance_normalized_by_genome_size";
+			}
+			reportOfb << endl;
 			for(map<uint64_t, ReadCounts>::const_iterator it = spm.species_counts.begin(); it != spm.species_counts.end(); ++it) {
 
-                uint64_t taxid = it->first;
-                if(taxid == 0) continue;
+				uint64_t taxid = it->first;
+				if(taxid == 0) continue;
 
-                std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
-                if(name_itr != name_map.end()) {
-                    reportOfb << name_itr->second;
-                } else {
-                    reportOfb << taxid;
-                }
-                reportOfb << '\t' << taxid << '\t';
+				std::map<uint64_t, string>::const_iterator name_itr = name_map.find(taxid);
+				if(name_itr != name_map.end()) {
+					reportOfb << name_itr->second;
+				} else {
+					reportOfb << taxid;
+				}
+				reportOfb << '\t' << taxid << '\t';
 
-                uint8_t rank = 0;
-                bool leaf = false;
-                std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
-                
-                if(tree_itr != tree.end()) {
-                    rank = tree_itr->second.rank;
-                    leaf = tree_itr->second.leaf;
-                }
-                if(rank == RANK_UNKNOWN && leaf) {
-                    reportOfb << "leaf";
-                } else {
-                    string rank_str = get_tax_rank_string(rank);
-                    reportOfb << rank_str;
-                }
-                reportOfb << '\t';
-                
-                std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
-                uint64_t genome_size = 0;
-                if(size_itr != size_map.end()) {
-                    genome_size = size_itr->second;
-                }
-                
-                reportOfb << genome_size << '\t'
-						  << it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
-                if(false) {
-                    reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
-                              << spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
-                }
-                map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
-                if(ab_len_itr != abundance_len.end()) {
-                    reportOfb << ab_len_itr->second;
-                } else {
-                    reportOfb << "0.0";
-                }
-                map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
-                if(false) {
-                    if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
-                        reportOfb << '\t' << ab_itr->second;
-                    } else {
-                        reportOfb << "\t0.0";
-                    }
-                }
-                reportOfb << endl;
+				uint8_t rank = 0;
+				bool leaf = false;
+				std::map<uint64_t, TaxonomyNode>::const_iterator tree_itr = tree.find(taxid);
+
+				if(tree_itr != tree.end()) {
+					rank = tree_itr->second.rank;
+					leaf = tree_itr->second.leaf;
+				}
+				if(rank == RANK_UNKNOWN && leaf) {
+					reportOfb << "leaf";
+				} else {
+					string rank_str = get_tax_rank_string(rank);
+					reportOfb << rank_str;
+				}
+				reportOfb << '\t';
+
+				std::map<uint64_t, uint64_t>::const_iterator size_itr = size_map.find(taxid);
+				uint64_t genome_size = 0;
+				if(size_itr != size_map.end()) {
+					genome_size = size_itr->second;
+				}
+
+				reportOfb << genome_size << '\t'
+					<< it->second.n_reads << '\t' << it->second.n_unique_reads << '\t';
+				if(false) {
+					reportOfb << it->second.summed_hit_len << '\t' << it->second.weighted_reads << '\t'
+						<< spm.nDistinctKmers(taxid) << '\t' << it->second.sum_score << '\t';
+				}
+				map<uint64_t, double>::const_iterator ab_len_itr = abundance_len.find(taxid);
+				if(ab_len_itr != abundance_len.end()) {
+					reportOfb << ab_len_itr->second;
+				} else {
+					reportOfb << "0.0";
+				}
+				map<uint64_t, double>::const_iterator ab_itr = abundance.find(taxid);
+				if(false) {
+					if(ab_itr != abundance.end() && ab_len_itr != abundance_len.end()) {
+						reportOfb << '\t' << ab_itr->second;
+					} else {
+						reportOfb << "\t0.0";
+					}
+				}
+				reportOfb << endl;
 
 			}
 			reportOfb.close();
 		}
+	}
 
+	// Evict any loaded indexes from memory
+	if(ebwt.isInMemory()) {
+		ebwt.evictFromMemory();
+	}
+	if(ebwtBw != NULL) {
+		delete ebwtBw;
+	}
 
-		oq.flush(true);
-		assert_eq(oq.numStarted(), oq.numFinished());
-		assert_eq(oq.numStarted(), oq.numFlushed());
-		delete patsrc;
-		delete mssink;
-		delete metricsOfb;
-		if(fout != NULL) {
-			delete fout;
-		}
+	delete mssink;
+	delete metricsOfb;
+	if(fout != NULL) {
+		delete fout;
 	}
 }
 
