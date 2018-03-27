@@ -249,9 +249,8 @@ if ( defined $sampleSheetFile )
 	while ( <FP1> )
 	{
 		chomp ;
-		my @cols = split ;
-		if ( ( $cols[0] == 1 && scalar( @cols ) != 4 ) 
-			|| ( $cols[0] == 2 && scalar( @cols ) != 5 ) )
+		my @cols = split /\t/, $_ ;
+		if ( scalar( @cols ) != 5 ) 
 		{
 			Fail( "The row in sample sheet file has wrong format: ".$_."!\n" ) ;
 		}
@@ -651,33 +650,14 @@ my $ret;
 sub GetSampleSheetOutputFileName
 {
 	my $sampleIdx = $_[0] ;
-	my @cols = @{ $sampleSheet[ $sampleSheetOrder[ $sampleIdx ] ] } ;
-	my $file ;
-	if ( $cols[0] == 1 )
-	{
-		return $cols[2] ;
-	}
-	else
-	{
-		return $cols[3] ;
-	}
+	return @{ $sampleSheet[ $sampleSheetOrder[ $sampleIdx ] ] }[3] ;
 
 }
 
 sub GetSampleSheetReportFileName
 {
 	my $sampleIdx = $_[0] ;
-	my @cols = @{ $sampleSheet[ $sampleSheetOrder[ $sampleIdx ] ] } ;
-	my $file ;
-	if ( $cols[0] == 1 )
-	{
-		return $cols[3] ;
-	}
-	else
-	{
-		return $cols[4] ;
-	}
-
+	return @{ $sampleSheet[ $sampleSheetOrder[ $sampleIdx ] ] }[4] ;
 }
 
 if(defined($cap_out)) {
