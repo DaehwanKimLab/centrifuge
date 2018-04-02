@@ -559,7 +559,8 @@ public:
 	    _refnames(EBWT_CAT), \
 	    mmFile1_(NULL), \
 	    mmFile2_(NULL), \
-        _compressed(false)
+        _compressed(false), \
+	   _boundaryCheck( 1 ) 
 
 	/// Construct an Ebwt from the given input file
 	Ebwt(const string& in,
@@ -764,6 +765,7 @@ public:
 			nsize = readIndex<uint64_t>( in4, this->toBe() ) ;
 			//cout<<nsize<<" "<<_uid_to_tid.size()<<endl ;
 			
+			_lastGenomeBoundary = 0 ;
 			if ( nsize > 0 )
 			{
 				uint64_t t ;
@@ -772,15 +774,43 @@ public:
 					uint64_t saCoord = readIndex<uint64_t>( in4, this->toBe() ) ;
 					uint32_t refIdx = readIndex<uint32_t>( in4, this->toBe() ) ;
 					/*string uid;
-					while(true) {
-						char c = '\0';
-						in4 >> c;
-						if(c == '\0' || c == '\n') break;
-						uid.push_back(c);
-					}*/
+					  while(true) {
+					  char c = '\0';
+					  in4 >> c;
+					  if(c == '\0' || c == '\n') break;
+					  uid.push_back(c);
+					  }*/
 					//cout<<saCoord<<" "<<uid<<" "<< uidStrToIdx[ uid ] <<endl ;
 					_saGenomeBoundary[ saCoord ] = refIdx ;
 
+					if ( saCoord > _lastGenomeBoundary )
+						_lastGenomeBoundary = saCoord ;
+				}
+
+				_boundaryCheckShift = 8 ;
+				while ( 1 )	
+				{	
+					uint64_t blockSize = ((uint64_t)1)<<_boundaryCheckShift ;
+					if ( blockSize > _lastGenomeBoundary + 1 )
+						break ;
+					uint64_t blockCnt =  ( _lastGenomeBoundary + 1 ) / blockSize + 1 ;
+					if ( blockCnt < 100 * nsize )
+					{
+						if ( _boundaryCheckShift > 8 )
+							--_boundaryCheckShift ;
+						break ;
+					}
+
+					++_boundaryCheckShift ;
+				}
+
+				//cout<<nsize<<" "<<_lastGenomeBoundary<<" "<<_boundaryCheckShift<<endl ;
+
+				_boundaryCheck.resize( ( ( _lastGenomeBoundary + 1 ) >> _boundaryCheckShift ) + 1 ) ;
+				_boundaryCheck.reset() ;
+				for ( std::map<uint64_t, uint32_t>::iterator it = _saGenomeBoundary.begin() ; it != _saGenomeBoundary.end() ; ++it )
+				{
+					_boundaryCheck.set( (it->first) >> _boundaryCheckShift ) ;
 				}
 			}
 		}
@@ -1932,8 +1962,8 @@ public:
 			assert_neq((index_t)OFF_MASK, off);
 			return off;
 		} else {
-			// Try looking at zoff
-			if ( saGenomeBoundaryHas( elt ) )
+			// Try looking at zoff, the first check > 0 makes sure that we load the .4 index
+			if ( _lastGenomeBoundary > 0 && elt <= _lastGenomeBoundary && _boundaryCheck.test( elt >> _boundaryCheckShift ) && saGenomeBoundaryHas( elt ) )
 			{
 				uint32_t ret = (index_t)saGenomeBoundaryVal( elt ) ;
 				if ( this->_offw )
@@ -3012,7 +3042,9 @@ public:
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
     std::map<uint64_t, uint32_t> _saGenomeBoundary ; // indicate the corresponding SA coordinate corresponds to the start of a ref genome. 
-    
+    uint64_t _lastGenomeBoundary ;
+    uint64_t _boundaryCheckShift ;
+    EBitList<128> _boundaryCheck ;
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;
