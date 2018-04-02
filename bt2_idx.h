@@ -559,7 +559,8 @@ public:
 	    _refnames(EBWT_CAT), \
 	    mmFile1_(NULL), \
 	    mmFile2_(NULL), \
-        _compressed(false)
+        _compressed(false), \
+	   _boundaryCheck( 1 ) 
 
 	/// Construct an Ebwt from the given input file
 	Ebwt(const string& in,
@@ -583,30 +584,30 @@ public:
 	     Ebwt_INITS
 	{
 		assert(!useMm || !useShmem);
-        
+
 #ifdef POPCNT_CAPABILITY
-        ProcessorSupport ps;
-        _usePOPCNTinstruction = ps.POPCNTenabled();
+		ProcessorSupport ps;
+		_usePOPCNTinstruction = ps.POPCNTenabled();
 #endif
-        
+
 		packed_ = false;
 		_useMm = useMm;
 		useShmem_ = useShmem;
 		_in1Str = in + ".1." + gEbwt_ext;
 		_in2Str = in + ".2." + gEbwt_ext;
-		
+
 		if(!skipLoading) {
 			readIntoMemory(
-						   color,       // expect index to be colorspace?
-						   fw ? -1 : needEntireReverse, // need REF_READ_REVERSE
-						   loadSASamp,  // load the SA sample portion?
-						   loadFtab,    // load the ftab & eftab?
-						   loadRstarts, // load the rstarts array?
-						   true,        // stop after loading the header portion?
-						   &_eh,        // params
-						   mmSweep,     // mmSweep
-						   loadNames,   // loadNames
-						   startVerbose); // startVerbose
+					color,       // expect index to be colorspace?
+					fw ? -1 : needEntireReverse, // need REF_READ_REVERSE
+					loadSASamp,  // load the SA sample portion?
+					loadFtab,    // load the ftab & eftab?
+					loadRstarts, // load the rstarts array?
+					true,        // stop after loading the header portion?
+					&_eh,        // params
+					mmSweep,     // mmSweep
+					loadNames,   // loadNames
+					startVerbose); // startVerbose
 			// If the offRate has been overridden, reflect that in the
 			// _eh._offRate field
 			if(offRatePlus > 0 && _overrideOffRate == -1) {
@@ -618,136 +619,202 @@ public:
 			}
 			assert(repOk());
 		}
-        
-        // Read conversion table, genome size table, and taxonomy tree
-        string in3Str = in + ".3." + gEbwt_ext;
-        if(verbose || startVerbose) cerr << "Opening \"" << in3Str.c_str() << "\"" << endl;
-        ifstream in3(in3Str.c_str(), ios::binary);
-        if(!in3.good()) {
-            cerr << "Could not open index file " << in3Str.c_str() << endl;
-        }
-        
-        initial_tax_rank_num();
-        
-        set<uint64_t> leaves;
-        size_t num_cids = 0; // number of compressed sequences
-        _uid_to_tid.clear();
-        readU32(in3, this->toBe());
-        uint64_t nref = readIndex<uint64_t>(in3, this->toBe());
-        if(nref > 0) {
-            while(!in3.eof()) {
-                string uid;
-                uint64_t tid;
-                while(true) {
-                    char c = '\0';
-                    in3 >> c;
-                    if(c == '\0' || c == '\n') break;
-                    uid.push_back(c);
-                }
-                if(uid.find("cid") == 0) {
-                    num_cids++;
-                }
-                tid = readIndex<uint64_t>(in3, this->toBe());
-                _uid_to_tid.expand();
-                _uid_to_tid.back().first = uid;
-                _uid_to_tid.back().second = tid;
-                leaves.insert(tid);
-                if(nref == _uid_to_tid.size()) break;
-            }
-            assert_eq(nref, _uid_to_tid.size());
-        }
-        
-        if(num_cids >= 10) {
-            this->_compressed = true;
-        }
-        
-        _tree.clear();
-        uint64_t ntid = readIndex<uint64_t>(in3, this->toBe());
-        if(ntid > 0) {
-            while(!in3.eof()) {
-                TaxonomyNode node;
-                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
-                node.parent_tid = readIndex<uint64_t>(in3, this->toBe());
-                node.rank = readIndex<uint16_t>(in3, this->toBe());
-                node.leaf = (leaves.find(tid) != leaves.end());
-                _tree[tid] = node;
-                if(ntid == _tree.size()) break;
-            }
-            assert_eq(ntid, _tree.size());
-        }
-        
-        _name.clear();
-        uint64_t nname = readIndex<uint64_t>(in3, this->toBe());
-        if(nname > 0) {
-            string name;
-            while(!in3.eof()) {
-                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
-                in3 >> name;
-                in3.seekg(1, ios_base::cur);
-                assert(_name.find(tid) == _name.end());
-                std::replace(name.begin(), name.end(), '@', ' ');
-                _name[tid] = name;
-                if(_name.size() == nname)
-                    break;
-            }
-        }
-        
-        _size.clear();
-        uint64_t nsize = readIndex<uint64_t>(in3, this->toBe());
-        if(nsize > 0) {
-            while(!in3.eof()) {
-                uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
-                uint64_t size = readIndex<uint64_t>(in3, this->toBe());
-                assert(_size.find(tid) == _size.end());
-                _size[tid] = size;
-                if(_size.size() == nsize)
-                    break;
-            }
-        }
-        
-        // Calculate average genome size
-        if(!this->_offw) { // Skip if there are many sequences (e.g. >64K)
-            for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
-                uint64_t tid = tree_itr->first;
-                const TaxonomyNode& node = tree_itr->second;
-                if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
-                   node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
-                    size_t sum = 0, count = 0;
-                    for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
-                        uint64_t c_tid = size_itr->first;
-                        map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
-                        if(tree_itr2 == _tree.end())
-                            continue;
-                        
-                        assert(tree_itr2 != _tree.end());
-                        const TaxonomyNode& c_node = tree_itr2->second;
-                        if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
-                           tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
-                            c_tid = c_node.parent_tid;
-                            while(true) {
-                                if(c_tid == tid) {
-                                    sum += size_itr->second;
-                                    count += 1;
-                                    break;
-                                }
-                                tree_itr2 = _tree.find(c_tid);
-                                if(tree_itr2 == _tree.end())
-                                    break;
-                                if(c_tid == tree_itr2->second.parent_tid)
-                                    break;
-                                c_tid = tree_itr2->second.parent_tid;
-                            }
-                        }
-                    }
-                    if(count > 0) {
-                        _size[tid] = sum / count;
-                    }
-                }
-            }
-        }
-        _paths.buildPaths(_uid_to_tid, _tree);
-        
-        in3.close();
+
+		// Read conversion table, genome size table, and taxonomy tree
+		string in3Str = in + ".3." + gEbwt_ext;
+		if(verbose || startVerbose) cerr << "Opening \"" << in3Str.c_str() << "\"" << endl;
+		ifstream in3(in3Str.c_str(), ios::binary);
+		if(!in3.good()) {
+			cerr << "Could not open index file " << in3Str.c_str() << endl;
+		}
+
+		initial_tax_rank_num();
+
+		set<uint64_t> leaves;
+		size_t num_cids = 0; // number of compressed sequences
+		_uid_to_tid.clear();
+		readU32(in3, this->toBe());
+		uint64_t nref = readIndex<uint64_t>(in3, this->toBe());
+		if(nref > 0) {
+			while(!in3.eof()) {
+				string uid;
+				uint64_t tid;
+				while(true) {
+					char c = '\0';
+					in3 >> c;
+					if(c == '\0' || c == '\n') break;
+					uid.push_back(c);
+				}
+				if(uid.find("cid") == 0) {
+					num_cids++;
+				}
+				tid = readIndex<uint64_t>(in3, this->toBe());
+				_uid_to_tid.expand();
+				_uid_to_tid.back().first = uid;
+				_uid_to_tid.back().second = tid;
+				leaves.insert(tid);
+				if(nref == _uid_to_tid.size()) break;
+			}
+			assert_eq(nref, _uid_to_tid.size());
+		}
+
+		if(num_cids >= 10) {
+			this->_compressed = true;
+		}
+
+		_tree.clear();
+		uint64_t ntid = readIndex<uint64_t>(in3, this->toBe());
+		if(ntid > 0) {
+			while(!in3.eof()) {
+				TaxonomyNode node;
+				uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
+				node.parent_tid = readIndex<uint64_t>(in3, this->toBe());
+				node.rank = readIndex<uint16_t>(in3, this->toBe());
+				node.leaf = (leaves.find(tid) != leaves.end());
+				_tree[tid] = node;
+				if(ntid == _tree.size()) break;
+			}
+			assert_eq(ntid, _tree.size());
+		}
+
+		_name.clear();
+		uint64_t nname = readIndex<uint64_t>(in3, this->toBe());
+		if(nname > 0) {
+			string name;
+			while(!in3.eof()) {
+				uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
+				in3 >> name;
+				in3.seekg(1, ios_base::cur);
+				assert(_name.find(tid) == _name.end());
+				std::replace(name.begin(), name.end(), '@', ' ');
+				_name[tid] = name;
+				if(_name.size() == nname)
+					break;
+			}
+		}
+
+		_size.clear();
+		uint64_t nsize = readIndex<uint64_t>(in3, this->toBe());
+		if(nsize > 0) {
+			while(!in3.eof()) {
+				uint64_t tid = readIndex<uint64_t>(in3, this->toBe());
+				uint64_t size = readIndex<uint64_t>(in3, this->toBe());
+				assert(_size.find(tid) == _size.end());
+				_size[tid] = size;
+				if(_size.size() == nsize)
+					break;
+			}
+		}
+
+		// Calculate average genome size
+		if(!this->_offw) { // Skip if there are many sequences (e.g. >64K)
+			for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
+				uint64_t tid = tree_itr->first;
+				const TaxonomyNode& node = tree_itr->second;
+				if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
+						node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
+					size_t sum = 0, count = 0;
+					for(map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin(); size_itr != _size.end(); size_itr++) {
+						uint64_t c_tid = size_itr->first;
+						map<uint64_t, TaxonomyNode>::const_iterator tree_itr2 = _tree.find(c_tid);
+						if(tree_itr2 == _tree.end())
+							continue;
+
+						assert(tree_itr2 != _tree.end());
+						const TaxonomyNode& c_node = tree_itr2->second;
+						if((c_node.rank == RANK_UNKNOWN && c_node.leaf) ||
+								tax_rank_num[c_node.rank] < tax_rank_num[RANK_SPECIES]) {
+							c_tid = c_node.parent_tid;
+							while(true) {
+								if(c_tid == tid) {
+									sum += size_itr->second;
+									count += 1;
+									break;
+								}
+								tree_itr2 = _tree.find(c_tid);
+								if(tree_itr2 == _tree.end())
+									break;
+								if(c_tid == tree_itr2->second.parent_tid)
+									break;
+								c_tid = tree_itr2->second.parent_tid;
+							}
+						}
+					}
+					if(count > 0) {
+						_size[tid] = sum / count;
+					}
+				}
+			}
+		}
+		_paths.buildPaths(_uid_to_tid, _tree);
+
+		in3.close();
+
+		// Read in the information provided by Li. The SA coordinate that corresponds to the start of genome.
+		string in4Str = in + ".4." + gEbwt_ext;
+		if(verbose || startVerbose) cerr << "Opening \"" << in4Str.c_str() << "\"" << endl;
+		ifstream in4(in4Str.c_str(), ios::binary);
+		if(!in4.good()) {
+			if(verbose || startVerbose) cerr << "Could not open index file " << in4Str.c_str() << endl;
+		}
+		else
+		{
+			readU32(in4, this->toBe());
+
+			_saGenomeBoundary.clear() ;
+			nsize = readIndex<uint64_t>( in4, this->toBe() ) ;
+			//cout<<nsize<<" "<<_uid_to_tid.size()<<endl ;
+			
+			_lastGenomeBoundary = 0 ;
+			if ( nsize > 0 )
+			{
+				uint64_t t ;
+				for ( t = 0 ; t < nsize ; ++t )
+				{
+					uint64_t saCoord = readIndex<uint64_t>( in4, this->toBe() ) ;
+					uint32_t refIdx = readIndex<uint32_t>( in4, this->toBe() ) ;
+					/*string uid;
+					  while(true) {
+					  char c = '\0';
+					  in4 >> c;
+					  if(c == '\0' || c == '\n') break;
+					  uid.push_back(c);
+					  }*/
+					//cout<<saCoord<<" "<<uid<<" "<< uidStrToIdx[ uid ] <<endl ;
+					_saGenomeBoundary[ saCoord ] = refIdx ;
+
+					if ( saCoord > _lastGenomeBoundary )
+						_lastGenomeBoundary = saCoord ;
+				}
+
+				_boundaryCheckShift = 8 ;
+				while ( 1 )	
+				{	
+					uint64_t blockSize = ((uint64_t)1)<<_boundaryCheckShift ;
+					if ( blockSize > _lastGenomeBoundary + 1 )
+						break ;
+					uint64_t blockCnt =  ( _lastGenomeBoundary + 1 ) / blockSize + 1 ;
+					if ( blockCnt < 100 * nsize )
+					{
+						if ( _boundaryCheckShift > 8 )
+							--_boundaryCheckShift ;
+						break ;
+					}
+
+					++_boundaryCheckShift ;
+				}
+
+				//cout<<nsize<<" "<<_lastGenomeBoundary<<" "<<_boundaryCheckShift<<endl ;
+
+				_boundaryCheck.resize( ( ( _lastGenomeBoundary + 1 ) >> _boundaryCheckShift ) + 1 ) ;
+				_boundaryCheck.reset() ;
+				for ( std::map<uint64_t, uint32_t>::iterator it = _saGenomeBoundary.begin() ; it != _saGenomeBoundary.end() ; ++it )
+				{
+					_boundaryCheck.set( (it->first) >> _boundaryCheckShift ) ;
+				}
+			}
+		}
+		in4.close() ;
 	}
 	
 	/// Construct an Ebwt from the given header parameters and string
@@ -1231,6 +1298,8 @@ public:
             string uid = get_uid(refname);
             uids.insert(uid);
         }
+	
+	
         std::map<string, uint64_t> uid_to_tid; // map from unique id to taxonomy id
         {
             ifstream table_file(conversion_table_fname.c_str(), ios::in);
@@ -1489,7 +1558,16 @@ public:
 				assert(bsa.suffixItrIsReset());
 				assert_eq(bsa.size(), s.length()+1);
 				VMSG_NL("Converting suffix-array elements to index image");
-				buildToDisk(bsa, s, out1, out2, saOut, bwtOut, szs, kmer_size);
+
+				string fname4 = base_fname + ".4." + gEbwt_ext;
+				ofstream fout4(fname4.c_str(), ios::binary);
+				if(!fout4.good()) {
+					cerr << "Could not open index file for writing: \"" << fname4 << "\"" << endl
+						<< "Please make sure the directory exists and that permissions allow writing by Centrifuge" << endl;
+					throw 1;
+				}
+				buildToDisk(bsa, s, out1, out2, saOut, bwtOut, fout4, szs, kmer_size);
+				fout4.close() ;
 				out1.flush(); out2.flush();
                 bool failed = out1.fail() || out2.fail();
                 if(saOut != NULL) {
@@ -1598,6 +1676,8 @@ public:
     const TaxonomyPathTable&                paths() const { return _paths; }
     const std::map<uint64_t, string>&       name() const { return _name; }
     const std::map<uint64_t, uint64_t>&     size() const { return _size; }
+    inline const bool 	    saGenomeBoundaryHas( uint64_t key ) const { return _saGenomeBoundary.find( key ) != _saGenomeBoundary.end() ; }
+    inline const uint32_t saGenomeBoundaryVal( uint64_t key ) const { return _saGenomeBoundary.at(key) ; }
     bool                                    compressed() const { return _compressed; }
     
     
@@ -1863,26 +1943,36 @@ public:
 	 */
 	index_t tryOffset(index_t elt) const {
 #ifndef NDEBUG
-        if(this->_offw) {
-            assert(offsw() != NULL);
-        } else {
-            assert(offs() != NULL);
-        }
+		if(this->_offw) {
+			assert(offsw() != NULL);
+		} else {
+			assert(offs() != NULL);
+		}
 #endif
 		if(elt == _zOff) return 0;
 		if((elt & _eh._offMask) == elt) {
 			index_t eltOff = elt >> _eh._offRate;
 			assert_lt(eltOff, _eh._offsLen);
-            index_t off;
-            if(this->_offw) {
-                off = offsw()[eltOff];
-            } else {
-                off = offs()[eltOff];
-            }
+			index_t off;
+			if(this->_offw) {
+				off = offsw()[eltOff];
+			} else {
+				off = offs()[eltOff];
+			}
 			assert_neq((index_t)OFF_MASK, off);
 			return off;
 		} else {
-			// Try looking at zoff
+			// Try looking at zoff, the first check > 0 makes sure that we load the .4 index
+			if ( _lastGenomeBoundary > 0 && elt <= _lastGenomeBoundary && _boundaryCheck.test( elt >> _boundaryCheckShift ) && saGenomeBoundaryHas( elt ) )
+			{
+				uint32_t ret = (index_t)saGenomeBoundaryVal( elt ) ;
+				if ( this->_offw )
+					return ret ;	
+				else
+					return (uint16_t)ret ;
+
+			}
+
 			return (index_t)OFF_MASK;
 		}
 	}
@@ -2019,7 +2109,7 @@ public:
 	template <typename TStr> static TStr join(EList<TStr>& l, uint32_t seed);
 	template <typename TStr> static TStr join(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, uint32_t seed);
 	template <typename TStr> void joinToDisk(EList<FileBuf*>& l, EList<RefRecord>& szs, index_t sztot, const RefReadInParams& refparams, TStr& ret, ostream& out1, ostream& out2);
-	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut, const EList<RefRecord>& szs, int kmer_size);
+	template <typename TStr> void buildToDisk(InorderBlockwiseSA<TStr>& sa, const TStr& s, ostream& out1, ostream& out2, ostream* saOut, ostream* bwtOut, ostream& out4, const EList<RefRecord>& szs, int kmer_size );
 
 	// I/O
 	void readIntoMemory(int color, int needEntireRev, bool loadSASamp, bool loadFtab, bool loadRstarts, bool justHeader, EbwtParams<index_t> *params, bool mmSweep, bool loadNames, bool startVerbose);
@@ -2951,7 +3041,10 @@ public:
     TaxonomyPathTable                _paths;
     std::map<uint64_t, string>       _name;
     std::map<uint64_t, uint64_t>     _size;
-    
+    std::map<uint64_t, uint32_t> _saGenomeBoundary ; // indicate the corresponding SA coordinate corresponds to the start of a ref genome. 
+    uint64_t _lastGenomeBoundary ;
+    uint64_t _boundaryCheckShift ;
+    EBitList<128> _boundaryCheck ;
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;
@@ -3254,6 +3347,7 @@ void Ebwt<index_t>::buildToDisk(
                                 ostream& out2,
                                 ostream* saOut,
                                 ostream* bwtOut,
+				ostream& out4,
                                 const EList<RefRecord>& szs,
                                 int kmer_size)
 {
@@ -3370,6 +3464,42 @@ void Ebwt<index_t>::buildToDisk(
             acc_szs.back() += szs[i].len;
         }
     }
+
+	// Add by Li. Collect the boundary information for each reference sequence.
+	EBitList<128> refOffsetMark( len + 1 ) ;
+	std::map<uint64_t, uint32_t> refOffsetMap ;
+	std::map<uint64_t, uint32_t> saBoundaryMap ;
+	const uint64_t refOverlap = 11 ; // the last refOverlap bp of a ref sequence will be classified to the next ref sequence.
+	{
+		index_t refOffset = 0 ;
+		size_t refNameIdx = 0 ;
+		for (size_t i = 0 ; i < szs.size() ; ++i )
+		{
+			//cout<<szs[i].off<<" "<<szs[i].len<<" "<<szs[i].first<<endl ;
+			if ( szs[i].first && szs[i].len > 0 )
+			{
+				//cout<<_refnames[ refNameIdx ]<<" "<<refOffset<<endl ;
+				uint64_t o = refOffset - refOverlap ;
+				if ( refOffset < refOverlap )
+					o = 0 ;
+				refOffsetMark.set( o ) ;
+				/*std::string uid = get_uid( _refnames[ refNameIdx ] ) ;
+				if ( uid_to_tid.find( uid ) != uid_to_tid.end() )
+					refOffsetMap[o] = uid_to_tid[ uid ] ;
+				else
+					refOffsetMap[o] = 0 ;*/
+
+				refOffsetMap[o] = refNameIdx ;
+				++refNameIdx ;
+			}
+
+			refOffset += szs[i].len ;
+		}
+
+	}
+	writeIndex<int32_t>(out4, 1, this->toBe()); // endianness sentinel
+
+
 	while(side < ebwtTotSz) {
 		// Sanity-check our cursor into the side buffer
 		assert_geq(sideCur, 0);
@@ -3381,149 +3511,163 @@ void Ebwt<index_t>::buildToDisk(
 #ifdef SIXTY4_FORMAT
 		for(int bpi = 0; bpi < 32; bpi++, si++)
 #else
-		for(int bpi = 0; bpi < 4; bpi++, si++)
+			for(int bpi = 0; bpi < 4; bpi++, si++)
 #endif
-		{
-			int bwtChar;
-			bool count = true;
-			if(si <= len) {
-				// Still in the SA; extract the bwtChar
-				index_t saElt = sa.nextSuffix();
-                if(saOut != NULL) {
-                    writeIndex<index_t>(*saOut, saElt, this->toBe());
-                }
-				// (that might have triggered sa to calc next suf block)
-				if(saElt == 0) {
-					// Don't add the '$' in the last column to the BWT
-					// transform; we can't encode a $ (only A C T or G)
-					// and counting it as, say, an A, will mess up the
-					// LR mapping
-					bwtChar = 0; count = false;
-					ASSERT_ONLY(dollarSkipped = true);
-					zOff = si; // remember the SA row that
-					           // corresponds to the 0th suffix
-				} else {
-					bwtChar = (int)(s[saElt-1]);
-					assert_lt(bwtChar, 4);
-					// Update the fchr
-					fchr[bwtChar]++;
-				}
-				// Update ftab
-				if((len-saElt) >= (index_t)eh._ftabChars) {
-					// Turn the first ftabChars characters of the
-					// suffix into an integer index into ftab.  The
-					// leftmost (lowest index) character of the suffix
-					// goes in the most significant bit pair if the
-					// integer.
-					index_t sufInt = 0;
-					for(int i = 0; i < eh._ftabChars; i++) {
-						sufInt <<= 2;
-						assert_lt((index_t)i, len-saElt);
-						sufInt |= (unsigned char)(s[saElt+i]);
+			{
+				int bwtChar;
+				bool count = true;
+				if(si <= len) {
+					// Still in the SA; extract the bwtChar
+					index_t saElt = sa.nextSuffix();
+					if(saOut != NULL) {
+						writeIndex<index_t>(*saOut, saElt, this->toBe());
 					}
-					// Assert that this prefix-of-suffix is greater
-					// than or equal to the last one (true b/c the
-					// suffix array is sorted)
-					#ifndef NDEBUG
-					if(lastSufInt > 0) assert_geq(sufInt, lastSufInt);
-					lastSufInt = sufInt;
-					#endif
+
+					//if ( refOffsetMap.find( saElt ) != refOffsetMap.end() )
+					if ( refOffsetMark.test( saElt ) )
+					{
+						saBoundaryMap[ si ] = refOffsetMap[ saElt ] ;
+						//cout<<saElt<<" "<<uid<<endl ;
+					}
+
+					// (that might have triggered sa to calc next suf block)
+					if(saElt == 0) {
+						// Don't add the '$' in the last column to the BWT
+						// transform; we can't encode a $ (only A C T or G)
+						// and counting it as, say, an A, will mess up the
+						// LR mapping
+						bwtChar = 0; count = false;
+						ASSERT_ONLY(dollarSkipped = true);
+						zOff = si; // remember the SA row that
+						// corresponds to the 0th suffix
+					} else {
+						bwtChar = (int)(s[saElt-1]);
+						assert_lt(bwtChar, 4);
+						// Update the fchr
+						fchr[bwtChar]++;
+					}
 					// Update ftab
-					assert_lt(sufInt+1, ftabLen);
-					ftab[sufInt+1]++;
-					if(absorbCnt > 0) {
-						// Absorb all short suffixes since the last
-						// transition into this transition
-						absorbFtab[sufInt] = absorbCnt;
-						absorbCnt = 0;
+					if((len-saElt) >= (index_t)eh._ftabChars) {
+						// Turn the first ftabChars characters of the
+						// suffix into an integer index into ftab.  The
+						// leftmost (lowest index) character of the suffix
+						// goes in the most significant bit pair if the
+						// integer.
+						index_t sufInt = 0;
+						for(int i = 0; i < eh._ftabChars; i++) {
+							sufInt <<= 2;
+							assert_lt((index_t)i, len-saElt);
+							sufInt |= (unsigned char)(s[saElt+i]);
+						}
+						// Assert that this prefix-of-suffix is greater
+						// than or equal to the last one (true b/c the
+						// suffix array is sorted)
+#ifndef NDEBUG
+						if(lastSufInt > 0) assert_geq(sufInt, lastSufInt);
+						lastSufInt = sufInt;
+#endif
+						// Update ftab
+						assert_lt(sufInt+1, ftabLen);
+						ftab[sufInt+1]++;
+						if(absorbCnt > 0) {
+							// Absorb all short suffixes since the last
+							// transition into this transition
+							absorbFtab[sufInt] = absorbCnt;
+							absorbCnt = 0;
+						}
+					} else {
+						// Otherwise if suffix is fewer than ftabChars
+						// characters long, then add it to the 'absorbCnt';
+						// it will be absorbed into the next transition
+						assert_lt(absorbCnt, 255);
+						absorbCnt++;
+					}
+					// Update the number of distinct k-mers
+					if(kmer_size > 0) {
+						size_t idx = acc_szs.bsearchLoBound(saElt);
+						assert_lt(idx, acc_szs.size());
+						bool different = false;
+						for(size_t k = 0; k < kmer_size; k++) {
+							if((acc_szs[idx]-saElt) > k) {
+								uint8_t bp = s[saElt+k];
+								if(kmer[k] != bp || kmer_count[k] <= 0 || different) {
+									kmer_count[k]++;
+									different = true;
+								}
+								kmer[k] = bp;
+							}
+							else {
+								break;
+							}
+						}
+					}
+					// Suffix array offset boundary? - update offset array
+					if((si & eh._offMask) == si) {
+						assert_lt((si >> eh._offRate), eh._offsLen);
+						// Write offsets directly to the secondary output
+						// stream, thereby avoiding keeping them in memory
+						index_t tidx = 0, toff = 0, tlen = 0;
+						bool straddled2 = false;
+						if(saElt > 0) {
+							index_t adjustSaElt = saElt + refOverlap ;
+							if ( adjustSaElt >= len )
+								adjustSaElt = saElt ;
+							if ( adjustSaElt >= len )
+								--adjustSaElt ;
+								
+							joinedToTextOff(
+									0,
+									adjustSaElt,
+									tidx,
+									toff,
+									tlen,
+									false,        // reject straddlers?
+									straddled2);  // straddled?
+						}
+						if(this->_offw) {
+							writeIndex<uint32_t>(out2, (uint32_t)tidx, this->toBe());
+						} else {
+							assert_lt(tidx, std::numeric_limits<uint16_t>::max());
+							writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
+						}
 					}
 				} else {
-					// Otherwise if suffix is fewer than ftabChars
-					// characters long, then add it to the 'absorbCnt';
-					// it will be absorbed into the next transition
-					assert_lt(absorbCnt, 255);
-					absorbCnt++;
-				}
-                // Update the number of distinct k-mers
-                if(kmer_size > 0) {
-                    size_t idx = acc_szs.bsearchLoBound(saElt);
-                    assert_lt(idx, acc_szs.size());
-                    bool different = false;
-                    for(size_t k = 0; k < kmer_size; k++) {
-                        if((acc_szs[idx]-saElt) > k) {
-                            uint8_t bp = s[saElt+k];
-                            if(kmer[k] != bp || kmer_count[k] <= 0 || different) {
-                                kmer_count[k]++;
-                                different = true;
-                            }
-                            kmer[k] = bp;
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                }
-				// Suffix array offset boundary? - update offset array
-				if((si & eh._offMask) == si) {
-					assert_lt((si >> eh._offRate), eh._offsLen);
-					// Write offsets directly to the secondary output
-					// stream, thereby avoiding keeping them in memory
-                    index_t tidx = 0, toff = 0, tlen = 0;
-                    bool straddled2 = false;
-                    if(saElt > 0) {
-                        joinedToTextOff(
-                                        0,
-                                        saElt - 1,
-                                        tidx,
-                                        toff,
-                                        tlen,
-                                        false,        // reject straddlers?
-                                        straddled2);  // straddled?
-                    }
-                    if(this->_offw) {
-                        writeIndex<uint32_t>(out2, (uint32_t)tidx, this->toBe());
-                    } else {
-                        assert_lt(tidx, std::numeric_limits<uint16_t>::max());
-                        writeIndex<uint16_t>(out2, (uint16_t)tidx, this->toBe());
-                    }
-				}
-			} else {
-				// Strayed off the end of the SA, now we're just
-				// padding out a bucket
-				#ifndef NDEBUG
-				if(inSA) {
-					// Assert that we wrote all the characters in the
-					// string before now
-					assert_eq(si, len+1);
-					inSA = false;
-				}
-				#endif
-				// 'A' used for padding; important that padding be
-				// counted in the occ[] array
-				bwtChar = 0;
-			}
-			if(count) occ[bwtChar]++;
-			// Append BWT char to bwt section of current side
-			if(fw) {
-				// Forward bucket: fill from least to most
-#ifdef SIXTY4_FORMAT
-				ebwtSide[sideCur] |= ((uint64_t)bwtChar << (bpi << 1));
-				if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
-#else
-				pack_2b_in_8b(bwtChar, ebwtSide[sideCur], bpi);
-				assert_eq((ebwtSide[sideCur] >> (bpi*2)) & 3, bwtChar);
+					// Strayed off the end of the SA, now we're just
+					// padding out a bucket
+#ifndef NDEBUG
+					if(inSA) {
+						// Assert that we wrote all the characters in the
+						// string before now
+						assert_eq(si, len+1);
+						inSA = false;
+					}
 #endif
-			} else {
-				// Backward bucket: fill from most to least
+					// 'A' used for padding; important that padding be
+					// counted in the occ[] array
+					bwtChar = 0;
+				}
+				if(count) occ[bwtChar]++;
+				// Append BWT char to bwt section of current side
+				if(fw) {
+					// Forward bucket: fill from least to most
 #ifdef SIXTY4_FORMAT
-				ebwtSide[sideCur] |= ((uint64_t)bwtChar << ((31 - bpi) << 1));
-				if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
+					ebwtSide[sideCur] |= ((uint64_t)bwtChar << (bpi << 1));
+					if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
 #else
-				pack_2b_in_8b(bwtChar, ebwtSide[sideCur], 3-bpi);
-				assert_eq((ebwtSide[sideCur] >> ((3-bpi)*2)) & 3, bwtChar);
+					pack_2b_in_8b(bwtChar, ebwtSide[sideCur], bpi);
+					assert_eq((ebwtSide[sideCur] >> (bpi*2)) & 3, bwtChar);
 #endif
-			}
-		} // end loop over bit-pairs
+				} else {
+					// Backward bucket: fill from most to least
+#ifdef SIXTY4_FORMAT
+					ebwtSide[sideCur] |= ((uint64_t)bwtChar << ((31 - bpi) << 1));
+					if(bwtChar > 0) assert_gt(ebwtSide[sideCur], 0);
+#else
+					pack_2b_in_8b(bwtChar, ebwtSide[sideCur], 3-bpi);
+					assert_eq((ebwtSide[sideCur] >> ((3-bpi)*2)) & 3, bwtChar);
+#endif
+				}
+			} // end loop over bit-pairs
 		assert_eq(dollarSkipped ? 3 : 0, (occ[0] + occ[1] + occ[2] + occ[3]) & 3);
 #ifdef SIXTY4_FORMAT
 		assert_eq(0, si & 31);
@@ -3562,6 +3706,14 @@ void Ebwt<index_t>::buildToDisk(
 	// Assert that we wrote the expected amount to out1
 	assert_eq(((index_t)out1.tellp() - beforeEbwtOff), eh._ebwtTotSz);
 	// assert that the last thing we did was write a forward bucket
+	
+	// Denote the end for the information of boundary of reference genomes.
+	writeIndex<uint64_t>( out4, saBoundaryMap.size(), this->toBe() ) ;
+	for ( std::map<uint64_t, uint32_t>::iterator it = saBoundaryMap.begin() ; it != saBoundaryMap.end() ; ++it )
+	{
+		writeIndex<uint64_t>( out4, it->first, this->toBe() ) ;
+		writeIndex<uint32_t>( out4, it->second, this->toBe() ) ;
+	}
 
 	//
 	// Write zOff to primary stream
@@ -3642,6 +3794,8 @@ void Ebwt<index_t>::buildToDisk(
         cerr << "Number of distinct " << k+1 << "-mers is " << kmer_count[k] << endl;
       }
     }
+    
+    
 
 	// Note: if you'd like to sanity-check the Ebwt, you'll have to
 	// read it back into memory first!
@@ -3804,21 +3958,26 @@ index_t Ebwt<index_t>::walkLeft(index_t row, index_t steps) const {
 template <typename index_t>
 index_t Ebwt<index_t>::getOffset(index_t row) const {
 #ifndef NDEBUG
-    if(this->_offw) {
-        assert(offsw() != NULL);
-    } else {
-        assert(offs() != NULL);
-    }
+	if(this->_offw) {
+		assert(offsw() != NULL);
+	} else {
+		assert(offs() != NULL);
+	}
 #endif
 	assert_neq((index_t)OFF_MASK, row);
 	if(row == _zOff) return 0;
-    if((row & _eh._offMask) == row) {
-        if(this->_offw) {
-            return this->offsw()[row >> _eh._offRate];
-        } else {
-            return this->offs()[row >> _eh._offRate];
-        }
-    }
+	if((row & _eh._offMask) == row) {
+		if(this->_offw) {
+			return this->offsw()[row >> _eh._offRate];
+		} else {
+			return this->offs()[row >> _eh._offRate];
+		}
+	}
+	if ( saGenomeBoundaryHas( (uint64_t)row ) )
+	{
+		return saGenomeBoundaryVal( (uint64_t)row ) ;
+	}
+
 	index_t jumps = 0;
 	SideLocus<index_t> l;
 	l.initFromRow(row, _eh, ebwt());
@@ -3831,11 +3990,11 @@ index_t Ebwt<index_t>::getOffset(index_t row) const {
 		if(row == _zOff) {
 			return jumps;
 		} else if((row & _eh._offMask) == row) {
-            if(this->_offw) {
-                return jumps + this->offsw()[row >> _eh._offRate];
-            } else {
-                return jumps + this->offs()[row >> _eh._offRate];
-            }
+			if(this->_offw) {
+				return jumps + this->offsw()[row >> _eh._offRate];
+			} else {
+				return jumps + this->offs()[row >> _eh._offRate];
+			}
 		}
 		l.initFromRow(row, _eh, ebwt());
 	}
