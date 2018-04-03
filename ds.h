@@ -2781,7 +2781,7 @@ class EBitList {
 
 public:
 
-	explicit EBitList(size_t isz, int cat = 0) : l_(isz, cat) { reset(); }
+	explicit EBitList(size_t isz, int cat) : l_(isz, cat) { reset(); }
 	
 	explicit EBitList(int cat = 0) : l_(cat) { reset(); }
 
