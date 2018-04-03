@@ -179,11 +179,11 @@ and categorized as reference genomes by RefSeq (`-c`). The argument `-t` takes a
 list of taxonomy IDs - e.g. `9606` for human and `10090` for mouse:
 
     # download mouse and human reference genomes
-    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome' >> seqid2taxid.map
+    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606,10090 -c 'reference genome' refseq >> seqid2taxid.map
     # only human
-    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' >> seqid2taxid.map
+    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' refseq >> seqid2taxid.map
     # only mouse
-    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' >> seqid2taxid.map
+    centrifuge-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' refseq >> seqid2taxid.map
 
 
 ### nt database
