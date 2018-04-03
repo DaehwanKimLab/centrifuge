@@ -73,7 +73,7 @@ function download_n_process_nofail() {
 export -f download_n_process_nofail
 
 
-ceol=`tput el` # terminfo clr_eol
+ceol=`tput el || echo -n ""` # terminfo clr_eol
 
 function count {
    typeset C=0
