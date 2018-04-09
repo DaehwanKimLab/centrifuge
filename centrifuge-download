@@ -129,12 +129,12 @@ TAXID=""
 
 
 DL_PROG="NA"
-if hash rsync 2>/dev/null; then
-  DL_PROG="rsync"
+if hash curl 2>/dev/null; then
+  DL_PROG="curl"
 elif hash wget 2>/dev/null; then
   DL_PROG="wget"
-elif hash curl 2>/dev/null; then
-  DL_PROG="curl"
+elif hash rsync 2>/dev/null; then
+  DL_PROG="rsync"
 fi
 
 
