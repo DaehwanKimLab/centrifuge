@@ -3031,9 +3031,7 @@ public:
 	char *mmFile1_;
 	char *mmFile2_;
     
-    bool                             _compressed; // compressed index?
-    
-	EbwtParams<index_t> _eh;
+    bool _compressed; // compressed index?
 	bool packed_;
     
     EList<pair<string, uint64_t> >   _uid_to_tid; // table that converts uid to tid
@@ -3045,6 +3043,8 @@ public:
     uint64_t _lastGenomeBoundary ;
     uint64_t _boundaryCheckShift ;
     EBitList<128> _boundaryCheck ;
+
+	EbwtParams<index_t> _eh;
 
 	static const uint64_t default_bmax = OFF_MASK;
 	static const uint64_t default_bmaxMultSqrt = OFF_MASK;
