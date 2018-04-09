@@ -154,8 +154,8 @@ static void printUsage(ostream& out) {
         << "    -c                      reference sequences given on cmd line (as" << endl
         << "                            <reference_in>)" << endl;
     if(wrapper == "basic-0") {
-        out << "    --large-index           force generated index to be 'large', even if ref" << endl
-		<< "                            has fewer than 4 billion nucleotides" << endl;
+        //out << "    --large-index           force generated index to be 'large', even if ref" << endl
+	//	<< "                            has fewer than 4 billion nucleotides" << endl;
 	}
     out << "    -a/--noauto             disable automatic -p/--bmax/--dcv memory-fitting" << endl
 	    << "    --bmax <int>            max bucket sz for blockwise suffix-array builder" << endl

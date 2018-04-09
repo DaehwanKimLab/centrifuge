@@ -92,8 +92,8 @@ static void printUsage(ostream& out) {
 	<< endl
 	<< "Options:" << endl;
     if(wrapper == "basic-0") {
-		out << "  --large-index      force inspection of the 'large' index, even if a" << endl
-        << "                     'small' one is present." << endl;
+		//out << "  --large-index      force inspection of the 'large' index, even if a" << endl
+	        //<< "                     'small' one is present." << endl;
 	}
 	out << "  -a/--across <int>  Number of characters across in FASTA output (default: 60)" << endl
 	<< "  -n/--names         Print reference sequence names only" << endl
