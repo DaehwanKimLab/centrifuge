@@ -816,7 +816,7 @@ static void printUsage(ostream& out) {
 		<< "  --met <int>           report internal counters & metrics every <int> secs (1)" << endl
 		<< endl
 	    << " Performance:" << endl
-	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
+	    //<< "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
 #ifdef BOWTIE_MM
 	    << "  --mm               use memory-mapped I/O for index; many instances can share" << endl
