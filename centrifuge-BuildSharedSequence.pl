@@ -238,8 +238,10 @@ while ( 1 )
 		$nucmerG = 5 ;
 		$nucmerB = 5 ;
 	}
-	print "nucmer --maxmatch --coords -l $kmerSize -g $nucmerG -b $nucmerB -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB\n" ; 
-	my $nucRet = system("nucmer --maxmatch --coords -l $kmerSize -g $nucmerG -b $nucmerB -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; # if the call to nucmer failed, we just not compress at all. 
+	print "nucmer --maxmatch -l $kmerSize -g $nucmerG -b $nucmerB -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB\n" ; 
+	my $nucRet = system("nucmer --maxmatch -l $kmerSize -g $nucmerG -b $nucmerB -c $nucmerC -p nucmer_$prefix $fileNameA $fileNameB") ; # if the call to nucmer failed, we just not compress at all. 
+	print "show-coords nucmer_$prefix.delta > nucmer_$prefix.coords\n" ; 
+	$nucRet = system( "show-coords nucmer_$prefix.delta > nucmer_$prefix.coords\n" )  ; # if the call to nucmer failed, we just not compress at all. 
 
 	open FPCoords, "nucmer_$prefix.coords" ;
 	my $line ;
