@@ -47,7 +47,7 @@ public:
 #else
 		msg = "Error: Reference sequence has more than 2^32-1 characters!  "
 		      "Please build a large index by passing the --large-index option "
-			  "to bowtie2-build";
+			  "to centrifuge-build";
 #endif
 	}
 	
