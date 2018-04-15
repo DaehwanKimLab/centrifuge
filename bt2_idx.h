@@ -1278,9 +1278,9 @@ public:
 			// --bmax is irrelevant - the user should re-run with
 			// ebwt-build-packed
 			if(isPacked()) {
-				cerr << "Please try running bowtie-build on a computer with more memory." << endl;
+				cerr << "Please try running centrifuge-build on a computer with more memory." << endl;
 			} else {
-				cerr << "Please try running bowtie-build in packed mode (-p/--packed) or in automatic" << endl
+				cerr << "Please try running centrifuge-build in packed mode (-p/--packed) or in automatic" << endl
 				     << "mode (-a/--auto), or try again on a computer with more memory." << endl;
 			}
 			if(sizeof(void*) == 4) {
