@@ -179,19 +179,19 @@ void Ebwt<index_t>::readIntoMemory(
 	bool entireRev = false;
 	if(flags < 0 && (((-flags) & EBWT_COLOR) != 0)) {
 		if(color != -1 && !color) {
-			cerr << "Error: -C was not specified when running bowtie, but index is in colorspace.  If" << endl
+			cerr << "Error: -C was not specified when running Centrifuge, but index is in colorspace.  If" << endl
 			     << "your reads are in colorspace, please use the -C option.  If your reads are not" << endl
 			     << "in colorspace, please use a normal index (one built without specifying -C to" << endl
-			     << "bowtie-build)." << endl;
+			     << "centrifuge-build)." << endl;
 			throw 1;
 		}
 		color = 1;
 	} else if(flags < 0) {
 		if(color != -1 && color) {
-			cerr << "Error: -C was specified when running bowtie, but index is not in colorspace.  If" << endl
+			cerr << "Error: -C was specified when running Centrifuge, but index is not in colorspace.  If" << endl
 			     << "your reads are in colorspace, please use a colorspace index (one built using" << endl
-			     << "bowtie-build -C).  If your reads are not in colorspace, don't specify -C when" << endl
-			     << "running bowtie." << endl;
+			     << "centrifuge-build -C).  If your reads are not in colorspace, don't specify -C when" << endl
+			     << "running centrifuge." << endl;
 			throw 1;
 		}
 		color = 0;
@@ -200,7 +200,7 @@ void Ebwt<index_t>::readIntoMemory(
 		if(needEntireRev != -1 && needEntireRev != 0) {
 			cerr << "Error: This index is compatible with 0.* versions of Bowtie, but not with 2.*" << endl
 			     << "versions.  Please build or download a version of the index that is compitble" << endl
-				 << "with Bowtie 2.* (i.e. built with bowtie-build 2.* or later)" << endl;
+				 << "with Bowtie 2.* (i.e. built with centrifuge-build 2.* or later)" << endl;
 			throw 1;
 		}
 	} else entireRev = true;
