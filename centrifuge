@@ -243,7 +243,7 @@ if ( defined $sampleSheetFile )
 	Fail( "Can not specify other read files by -U,-1,-2 when using --sample-sheet!\n" ) if ( defined $otherInput ) ;
 	push @bt2_args, "--separator" ;
 
-	open FP1, $sampleSheetFile ;
+	open FP1, $sampleSheetFile or Fail( "Could not open sample sheet file ".$sampleSheetFile."\n" ) ;
 	my $singleCnt = 0 ;
 	my $mateCnt = 0 ;
 	while ( <FP1> )
@@ -252,7 +252,7 @@ if ( defined $sampleSheetFile )
 		my @cols = split /\t/, $_ ;
 		if ( scalar( @cols ) != 5 ) 
 		{
-			Fail( "The row in sample sheet file has wrong format: ".$_."!\n" ) ;
+			Fail( "The line in sample sheet file has wrong format: ".$_."!\n" ) ;
 		}
 
 		++$singleCnt if ( $cols[0] == 1 ) ;
