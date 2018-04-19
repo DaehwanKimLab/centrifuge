@@ -2299,7 +2299,7 @@ void AlnSinkSam<index_t>::appendMate(
 	uint64_t taxid =  rs->taxID();
 	const basic_string<char> empty_string = "";
 
-	for (int i=0; i < this->tab_fmt_cols_.size(); ++i) {
+	for (size_t i=0; i < this->tab_fmt_cols_.size(); ++i) {
 		BEGIN_FIELD;
 		switch (this->tab_fmt_cols_[i]) {
 			case READ_ID:      appendReadID(o, rd.name); break;

@@ -296,7 +296,7 @@ public:
                     
                     // the maximum number of hits per read is maxGenomeHitSize (change with parameter -k)
                     size_t nHitsToConsider = coords.size();
-                    if(coords.size() > rp.ihits) {
+                    if((THitInt)coords.size() > rp.ihits) {
                         continue;
                     }
 
@@ -408,7 +408,7 @@ public:
             // Remove secondary hits
             for(int i = 0; i < (int)_hitMap.size(); i++) {
                 if(_hitMap[i].score < best_score) {
-                    if(i + 1 < _hitMap.size()) {
+                    if(i + 1 < (int)_hitMap.size()) {
                         _hitMap[i] = _hitMap.back();
                     }
                     _hitMap.pop_back();
@@ -654,7 +654,9 @@ private:
         const Read& rd = *(this->_rds[rdi]);
 
         bool done[2] = {false, false};
+#ifdef LI_DEBUG
         size_t cur[2] = {0, 0} ;
+#endif
         
         index_t rdlen = rd.length();
         //const size_t maxDiff = (rdlen / 2 > 2 * _minHitLen) ? rdlen / 2 : (2 * _minHitLen);
@@ -683,7 +685,9 @@ private:
                 BWTHit<index_t>& lastHit = hit.getPartialHit(hit.offsetSize() - 1);
                 if(hit.done()) {
                     done[fwi] = true;
+#ifdef LI_DEBUG
                     cur[fwi] = rdlen;
+#endif
                     if(lastHit.len() >= _minHitLen) {
                         sum[fwi] += lastHit.len();
                         if(0) //lastHit.len() < 31 && rdlen > 31 && lastHit.size() == 1 )
@@ -713,8 +717,8 @@ private:
                     continue;
                 }
                 
-                cur[fwi] = hit.cur();
 #ifdef LI_DEBUG
+                cur[fwi] = hit.cur();
                 cout << fwi << ":" << lastHit.len() << " " << cur[fwi] << " ";
 #endif
                 if(lastHit.len() >= _minHitLen)
