@@ -1491,7 +1491,7 @@ static void parseOptions(int argc, const char **argv) {
 	}
 	// Now parse all the presets.  Might want to pick which presets version to
 	// use according to other parameters.
-	auto_ptr<Presets> presets(new PresetsV0());
+	unique_ptr<Presets> presets(new PresetsV0());
 	// Apply default preset
 	if(!defaultPreset.empty()) {
 		polstr = applyPreset(defaultPreset, *presets.get()) + polstr;
@@ -2330,8 +2330,8 @@ static void multiseedSearchWorker(void *vp) {
 	// problems, or generally characterize performance.
 	
 	//const BitPairReference& refs   = *multiseed_refs;
-	auto_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
-	auto_ptr<PatternSourcePerThread> ps(patsrcFact->create());
+	unique_ptr<PatternSourcePerThreadFactory> patsrcFact(createPatsrcFactory(patsrc, tid));
+	unique_ptr<PatternSourcePerThread> ps(patsrcFact->create());
 	
 	// Instantiate an object for holding reporting-related parameters.
     ReportingParams rp((allHits ? std::numeric_limits<THitInt>::max() : khits),
@@ -2978,7 +2978,7 @@ static void driver(
 		// memory so that we can easily sanity check them later on
 		AlnSink<index_t> *mssink = NULL;
         Timer *_tRef = new Timer(cerr, "Time loading reference: ", timing);
-        auto_ptr<BitPairReference> refs;
+        unique_ptr<BitPairReference> refs;
         delete _tRef;
         switch(outType) {
 			case OUTPUT_SAM: {

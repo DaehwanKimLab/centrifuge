@@ -1117,11 +1117,11 @@ public:
 		EList<FileBuf*> is(EBWT_CAT);
 		RefReadInParams refparams(color, REF_READ_FORWARD, false, false);
 		// Adapt sequence strings to stringstreams open for input
-		auto_ptr<stringstream> ss(new stringstream());
+		unique_ptr<stringstream> ss(new stringstream());
 		for(index_t i = 0; i < strs.size(); i++) {
 			(*ss) << ">" << i << endl << strs[i] << endl;
 		}
-		auto_ptr<FileBuf> fb(new FileBuf(ss.get()));
+		unique_ptr<FileBuf> fb(new FileBuf(ss.get()));
 		assert(!fb->eof());
 		assert(fb->get() == '>');
 		ASSERT_ONLY(fb->reset());
