@@ -740,15 +740,30 @@ static void printUsage(ostream& out) {
 	if(wrapper == "basic-0") {
 		tool_name = "centrifuge";
 	}
-    out << "Usage: " << endl
+	out << "Usage: " << endl ;
+	if ( wrapper == "basic-0" )
+	{
+		out
 #ifdef USE_SRA
-    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number>} [-S <filename>] [--report-file <report>]" << endl
+			<< "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number> | --sample-sheet <s>} [-S <filename>] [--report-file <report>]" << endl
 #else
-    << "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <filename>] [--report-file <report>]" << endl
+			<< "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r> | --sample-sheet <s> } [-S <filename>] [--report-file <report>]" << endl
 #endif
-	    << endl
-		<<     "  <cf-idx>   Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
-	    <<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
+			<<endl ;
+	}
+	else
+	{
+		out
+#ifdef USE_SRA
+			<< "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r> | --sra-acc <SRA accession number>} [-S <filename>] [--report-file <report>]" << endl
+#else
+			<< "  " << tool_name.c_str() << " [options]* -x <cf-idx> {-1 <m1> -2 <m2> | -U <r>} [-S <filename>] [--report-file <report>]" << endl
+#endif
+			<< endl ;
+	}
+
+	out	<<     "  <cf-idx>   Index filename prefix (minus trailing .X." << gEbwt_ext << ")." << endl
+		<<     "  <m1>       Files with #1 mates, paired with files in <m2>." << endl;
 	if(wrapper == "basic-0") {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
@@ -761,85 +776,87 @@ static void printUsage(ostream& out) {
 		out << "             Could be gzip'ed (extension: .gz) or bzip2'ed (extension: .bz2)." << endl;
 	}
 #ifdef USE_SRA
-    out <<     "  <SRA accession number>        Comma-separated list of SRA accession numbers, e.g. --sra-acc SRR353653,SRR353654." << endl;
-#endif
+	out <<     "  <SRA accession number>        Comma-separated list of SRA accession numbers, e.g. --sra-acc SRR353653,SRR353654." << endl;
+#endif 
+	if ( wrapper == "basic-0" )
+		out <<	"  <s>        A TSV file where each line represents a sample." << endl ;
 	out <<     "  <filename>      File for classification output (default: stdout)" << endl
-	    <<     "  <report>   File for tabular report output (default: " << reportFile << ")" << endl
-	    << endl
-	    << "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
+		<<     "  <report>   File for tabular report output (default: " << reportFile << ")" << endl
+		<< endl
+		<< "  <m1>, <m2>, <r> can be comma-separated lists (no whitespace) and can be" << endl
 		<< "  specified many times.  E.g. '-U file1.fq,file2.fq -U file3.fq'." << endl
 		// Wrapper script should write <bam> line next
 		<< endl
-	    << "Options (defaults in parentheses):" << endl
+		<< "Options (defaults in parentheses):" << endl
 		<< endl
-	    << " Input:" << endl
-	    << "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
-	    << "  --qseq             query input files are in Illumina's qseq format" << endl
-	    << "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
-	    << "  -r                 query input files are raw one-sequence-per-line" << endl
-	    << "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
-	    << "  -s/--skip <int>    skip the first <int> reads/pairs in the input (none)" << endl
-	    << "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
-	    << "  -5/--trim5 <int>   trim <int> bases from 5'/left end of reads (0)" << endl
-	    << "  -3/--trim3 <int>   trim <int> bases from 3'/right end of reads (0)" << endl
-	    << "  --phred33          qualities are Phred+33 (default)" << endl
-	    << "  --phred64          qualities are Phred+64" << endl
-	    << "  --int-quals        qualities encoded as space-delimited integers" << endl
+		<< " Input:" << endl
+		<< "  -q                 query input files are FASTQ .fq/.fastq (default)" << endl
+		<< "  --qseq             query input files are in Illumina's qseq format" << endl
+		<< "  -f                 query input files are (multi-)FASTA .fa/.mfa" << endl
+		<< "  -r                 query input files are raw one-sequence-per-line" << endl
+		<< "  -c                 <m1>, <m2>, <r> are sequences themselves, not files" << endl
+		<< "  -s/--skip <int>    skip the first <int> reads/pairs in the input (none)" << endl
+		<< "  -u/--upto <int>    stop after first <int> reads/pairs (no limit)" << endl
+		<< "  -5/--trim5 <int>   trim <int> bases from 5'/left end of reads (0)" << endl
+		<< "  -3/--trim3 <int>   trim <int> bases from 3'/right end of reads (0)" << endl
+		<< "  --phred33          qualities are Phred+33 (default)" << endl
+		<< "  --phred64          qualities are Phred+64" << endl
+		<< "  --int-quals        qualities encoded as space-delimited integers" << endl
 		<< "  --ignore-quals     treat all quality values as 30 on Phred scale (off)" << endl
-	    << "  --nofw             do not align forward (original) version of read (off)" << endl
-	    << "  --norc             do not align reverse-complement version of read (off)" << endl
+		<< "  --nofw             do not align forward (original) version of read (off)" << endl
+		<< "  --norc             do not align reverse-complement version of read (off)" << endl
 #ifdef USE_SRA
-        << "  --sra-acc          SRA accession ID" << endl
+		<< "  --sra-acc          SRA accession ID" << endl
 #endif
 		<< endl
 		<< "Classification:" << endl
 		<< "  --min-hitlen <int>    minimum length of partial hits (default " << minHitLen << ", must be greater than 15)" << endl
-		<< "  --min-totallen <int>  minimum summed length of partial hits per read (default " << minTotalLen << ")" << endl
-        << "  --host-taxids <taxids> comma-separated list of taxonomic IDs that will be preferred in classification" << endl
-        << "  --exclude-taxids <taxids> comma-separated list of taxonomic IDs that will be excluded in classification" << endl
+		//<< "  --min-totallen <int>  minimum summed length of partial hits per read (default " << minTotalLen << ")" << endl
+		<< "  --host-taxids <taxids> comma-separated list of taxonomic IDs that will be preferred in classification" << endl
+		<< "  --exclude-taxids <taxids> comma-separated list of taxonomic IDs that will be excluded in classification" << endl
 		<< endl
-	    << " Output:" << endl;
+		<< " Output:" << endl;
 	//if(wrapper == "basic-0") {
 	//	out << "  --bam              output directly to BAM (by piping through 'samtools view')" << endl;
 	//}
 	out << "  --out-fmt <str>       define output format, either 'tab' or 'sam' (tab)" << endl
 		<< "  --tab-fmt-cols <str>  columns in tabular format, comma separated " << endl 
-        << "                          default: " << tab_fmt_col_def << endl;
+		<< "                          default: " << tab_fmt_col_def << endl;
 	out << "  -t/--time             print wall-clock time taken by search phases" << endl;
 	if(wrapper == "basic-0") {
-	out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
-	    << "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
-	    << "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
-	    << "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
-	    << "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
-		<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
+		out << "  --un <path>           write unpaired reads that didn't align to <path>" << endl
+			<< "  --al <path>           write unpaired reads that aligned at least once to <path>" << endl
+			<< "  --un-conc <path>      write pairs that didn't align concordantly to <path>" << endl
+			<< "  --al-conc <path>      write pairs that aligned concordantly at least once to <path>" << endl
+			<< "  (Note: for --un, --al, --un-conc, or --al-conc, add '-gz' to the option name, e.g." << endl
+			<< "  --un-gz <path>, to gzip compress output, or add '-bz2' to bzip2 compress output.)" << endl;
 	}
 	out << "  --quiet               print nothing to stderr except serious errors" << endl
-	//  << "  --refidx              refer to ref. seqs by 0-based index rather than name" << endl
+		//  << "  --refidx              refer to ref. seqs by 0-based index rather than name" << endl
 		<< "  --met-file <path>     send metrics to file at <path> (off)" << endl
 		<< "  --met-stderr          send metrics to stderr (off)" << endl
 		<< "  --met <int>           report internal counters & metrics every <int> secs (1)" << endl
 		<< endl
-	    << " Performance:" << endl
-	    << "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
-	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
+		<< " Performance:" << endl
+		//<< "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
+		<< "  -p/--threads <int> number of alignment threads to launch (1)" << endl
 #ifdef BOWTIE_MM
-	    << "  --mm               use memory-mapped I/O for index; many instances can share" << endl
+		<< "  --mm               use memory-mapped I/O for index; many instances can share" << endl
 #endif
 		<< endl
-	    << " Other:" << endl
+		<< " Other:" << endl
 		<< "  --qc-filter        filter out reads that are bad according to QSEQ filter" << endl
-	    << "  --seed <int>       seed for random number generator (0)" << endl
-	    << "  --non-deterministic seed rand. gen. arbitrarily instead of using read attributes" << endl
-	//  << "  --verbose          verbose output for debugging" << endl
-	    << "  --version          print version information and quit" << endl
-	    << "  -h/--help          print this usage message" << endl
-	    ;
+		<< "  --seed <int>       seed for random number generator (0)" << endl
+		<< "  --non-deterministic seed rand. gen. arbitrarily instead of using read attributes" << endl
+		//  << "  --verbose          verbose output for debugging" << endl
+		<< "  --version          print version information and quit" << endl
+		<< "  -h/--help          print this usage message" << endl
+		;
 	if(wrapper.empty()) {
 		cerr << endl
-		     << "*** Warning ***" << endl
-			 << "'centrifuge-class' was run directly.  It is recommended that you run the wrapper script 'centrifuge' instead." << endl
-			 << endl;
+			<< "*** Warning ***" << endl
+			<< "'centrifuge-class' was run directly.  It is recommended that you run the wrapper script 'centrifuge' instead." << endl
+			<< endl;
 	}
 }
 
