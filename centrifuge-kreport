@@ -76,8 +76,8 @@ if ($is_cnts_table) {
     $seq_count += $count;
   }
 } else {
-  my $header = <>;
-  my @cols = split /\s+/, $header ;
+  chomp(my $header = <>);
+  my @cols = split /\t/, $header ;
   my %headerMap ;
   for ( my $i = 0 ; $i < scalar( @cols ) ; ++$i )
   {
@@ -88,7 +88,7 @@ if ($is_cnts_table) {
   my $prevTaxID;
   while (<>) {
     #my (undef,$seqID,$taxID,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
-    my @cols = split /\s+/ ;
+    my @cols = split /\t/ ;
     my $readID = $cols[ $headerMap{ "readID" } ] ;
     my $seqID = $cols[ $headerMap{ "seqID" } ] ; 
     my $taxID = $cols[ $headerMap{ "taxID" } ] ; 
