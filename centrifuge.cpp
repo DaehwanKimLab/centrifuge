@@ -2799,17 +2799,17 @@ static void multiseedSearch(
 	// Start the metrics thread
 	{
 		Timer _t(cerr, "Multiseed full-index search: ", timing);
-        
-        thread_rids.resize(nthreads);
-        thread_rids.fill(0);
+
+		thread_rids.resize(nthreads);
+		thread_rids.fill(0);
 		for(int i = 0; i < nthreads; i++) {
 			// Thread IDs start at 1
 			tids[i] = i+1;
-            threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
+			threads[i] = new tthread::thread(multiseedSearchWorker, (void*)&tids[i]);
 		}
 
-        for (int i = 0; i < nthreads; i++)
-            threads[i]->join();
+		for (int i = 0; i < nthreads; i++)
+			threads[i]->join();
 
 	}
 	if(!metricsPerRead && (metricsOfb != NULL || metricsStderr)) {
@@ -3127,6 +3127,7 @@ static void driver(
 			if ( separator )
 			{
 				fout->writeChars( "#File_End_Here\n" );
+				fout->flush() ;
 
 				std::ostringstream oss ;
 				oss << "centrifuge_report_" << fileIdx<<".tsv" ;

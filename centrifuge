@@ -363,6 +363,7 @@ my $verbose = 0;
 my $readpipe = undef;
 my $log_fName = undef;
 my $help = 0;
+my $createNewPipe = 0  ;
 
 my @bt2w_args_cp = (@bt2w_args>0) ? @bt2w_args : @bt2_args;
 Getopt::Long::Configure("pass_through","no_ignore_case");
@@ -453,6 +454,7 @@ sub Extract_IndexName_From {
 if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 	if ( defined $sampleSheetFile )
 	{
+		$createNewPipe = 1 ;
 		if(scalar(@mate2s) > 0) {
 			#
 			# Wrap paired-end inputs
@@ -466,35 +468,16 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 				my $m1fn = "$temp_dir/$$"."_$i"."inpipe1";
 				push @to_delete, $m1fn;
 				push @bt2_args, "-1 $m1fn";
-				# Create named pipe 1 for writing
 				if(!$no_pipes) {
 					mkfifo($m1fn, 0700) || Fail("mkfifo($m1fn) failed.\n");
 				}
-				my $pid = 0;
-				$pid = fork() unless $no_pipes;
-				if($pid == 0) {
-					# Open named pipe 1 for writing
-					open(my $ofh, ">$m1fn") || Fail("Can't open '$m1fn' for writing\n");
-					cat_file($mate1s[$i], $ofh); 
-					close($ofh);
-					exit 0 unless $no_pipes;
-				}
+				
 				# Make a named pipe for delivering mate #2s
 				my $m2fn = "$temp_dir/$$."."_$i"."inpipe2";
 				push @to_delete, $m2fn;
 				push @bt2_args, "-2 $m2fn";
-				# Create named pipe 2 for writing
 				if(!$no_pipes) {
 					mkfifo($m2fn, 0700) || Fail("mkfifo($m2fn) failed.\n");
-				}
-				$pid = 0;
-				$pid = fork() unless $no_pipes;
-				if($pid == 0) {
-					# Open named pipe 2 for writing
-					open(my $ofh, ">$m2fn") || Fail("Can't open '$m2fn' for writing.\n");
-					cat_file( $mate2s[$i], $ofh); 
-					close($ofh);
-					exit 0 unless $no_pipes;
 				}
 			}
 		}
@@ -509,18 +492,8 @@ if(wrapInput(\@unps, \@mate1s, \@mate2s)) {
 				my $ufn = "$temp_dir/$$"."_$i".".unp";
 				push @to_delete, $ufn;
 				push @bt2_args, "-U $ufn";
-				# Create named pipe 2 for writing
 				if(!$no_pipes) {
 					mkfifo($ufn, 0700) || Fail("mkfifo($ufn) failed.\n");
-				}
-				my $pid = 0;
-				$pid = fork() unless $no_pipes;
-				if($pid == 0) {
-					# Open named pipe 2 for writing
-					open(my $ofh, ">$ufn") || Fail("Can't open '$ufn' for writing.\n");
-					cat_file($unps[$i], $ofh); 
-					close($ofh);
-					exit 0 unless $no_pipes;
 				}
 			}
 		}
@@ -660,6 +633,63 @@ sub GetSampleSheetReportFileName
 	return @{ $sampleSheet[ $sampleSheetOrder[ $sampleIdx ] ] }[4] ;
 }
 
+sub WritePipe
+{
+	my $i = $_[0] ;
+	if ( $i < scalar( @mate2s ) )
+	{
+		my $m1fn = "$temp_dir/$$"."_$i"."inpipe1";
+
+		# Create named pipe 1 for writing
+		#if(!$no_pipes) {
+		#	mkfifo($m1fn, 0700) || Fail("mkfifo($m1fn) failed.\n");
+		#}
+		my $pid = 0;
+		$pid = fork() unless $no_pipes;
+		if($pid == 0) {
+		# Open named pipe 1 for writing
+			open(my $ofh, ">$m1fn") || Fail("Can't open '$m1fn' for writing\n");
+			cat_file($mate1s[$i], $ofh); 
+			close($ofh);
+			exit 0 unless $no_pipes;
+		}
+
+		my $m2fn = "$temp_dir/$$."."_$i"."inpipe2";
+
+		#if(!$no_pipes) {
+		#	mkfifo($m2fn, 0700) || Fail("mkfifo($m2fn) failed.\n");
+		#}
+		$pid = 0;
+		$pid = fork() unless $no_pipes;
+		if($pid == 0) {
+			# Open named pipe 2 for writing
+			open(my $ofh, ">$m2fn") || Fail("Can't open '$m2fn' for writing.\n");
+			cat_file( $mate2s[$i], $ofh); 
+			close($ofh);
+			exit 0 unless $no_pipes;
+		}
+	}
+	elsif ( $i < scalar( @mate2s ) + scalar( @unps ) )
+	{
+		$i -= scalar( @mate2s ) ;
+		my $ufn = "$temp_dir/$$"."_$i".".unp";
+		#if(!$no_pipes) {
+		#	mkfifo($ufn, 0700) || Fail("mkfifo($ufn) failed.\n");
+		#}
+		my $pid = 0;
+		$pid = fork() unless $no_pipes;
+		if($pid == 0) {
+			# Open named pipe 2 for writing
+			open(my $ofh, ">$ufn") || Fail("Can't open '$ufn' for writing.\n");
+			cat_file($unps[$i], $ofh); 
+			close($ofh);
+			exit 0 unless $no_pipes;
+		}
+
+	}
+}
+
+WritePipe( 0 ) if ( $createNewPipe ) ;
 if(defined($cap_out)) {
 	# Open Centrifuge pipe
 	open(BT, "$cmd |") || Fail("Could not open Centrifuge pipe: '$cmd |'\n");
@@ -684,20 +714,20 @@ if(defined($cap_out)) {
 	my %read_fhs = ();
 	for my $i ("al", "un", "al-conc", "un-conc") {
 		if(defined($read_fns{$i})) {
-            my ($vol, $base_spec_dir, $base_fname) = File::Spec->splitpath($read_fns{$i});
-            if (-d $read_fns{$i}) {
-                $base_spec_dir = $read_fns{$i};
-                $base_fname = undef;
-            }
+			my ($vol, $base_spec_dir, $base_fname) = File::Spec->splitpath($read_fns{$i});
+			if (-d $read_fns{$i}) {
+				$base_spec_dir = $read_fns{$i};
+				$base_fname = undef;
+			}
 			if($i =~ /-conc$/) {
-				# Open 2 output files, one for mate 1, one for mate 2
+# Open 2 output files, one for mate 1, one for mate 2
 				my ($fn1, $fn2);
-                if ($base_fname) {
-                    ($fn1, $fn2) = ($base_fname,$base_fname);
-                }
-                else {
-                    ($fn1, $fn2) = ($i.'-mate',$i.'-mate');
-                }
+				if ($base_fname) {
+					($fn1, $fn2) = ($base_fname,$base_fname);
+				}
+				else {
+					($fn1, $fn2) = ($i.'-mate',$i.'-mate');
+				}
 				if($fn1 =~ /%/) {
 					$fn1 =~ s/%/1/g; $fn2 =~ s/%/2/g;
 				} elsif($fn1 =~ /\.[^.]*$/) {
@@ -707,8 +737,8 @@ if(defined($cap_out)) {
 					$fn1 .= ".1";
 					$fn2 .= ".2";
 				}
-                $fn1 = File::Spec->catpath($vol,$base_spec_dir,$fn1);
-                $fn2 = File::Spec->catpath($vol,$base_spec_dir,$fn2);
+				$fn1 = File::Spec->catpath($vol,$base_spec_dir,$fn1);
+				$fn2 = File::Spec->catpath($vol,$base_spec_dir,$fn2);
 				$fn1 ne $fn2 || Fail("$fn1\n$fn2\n");
 				my ($redir1, $redir2) = (">$fn1", ">$fn2");
 				$redir1 = "| gzip -c $redir1"  if $read_compress{$i} eq "gzip";
@@ -720,10 +750,10 @@ if(defined($cap_out)) {
 				push @fhs_to_close, $read_fhs{$i}{1};
 				push @fhs_to_close, $read_fhs{$i}{2};
 			} else {
-			    my $redir = ">".File::Spec->catpath($vol,$base_spec_dir,$i."-seqs");
-			    if ($base_fname) {
-				    $redir = ">$read_fns{$i}";
-			    }
+				my $redir = ">".File::Spec->catpath($vol,$base_spec_dir,$i."-seqs");
+				if ($base_fname) {
+					$redir = ">$read_fns{$i}";
+				}
 				$redir = "| gzip -c $redir"  if $read_compress{$i} eq "gzip";
 				$redir = "| bzip2 -c $redir" if $read_compress{$i} eq "bzip2";
 				open($read_fhs{$i}, $redir) || Fail("Could not open --$i output file '$read_fns{$i}'\n");
@@ -741,7 +771,11 @@ if(defined($cap_out)) {
 	{
 		if ( $outputFmtSam == 0 )
 		{
-			$outputHeader = <BT> ;
+			while ( 1 )
+			{
+				$outputHeader = <BT> ;
+				last if ( $outputHeader =~ /readID/ || $outputFmtSam ) ;
+			}
 			my @cols = split /\t/, $outputHeader ;
 			for ( my $i = 0 ; $i < scalar( @cols ) ; ++$i )
 			{
@@ -796,6 +830,8 @@ if(defined($cap_out)) {
 					my $file = GetSampleSheetOutputFileName( $sampleIdx ) ;
 					open ( $ofh, ">$file" ) || Fail( "Could not open output file '$file' for writing.\n" ) ;
 					print {$ofh} $outputHeader ;
+					
+					WritePipe( $sampleIdx) if ( $createNewPipe ) ;
 				}
 				next ;
 			}
