@@ -812,13 +812,8 @@ static void printUsage(ostream& out) {
 		<< "Classification:" << endl
 		<< "  --min-hitlen <int>    minimum length of partial hits (default " << minHitLen << ", must be greater than 15)" << endl
 		//<< "  --min-totallen <int>  minimum summed length of partial hits per read (default " << minTotalLen << ")" << endl
-<<<<<<< HEAD
-        << "  --host-taxids <taxids> comma-separated list of taxonomic IDs that will be preferred in classification" << endl
-        << "  --exclude-taxids <taxids> comma-separated list of taxonomic IDs that will be excluded in classification" << endl
-=======
 		<< "  --host-taxids <taxids> comma-separated list of taxonomic IDs that will be preferred in classification" << endl
 		<< "  --exclude-taxids <taxids> comma-separated list of taxonomic IDs that will be excluded in classification" << endl
->>>>>>> multisample
 		<< endl
 		<< " Output:" << endl;
 	//if(wrapper == "basic-0") {
@@ -842,15 +837,9 @@ static void printUsage(ostream& out) {
 		<< "  --met-stderr          send metrics to stderr (off)" << endl
 		<< "  --met <int>           report internal counters & metrics every <int> secs (1)" << endl
 		<< endl
-<<<<<<< HEAD
-	    << " Performance:" << endl
-	    //<< "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
-	    << "  -p/--threads <int> number of alignment threads to launch (1)" << endl
-=======
 		<< " Performance:" << endl
 		//<< "  -o/--offrate <int> override offrate of index; must be >= index's offrate" << endl
 		<< "  -p/--threads <int> number of alignment threads to launch (1)" << endl
->>>>>>> multisample
 #ifdef BOWTIE_MM
 		<< "  --mm               use memory-mapped I/O for index; many instances can share" << endl
 #endif
@@ -3051,47 +3040,6 @@ static void driver(
 			// only should reach here when sra is defined  
 			sra_acc.push_back( sra_accs[ fileIdx - mates1.size() - queries.size() ] ) ;
 		}
-<<<<<<< HEAD
-		Scoring sc(
-                   bonusMatch,     // constant reward for match
-                   penMmcType,     // how to penalize mismatches
-                   penMmcMax,      // max mm pelanty
-                   penMmcMin,      // min mm pelanty
-                   scoreMin,       // min score as function of read len
-                   nCeil,          // max # Ns as function of read len
-                   penNType,       // how to penalize Ns in the read
-                   penN,           // constant if N pelanty is a constant
-                   penNCatPair,    // whether to concat mates before N filtering
-                   penRdGapConst,  // constant coeff for read gap cost
-                   penRfGapConst,  // constant coeff for ref gap cost
-                   penRdGapLinear, // linear coeff for read gap cost
-                   penRfGapLinear, // linear coeff for ref gap cost
-                   gGapBarrier);    // # rows at top/bot only entered diagonally
-
-		EList<string> refnames;
-		readEbwtRefnames<index_t>(adjIdxBase, refnames);
-
-		EList<size_t> reflens;
-		// Set up hit sink; if sanityCheck && !os.empty() is true,
-		// then instruct the sink to "retain" hits in a vector in
-		// memory so that we can easily sanity check them later on
-		AlnSink<index_t> *mssink = NULL;
-        Timer *_tRef = new Timer(cerr, "Time loading reference: ", timing);
-        unique_ptr<BitPairReference> refs;
-        delete _tRef;
-        switch(outType) {
-			case OUTPUT_SAM: {
-				mssink = new AlnSinkSam<index_t>(
-                                                 &ebwt,
-                                                 oq,           // output queue
-                                                 refnames,     // reference names
-                                                 tab_fmt_cols, // columns in tab format
-                                                 gQuiet);      // don't print alignment summary at end
-                if(!samNoHead) {
-					BTString buf;
-                    // TODO: Write '@SQ\tSN:AA\tLN:length fields
-					fout->writeString(buf);
-=======
 #endif 
 
 		PairedPatternSource *patsrc = PairedPatternSource::setupPatternSources(
@@ -3163,7 +3111,6 @@ static void driver(
 				size_t repThresh = mhits;
 				if(repThresh == 0) {
 					repThresh = std::numeric_limits<size_t>::max();
->>>>>>> multisample
 				}
 				mssink->finish(
 						repThresh,
