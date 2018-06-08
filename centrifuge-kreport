@@ -97,6 +97,8 @@ if ($is_cnts_table) {
     my $queryLength = $cols[ $headerMap{ "queryLength" } ] ; 
     my $numMatches = $cols[ $headerMap{ "numMatches" } ] ; 
 
+    $taxID = 1 if ( !isTaxIDInTree( $taxID ) ) ;
+
     if ($no_lca) {
       next if defined $min_length && $hitLength < $min_length;
       next if defined $min_score && $score < $min_score;
@@ -156,6 +158,22 @@ sub dfs_report {
   }
 }
 
+sub isTaxIDInTree {
+	my $a = $_[0] ;
+
+	while ( $a > 1 )
+	{
+		if ( !defined $parent_map{ $a } )
+		{
+			print STDERR "Couldn't find parent of taxID $a - directly assigned to root.\n";
+			return 0 ;
+		}
+		last if ( $a eq $parent_map{$a} ) ;
+		$a = $parent_map{ $a } ;
+	}
+	return 1 ;
+}
+
 sub lca {
   my ($a, $b) = @_;
   return $b if $a eq 0;
@@ -165,7 +183,7 @@ sub lca {
   while ($a ge 1) {
     $a_path{$a} = 1;
     if (!defined $parent_map{$a}) {
-      print STDERR "Couldn't find parent of taxID $a - ignoring assignment.";
+      print STDERR "Couldn't find parent of taxID $a - directly assigned to root.\n";
       last;
     }
     last if $a eq $parent_map{$a};
@@ -174,7 +192,7 @@ sub lca {
   while ($b > 1) {
     return $b if (defined $a_path{$b});
     if (!defined $parent_map{$b}) {
-      print STDERR "Couldn't find parent of taxID $b - ignoring assignment.";
+      print STDERR "Couldn't find parent of taxID $b - directly assigned to root.\n";
       last;
     }
     last if $b eq $parent_map{$b};
