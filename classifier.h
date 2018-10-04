@@ -337,7 +337,7 @@ public:
                         uint64_t uniqueID = coord_ids[k].first;
                         uint64_t taxID = coord_ids[k].second;
                         if(_excluded_taxIDs.find(taxID) != _excluded_taxIDs.end())
-                            break;
+                            continue ;
                         // add hit to genus map and get new index in the map
                         size_t idx = addHitToHitMap(
                                                     ebwtFw,
