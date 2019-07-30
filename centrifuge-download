@@ -172,7 +172,6 @@ WHEN USING database refseq OR genbank:
  -u                     Filter unplaced sequences.
  -m                     Mask low-complexity regions using dustmasker. Default: off.
  -l                     Modify header to include taxonomy ID. Default: off.
- -g                     Download GI map.
  -v                     Verbose mode
 "
 
