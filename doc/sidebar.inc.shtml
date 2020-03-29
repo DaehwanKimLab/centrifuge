@@ -33,7 +33,9 @@
 <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads"><h2><u>Releases</u></h2></a>
 <div class="box">
  <ul>
-   <table width="100%"><tbody><tr><td>version 1.0.3-beta</td> <td align="right">12/06/2016</td></tr>
+   <table width="100%"><tbody><tr><td><a href="https://github.com/infphilo/centrifuge/releases"> Newest release (Github)</a></td></tr>
+   </tbody></table>
+   <table width="100%"><tbody><tr><td>version 1.0.3-beta (old)</td> <td align="right">12/06/2016</td></tr>
        <tr>
 	 <td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads/centrifuge-1.0.3-beta-source.zip" onclick="javascript: pageTracker._trackPageview('/downloads/centrifuge'); ">&nbsp;&nbsp;&nbsp;Source code</a></td>
        </tr>
@@ -52,14 +54,6 @@
     <table width="100%"><tr><td>last updated:</td> <td align="right">12/06/2016</td></tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea (compressed)</i></a>
-        </td>
-	<td align="right" style="font-size: x-small">
-	  <b>4.4 GB</b>
-        </td>
-      </tr>
-      <tr>
-        <td>
 	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea, Viruses, Human (compressed)</i></a>
         </td>
 	<td align="right" style="font-size: x-small">
@@ -74,15 +68,29 @@
 	  <b>7.9 GB</b>
         </td>
       </tr>
+    </table>
+    <table width="100%"><tr><td>last updated:</td> <td align="right">3/3/2018</td></tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/nt.tar.gz"><i>&nbsp;&nbsp;&nbsp;NCBI nucleotide non-redundant sequences </i></a>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/nt_2018_3_3.tar.gz"><i>&nbsp;&nbsp;&nbsp;NCBI nucleotide non-redundant sequences </i></a>
         </td>
 	<td align="right" style="font-size: x-small">
-	  <b>50 GB</b>
+	  <b>64 GB</b>
         </td>
       </tr>
     </table>
+    <table width="100%"><tr><td>last updated:</td> <td align="right">4/15/2018</td></tr>
+      <tr>
+        <td>
+	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed_2018_4_15.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea (compressed)</i></a>
+        </td>
+	<td align="right" style="font-size: x-small">
+	  <b>6.3 GB</b>
+        </td>
+      </tr>
+    </table>
+    <table width="100%"><tbody><tr><td><a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/md5_sum">MD5 checksum</a></td></tr>
+   </tbody></table>
   </div>
 
 <h2>Related Tools</h2>
@@ -104,9 +112,10 @@
 <h2>Contributors</h2>
 <div class="box">
  <ul>
-   <li><a href="http://www.ccb.jhu.edu/people/infphilo">Daehwan Kim</a></li>
+   <li><a href="http://kim-lab.org">Daehwan Kim</a></li>
    <li><a href="http://ccb.jhu.edu/people/lsong/">Li Song</a></li>
    <li><a href="http://www.ccb.jhu.edu/people/fbreitwieser">Florian Breitwieser</a></li>
+   <li><a href="https://kim-lab.org/lab-members">Chanhee Park</a></li>
    <li><a href="http://salzberg-lab.org/about-me/">Steven Salzberg</a></li>
  </ul>
 </div>
