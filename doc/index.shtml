@@ -20,7 +20,31 @@
 	<!--#include virtual="sidebar.inc.shtml"-->
 	</div> <!-- End of "rightside" -->
 	<div id="leftside">
-          <h2>Have a look at <a href="Pavian">https://github.com/fbreitwieser/pavian</a> for visual analysis of results generated with Centrifuge!</h2>
+          <b>Have a look at <a href="https://github.com/fbreitwieser/pavian">https://github.com/fbreitwieser/pavian</a> for visual analysis of results generated with Centrifuge!</b>
+
+	  <h2>Due to the rapid spread of SARS-CoV-2 and its devastating effects, we provide two additional Centrifuge indices in the hope that they will be useful for biomedical research related to the virus. The first two indexes include 106 complete SARS-CoV-2 genomes downloaded from GenBank as follows: (3/29/2020)</h2>
+          <ul>
+          	<li>h+v+c: human genome and viral genomes including 106 SARS-CoV-2 complete genomes (<a href="https://zenodo.org/record/3732127/files/h+v+c.tar.gz?download=1">download link</a>)</li>
+	  	<li>h+p+v+c: human genome, prokaryotic genomes, and viral genomes including 106 SARS-CoV-2 complete genomes (<a href="https://zenodo.org/record/3732127/files/h+p+v+c.tar.gz?download=1">download link</a>)</li>
+	  	<li>Additional indexes including <b>nt</b> index are also available at <a href="https://genexa.ch/sars2-bioinformatics-resources/">Genexa</a> (Note: the indexes include one reference SARS-CoV-2 genome.)</li>
+	  </ul>
+          <br/>
+	  
+	  <h2>Centrifuge 1.0.4-beta release 6/5/2018</h2>
+          <ul>
+          	<li>Support running multiple samples while loading index only once</li>
+	  	<li>Fix a bug of misassignment if a read comes near the boundary of a genome</li>
+	  	<li>centrifuge-kreport uses the lowest common ancestor taxonomy id for multiple assigned reads by default</li>
+	  </ul>
+          <br/>
+
+	  <h2>Centrifuge 1.0.3 release 2/23/2018</h2>
+          <ul>
+          	<li>Fix several bugs.</li>
+	  	<li>Output unclassified reads.</li>
+	  	<li>Make the options about output the sequences (--un,--al,--un-conc,--al-conc) work.</li>
+	  </ul>
+          <br/>
 
 	  <h2>Centrifuge 1.0.3-beta release 12/06/2016</h2>
           <ul>
