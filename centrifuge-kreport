@@ -97,11 +97,12 @@ if ($is_cnts_table) {
     my $queryLength = $cols[ $headerMap{ "queryLength" } ] ; 
     my $numMatches = $cols[ $headerMap{ "numMatches" } ] ; 
 
+    next if defined $min_length && $hitLength < $min_length;
+    next if defined $min_score && $score < $min_score;
+    
     $taxID = 1 if ( !isTaxIDInTree( $taxID ) ) ;
 
     if ($no_lca) {
-      next if defined $min_length && $hitLength < $min_length;
-      next if defined $min_score && $score < $min_score;
       $taxo_counts{$taxID} += 1/$numMatches;
       $seq_count += 1/$numMatches;
     } else {
