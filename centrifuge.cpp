@@ -3006,7 +3006,7 @@ static void driver(
 
 	int fileCnt = mates1.size() + queries.size(); // the order should be consistent with the wrapper
 #ifdef USE_SRA
-	fileCnt += sra_accs ;
+	fileCnt += sra_accs.size() ;
 #endif
 
 	for ( int fileIdx = 0 ; fileIdx < fileCnt ; ++fileIdx )
