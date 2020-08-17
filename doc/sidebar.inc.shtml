@@ -24,7 +24,7 @@
  <ul>
    <table width="100%">
      <tbody><tr><td>
-        Please submit an issue on <a href="https://github.com/infphilo/centrifuge/issues">GitHub</a>, or send an E-Mail to
+	Please submit an issue on <a href="https://github.com/DaehwanKimLab/centrifuge/issues">GitHub</a>, or send an E-Mail to
         <a href="mailto:centrifuge.metagenomics@gmail.com">centrifuge.metagenomics@gmail.com</a> for private communications.</td></tr>
    </tbody></table>
  </ul>
@@ -32,8 +32,8 @@
 
 <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/downloads"><h2><u>Releases</u></h2></a>
 <div class="box">
- <ul>
-   <table width="100%"><tbody><tr><td><a href="https://github.com/infphilo/centrifuge/releases"> Newest release (Github)</a></td></tr>
+  <ul>
+   <table width="100%"><tbody><tr><td><a href="https://github.com/DaehwanKimLab/centrifuge/releases"> Newest release (Github)</a></td></tr>
    </tbody></table>
    <table width="100%"><tbody><tr><td>version 1.0.3-beta (old)</td> <td align="right">12/06/2016</td></tr>
        <tr>
@@ -54,7 +54,10 @@
     <table width="100%"><tr><td>last updated:</td> <td align="right">12/06/2016</td></tr>
       <tr>
         <td>
-	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea, Viruses, Human (compressed)</i></a>
+	   <a href="https://genome-idx.s3.amazonaws.com/centrifuge/p_compressed%2Bh%2Bv.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea, Viruses, Human (compressed)</i></a>
+	  <!--
+ <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea, Viruses, Human (compressed)</i></a>
+-->
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>5.4 GB</b>
@@ -62,7 +65,10 @@
       </tr>
       <tr>
         <td>
+	  <a href="https://genome-idx.s3.amazonaws.com/centrifuge/p%2Bh%2Bv.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Aarchaea, Viruses, Human </i></a>
+	  <!--
 	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p+h+v.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Aarchaea, Viruses, Human </i></a>
+-->
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>7.9 GB</b>
@@ -72,7 +78,10 @@
     <table width="100%"><tr><td>last updated:</td> <td align="right">3/3/2018</td></tr>
       <tr>
         <td>
+	  <a href="https://genome-idx.s3.amazonaws.com/centrifuge/nt_2018_3_3.tar.gz"><i>&nbsp;&nbsp;&nbsp;NCBI nucleotide non-redundant sequences </i></a>
+	  <!--
 	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/nt_2018_3_3.tar.gz"><i>&nbsp;&nbsp;&nbsp;NCBI nucleotide non-redundant sequences </i></a>
+-->
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>64 GB</b>
@@ -82,7 +91,10 @@
     <table width="100%"><tr><td>last updated:</td> <td align="right">4/15/2018</td></tr>
       <tr>
         <td>
+	  <a href="https://genome-idx.s3.amazonaws.com/centrifuge/p_compressed_2018_4_15.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea (compressed)</i></a>
+	  <!--
 	  <a href="ftp://ftp.ccb.jhu.edu/pub/infphilo/centrifuge/data/p_compressed_2018_4_15.tar.gz"><i>&nbsp;&nbsp;&nbsp;Bacteria, Archaea (compressed)</i></a>
+-->
         </td>
 	<td align="right" style="font-size: x-small">
 	  <b>6.3 GB</b>
