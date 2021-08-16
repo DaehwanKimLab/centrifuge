@@ -707,7 +707,8 @@ public:
 		}
 
 		// Calculate average genome size
-		if(!this->_offw) { // Skip if there are many sequences (e.g. >64K)
+		if(1) { //!this->_offw) { // Skip if there are many sequences (e.g. >64K).
+			// Now always compute the genome length.
 			map<uint64_t, uint64_t> tid_count;
 			map<uint64_t, uint64_t> new_size ;
 			
