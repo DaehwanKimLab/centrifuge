@@ -708,7 +708,42 @@ public:
 
 		// Calculate average genome size
 		if(!this->_offw) { // Skip if there are many sequences (e.g. >64K)
-			for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
+			map<uint64_t, uint64_t> tid_count;
+			map<uint64_t, uint64_t> new_size ;
+			
+			for (map<uint64_t, uint64_t>::const_iterator size_itr = _size.begin() ; size_itr != _size.end() ; ++size_itr) {
+				uint64_t c_tid = size_itr->first ;
+				if (_tree.find(c_tid) == _tree.end() || _tree[c_tid].parent_tid == c_tid)	{
+					continue ;
+				}
+				uint64_t add_size = size_itr->second ;
+				const TaxonomyNode& size_node = _tree[c_tid];
+				if (!((size_node.rank == RANK_UNKNOWN && size_node.leaf)
+						|| tax_rank_num[size_node.rank] < tax_rank_num[RANK_SPECIES])
+						|| size_node.parent_tid == c_tid)
+					continue ;
+				c_tid = _tree[c_tid].parent_tid ;
+				while (true) {
+					map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.find(c_tid) ;
+					if(tree_itr == _tree.end())
+						break;
+					const TaxonomyNode& node = tree_itr->second;
+					if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
+							node.rank == RANK_ORDER || node.rank == RANK_CLASS || node.rank == RANK_PHYLUM) {
+						new_size[c_tid] += add_size ;
+						++tid_count[c_tid] ;
+					}
+					if(c_tid == tree_itr->second.parent_tid)
+						break;
+					c_tid = tree_itr->second.parent_tid;
+				}
+			}
+			for (map<uint64_t, uint64_t>::const_iterator count_itr = tid_count.begin() ; count_itr != tid_count.end() ; ++count_itr) {
+				_size[count_itr->first]	= new_size[count_itr->first] / count_itr->second ;
+			}
+
+
+			/*for(map<uint64_t, TaxonomyNode>::const_iterator tree_itr = _tree.begin(); tree_itr != _tree.end(); tree_itr++) {
 				uint64_t tid = tree_itr->first;
 				const TaxonomyNode& node = tree_itr->second;
 				if(node.rank == RANK_SPECIES || node.rank == RANK_GENUS || node.rank == RANK_FAMILY ||
@@ -744,7 +779,7 @@ public:
 						_size[tid] = sum / count;
 					}
 				}
-			}
+			}*/
 		}
 		_paths.buildPaths(_uid_to_tid, _tree);
 
