@@ -1386,7 +1386,7 @@ public:
                 writeIndex<uint64_t>(fout3, tid, this->toBe());
                 tids.insert(tid);
             } else {
-                cerr << "Warning: taxomony id doesn't exists for " << uid << "!" << endl;
+                cerr << "Warning: taxonomy id doesn't exists for " << uid << "!" << endl;
                 writeIndex<uint64_t>(fout3, 0, this->toBe());
             }
         }
