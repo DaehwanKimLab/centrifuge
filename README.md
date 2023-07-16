@@ -25,7 +25,7 @@ For more details on installing and running Centrifuge, look at MANUAL
 ## Quick guide
 ### Installation from source
 
-    git clone https://github.com/infphilo/centrifuge
+    git clone https://github.com/DaehwanKimLab/centrifuge
     cd centrifuge
     make
     sudo make install prefix=/usr/local
