@@ -141,7 +141,7 @@ enum {
  * Print a detailed usage message to the provided output stream.
  */
 static void printUsage(ostream& out) {
-	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by Daehwan Kim (infphilo@gmail.com, http://www.ccb.jhu.edu/people/infphilo)" << endl;
+	out << "Centrifuge version " << string(CENTRIFUGE_VERSION).c_str() << " by the Centrifuge developer team (centrifuge.metagenomics@gmail.com)" << endl;
 	string tool_name = "centrifuge-build-bin";
 	if(wrapper == "basic-0") {
 		tool_name = "centrifuge-build";
@@ -164,7 +164,7 @@ static void printUsage(ostream& out) {
 	    << "    --nodc                  disable diff-cover (algorithm becomes quadratic)" << endl
 	    << "    -r/--noref              don't build .3/.4.bt2 (packed reference) portion" << endl
 	    << "    -3/--justref            just build .3/.4.bt2 (packed reference) portion" << endl
-	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 5)" << endl
+	    << "    -o/--offrate <int>      SA is sampled every 2^offRate BWT chars (default: 4)" << endl
 	    << "    -t/--ftabchars <int>    # of chars consumed in initial lookup (default: 10)" << endl
         << "    --conversion-table <file name>  a table that converts any id to a taxonomy id" << endl
         << "    --taxonomy-tree    <file name>  taxonomy tree" << endl
