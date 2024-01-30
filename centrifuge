@@ -101,7 +101,7 @@ for(0..$#ARGV) {
 	if($ARGV[$_] eq "--") {
 		$saw_dd = 1;
 		next;
-	}
+	} 
 	push @bt2w_args, $ARGV[$_] if !$saw_dd;
 	push @bt2_args,  $ARGV[$_] if  $saw_dd;
 }
@@ -146,8 +146,7 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 	}
 	$arg = $args[0];
 
-	if ( $arg eq "--sample-sheet" )
-	{
+	if ( $arg eq "--sample-sheet" ) {
 		$bt2_args[$i] = undef ;
 		++$i ;
 		$sampleSheetFile = $bt2_args[ $i ] ;
@@ -201,6 +200,15 @@ for(my $i = 0; $i < scalar(@bt2_args); $i++) {
 		$large_idx = 1;
 		$bt2_args[$i] = undef;
 	}
+  
+  if ($arg eq "--temp-directory") {
+    push @bt2w_args, $bt2_args[$i] ;
+    push @bt2w_args, $bt2_args[$i + 1] ;
+    $bt2_args[$i] = undef ;
+    $bt2_args[$i + 1] = undef ;
+    next ;
+  }
+
 	for my $rarg ("un-conc", "al-conc", "un", "al") {
 		if($arg =~ /^--${rarg}$/ || $arg =~ /^--${rarg}-gz$/ || $arg =~ /^--${rarg}-bz2$/) {
 			$needReadSeq = 1 ;
