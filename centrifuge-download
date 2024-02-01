@@ -231,7 +231,7 @@ fi
 export DL_CMD DL_MODE VERBOSE
 
 #### TAXONOMY DOWNLOAD
-FTP="ftp://ftp.ncbi.nih.gov"
+FTP="https://ftp.ncbi.nih.gov"
 if [[ "$DATABASE" == "taxonomy" ]]; then 
   echo "Downloading NCBI taxonomy ... " >&2
   if check_or_mkdir_no_fail "$BASE_DIR"; then
@@ -266,8 +266,8 @@ if [[ "$DATABASE" == "contaminants" ]]; then
         $DL_CMD rsync://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec UniVec.fna
         $DL_CMD rsync://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz emvec.dat.gz
     else
-        $DL_CMD UniVec.fna ftp://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
-        $DL_CMD emvec.dat.gz ftp://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
+        $DL_CMD UniVec.fna https://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
+        $DL_CMD emvec.dat.gz https://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
     fi
     gunzip -c emvec.dat.gz | dat_to_fna > EmVec.fna
  
@@ -315,9 +315,9 @@ TAXID=${TAXID//,/|}
 
 #echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
 if exists wget; then
-    wget -qO- --no-remove-listing ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
+    wget -qO- --no-remove-listing https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
 else
-    curl --disable-epsv -s ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
+    curl --disable-epsv -s https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
 fi
 
 if [[ "$CHANGE_HEADER" == "1" ]]; then
@@ -352,7 +352,7 @@ for DOMAIN in $DOMAINS; do
             exit 1;
         }
     else
-        $DL_CMD "$FULL_ASSEMBLY_SUMMARY_FILE" ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE" || {
+        $DL_CMD "$FULL_ASSEMBLY_SUMMARY_FILE" https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > "$FULL_ASSEMBLY_SUMMARY_FILE" || {
             c_echo "Download failed! Have a look at valid domains at ftp://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
             exit 1;
         }
