@@ -394,7 +394,7 @@ for DOMAIN in $DOMAINS; do
         tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
 
     else
-      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)/\?$#\1/\1_genomic.fna.gz#' |\
          tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
     fi
     echo >&2
