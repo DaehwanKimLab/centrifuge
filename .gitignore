@@ -12,3 +12,6 @@ centrifuge-build-bin
 centrifuge-buildc
 centrifuge-class
 centrifuge-inspect-bin
+/.idea/
+/centrifuge-multi
+*.txt

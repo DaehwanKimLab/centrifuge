@@ -40,6 +40,7 @@
 #include "ds.h"
 #include "read.h"
 #include "util.h"
+#include "gzstream.h"
 
 /**
  * Classes and routines for reading reads from various input sources.
@@ -697,6 +698,11 @@ static inline int peekToEndOfLine(FileBuf& in) {
 	}
 }
 
+static inline bool hasSuffix(const std::string &str, const std::string &suffix) {
+    return str.size() >= suffix.size() &&
+           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
 extern void wrongQualityFormat(const BTString& read_name);
 extern void tooFewQualities(const BTString& read_name);
 extern void tooManyQualities(const BTString& read_name);
@@ -883,20 +889,32 @@ protected:
 	void open() {
 		if(fb_.isOpen()) fb_.close();
 		while(filecur_ < infiles_.size()) {
-			// Open read
-			FILE *in;
-			if(infiles_[filecur_] == "-") {
-				in = stdin;
-			} else if((in = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
-				if(!errs_[filecur_]) {
-					cerr << "Warning: Could not open read file \"" << infiles_[filecur_].c_str() << "\" for reading; skipping..." << endl;
-					errs_[filecur_] = true;
-				}
-				filecur_++;
-				continue;
-			}
-			fb_.newFile(in);
-			return;
+            if (hasSuffix(infiles_[filecur_], ".gz")) {
+                cerr << "Opening handle to gzipped file stream" << endl;
+
+                igzstream *in = new igzstream();
+                in->open(infiles_[filecur_].c_str());
+                fb_.newFile(in);
+                return;
+            }
+            else {
+                // Open read
+                FILE *in;
+                if(infiles_[filecur_] == "-") {
+                    in = stdin;
+                }
+                else if ((in = fopen(infiles_[filecur_].c_str(), "rb")) == NULL) {
+                    if (!errs_[filecur_]) {
+                        cerr << "Warning: Could not open read file \"" << infiles_[filecur_].c_str()
+                             << "\" for reading; skipping..." << endl;
+                        errs_[filecur_] = true;
+                    }
+                    filecur_++;
+                    continue;
+                }
+                fb_.newFile(in);
+                return;
+            }
 		}
 		cerr << "Error: No input read files were valid" << endl;
 		exit(1);
