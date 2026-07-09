@@ -55,10 +55,25 @@ ifneq (,$(findstring Darwin,$(shell uname)))
 	MACOS = 1
 endif
 
+# Detect ARM (aarch64 / Apple-Silicon arm64) so we can gate x86-only
+# SSE/POPCNT/-m flags. Everything x86 stays on its existing path.
+ARM = 0
+ifneq (,$(filter aarch64 arm64 armv8l armv7l arm,$(shell uname -m)))
+	ARM = 1
+endif
+
+# The vendored third_party/ headers are always needed on the include path:
+# on x86 for cpuid.h (POPCNT capability detection), on ARM for sse2neon.h
+# (the SSE2 -> NEON shim).
+INC += -I third_party
+
+# POPCNT is an x86-only instruction; fall back to the portable popcount on ARM.
 POPCNT_CAPABILITY ?= 1
+ifeq (1,$(ARM))
+    POPCNT_CAPABILITY = 0
+endif
 ifeq (1, $(POPCNT_CAPABILITY))
     EXTRA_FLAGS += -DPOPCNT_CAPABILITY
-    INC += -I third_party
 endif
 
 MM_DEF = 
@@ -145,6 +160,10 @@ BITS=32
 ifeq (x86_64,$(shell uname -m))
 BITS=64
 endif
+# 64-bit ARM (aarch64 / Apple-Silicon arm64) is a 64-bit target too.
+ifeq (1,$(ARM))
+BITS=64
+endif
 # msys will always be 32 bit so look at the cpu arch instead.
 ifneq (,$(findstring AMD64,$(PROCESSOR_ARCHITEW6432)))
 	ifeq (1,$(MINGW))
@@ -160,7 +179,18 @@ endif
 ifeq (64,$(BITS))
 	BITS_FLAG = -m64
 endif
-SSE_FLAG=-msse2
+# -m32/-m64 are x86 code-generation flags and are not valid on ARM.
+ifeq (1,$(ARM))
+	BITS_FLAG =
+endif
+
+# -msse2 is x86-only; on ARM the SSE intrinsics are supplied by sse2neon.h
+# (mapped onto NEON), and the ARMv8 baseline already implies NEON.
+ifeq (1,$(ARM))
+SSE_FLAG =
+else
+SSE_FLAG = -msse2
+endif
 
 DEBUG_FLAGS    = -O0 -g3 $(BIToS_FLAG) $(SSE_FLAG) -std=c++11
 DEBUG_DEFS     = -DCOMPILER_OPTIONS="\"$(DEBUG_FLAGS) $(EXTRA_FLAGS)\""
@@ -340,7 +370,7 @@ centrifuge-inspect-bin: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(RELEASE_FLAGS) \
 	$(RELEASE_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
-	$(INC) -I . \
+	$(INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) \
 	$(LIBS) $(INSPECT_LIBS)
@@ -349,7 +379,7 @@ centrifuge-inspect-bin-debug: centrifuge_inspect.cpp $(HEADERS) $(SHARED_CPPS)
 	$(CXX) $(DEBUG_FLAGS) \
 	$(DEBUG_DEFS) $(EXTRA_FLAGS) \
 	$(DEFS) -DCENTRIFUGE -DBOWTIE2 -DBOWTIE_64BIT_INDEX -Wall \
-	$(INC) -I . \
+	$(INC) \
 	-o $@ $< \
 	$(SHARED_CPPS) \
 	$(LIBS) $(INSPECT_LIBS)
