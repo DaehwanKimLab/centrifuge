@@ -10,14 +10,23 @@
 
 // Intel compiler defines __GNUC__, so this is needed to disambiguate
 
-#if defined(__INTEL_COMPILER)
-#   define USING_INTEL_COMPILER
-#elif defined(__GNUC__)
-#   define USING_GCC_COMPILER
-#   include <cpuid.h>
-#elif defined(_MSC_VER)
+// CPUID / POPCNT capability detection is x86-only. On other architectures
+// (e.g. ARM aarch64) there is no cpuid.h and no __cpuid(); POPCNTenabled()
+// returns false and callers use the portable popcount fallback.
+#if defined(__amd64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+#   define PROCESSOR_IS_X86
+#endif
+
+#if defined(PROCESSOR_IS_X86)
+#   if defined(__INTEL_COMPILER)
+#       define USING_INTEL_COMPILER
+#   elif defined(__GNUC__)
+#       define USING_GCC_COMPILER
+#       include <cpuid.h>
+#   elif defined(_MSC_VER)
 // __MSC_VER defined by Microsoft compiler
-#define USING MSC_COMPILER
+#       define USING_MSC_COMPILER
+#   endif
 #endif
 
 struct regs_t {unsigned int EAX, EBX, ECX, EDX;};
@@ -49,8 +58,9 @@ public:
 #elif defined(USING_GCC_COMPILER)
         __get_cpuid(0x1, &regs.EAX, &regs.EBX, &regs.ECX, &regs.EDX);
 #else
-        std::cerr << "ERROR: please define __cpuid() for this build.\n"; 
-        assert(0);
+        // No CPUID available (e.g. non-x86 architecture such as ARM): report
+        // POPCNT as unsupported so the portable popcount fallback is used.
+        return false;
 #endif
         if( !( (regs.ECX & BIT(20)) && (regs.ECX & BIT(23)) ) ) return false;
     }
